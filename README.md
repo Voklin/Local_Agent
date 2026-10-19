@@ -101,3 +101,18 @@ Run regression tests from the project directory:
 - Reopening a chat restores the conversation context sent to the model.
 - Chat history is stored separately from project files; the agent never copies project files into chat storage.
 - File changes still require the v4.3 GUI approval dialog.
+
+## v5.3 — Multi-file Diff Center + Batch Review
+
+- Added a persistent **Центр изменений** in the right inspector.
+- Every proposed file change is tracked with path, status and unified diff.
+- Diff lines are visually distinguished for additions, removals and hunks.
+- Select any change to inspect its diff without reopening the approval dialog.
+- Added **Применить всё** and **Отклонить всё** approval actions. These apply only to subsequent file proposals in the current agent run and do not modify the sandbox/security rules.
+- Added **Копировать diff** and **Очистить** controls.
+- Existing explicit per-file approval remains the default.
+- Sandbox, path validation, overwrite checks and atomic writes are unchanged.
+
+### v5.3 safety model
+
+`Применить всё` does not grant permanent write access. It is a temporary batch decision held only by the current `AgentWorker` run. A new request starts with no batch approval.

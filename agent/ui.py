@@ -60,35 +60,39 @@ class FileChangeDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Подтверждение изменения файла")
         self.setModal(True)
-        self.resize(950, 680)
+        self.resize(1000, 720)
         layout = QVBoxLayout(self)
         action = "Перезаписать существующий файл" if exists else "Создать новый файл"
         title = QLabel(f"<b>{action}</b>")
         title.setStyleSheet("font-size: 15px;")
         layout.addWidget(title)
-        path_label = QLabel(f"Файл: <code>{escape(path)}</code><br><span style='color:#8f96a3'>Проверь diff перед записью.</span>")
+        path_label = QLabel(f"Файл: <code>{escape(path)}</code><br><span style='color:#8f96a3'>Проверь diff перед записью. Batch-действия действуют только на текущий запуск агента.</span>")
         path_label.setWordWrap(True)
         layout.addWidget(path_label)
-        diff_view = QPlainTextEdit()
-        diff_view.setReadOnly(True)
-        diff_view.setPlainText(diff)
+        diff_view = QTextBrowser()
+        diff_view.setOpenExternalLinks(False)
+        diff_view.setHtml(MainWindow.format_diff_html(diff))
         layout.addWidget(diff_view, 1)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
         cancel = QPushButton("Отмена")
         reject = QPushButton("Отклонить")
+        reject_all = QPushButton("Отклонить всё")
+        apply_all = QPushButton("Применить всё")
         apply = QPushButton("Применить")
         apply.setObjectName("Primary")
         cancel.clicked.connect(lambda: self.done(3))
         reject.clicked.connect(lambda: self.done(2))
+        reject_all.clicked.connect(lambda: self.done(5))
+        apply_all.clicked.connect(lambda: self.done(4))
         apply.clicked.connect(lambda: self.done(1))
-        buttons.addWidget(cancel); buttons.addWidget(reject); buttons.addWidget(apply)
+        for button in (cancel, reject, reject_all, apply_all, apply): buttons.addWidget(button)
         layout.addLayout(buttons)
 
     @staticmethod
     def ask(parent, path, diff, exists):
         result = FileChangeDialog(parent, path, diff, exists).exec()
-        return {1: "apply", 2: "reject", 3: "cancel"}.get(result, "cancel")
+        return {1: "apply", 2: "reject", 3: "cancel", 4: "apply_all", 5: "reject_all"}.get(result, "cancel")
 
 
 class SettingsDialog(QDialog):
@@ -98,6 +102,30 @@ class SettingsDialog(QDialog):
         self.resize(520, 380)
         self.parent_window = parent
         layout = QVBoxLayout(self)
+
+        connection = QGroupBox("Локальный сервер / LM Studio")
+        cf = QFormLayout(connection)
+        self.base_url = QLineEdit(parent.base_url.text())
+        self.api_key = QLineEdit(parent.api_key.text())
+        self.api_key.setEchoMode(QLineEdit.EchoMode.Password)
+        model_row = QHBoxLayout()
+        self.model_combo = QComboBox()
+        self.model_combo.setEditable(False)
+        current_model = parent.model.currentText().strip()
+        if current_model:
+            self.model_combo.addItem(current_model)
+        self.model_combo.setCurrentText(current_model)
+        refresh = QPushButton("↻ Обновить")
+        refresh.clicked.connect(self.refresh_models)
+        model_row.addWidget(self.model_combo, 1); model_row.addWidget(refresh)
+        cf.addRow("URL:", self.base_url)
+        cf.addRow("API key:", self.api_key)
+        cf.addRow("Модель:", model_row)
+        hint = QLabel("Список моделей загружается через OpenAI-совместимый endpoint /models. Для LM Studio обычно используется http://127.0.0.1:1234/v1.")
+        hint.setWordWrap(True); hint.setObjectName("Muted")
+        cf.addRow("", hint)
+        layout.addWidget(connection)
+
         group = QGroupBox("Ограничения агента")
         form = QFormLayout(group)
         self.controls = {}
@@ -119,6 +147,28 @@ class SettingsDialog(QDialog):
         cancel.clicked.connect(self.reject); save.clicked.connect(self.accept)
         buttons.addWidget(cancel); buttons.addWidget(save); layout.addLayout(buttons)
 
+    def refresh_models(self):
+        try:
+            client = OpenAI(base_url=self.base_url.text().strip(), api_key=self.api_key.text().strip() or "no-key", timeout=8, max_retries=0)
+            ids = sorted({str(m.id) for m in client.models.list().data if getattr(m, "id", None)})
+            current = self.model_combo.currentText().strip()
+            self.model_combo.blockSignals(True)
+            self.model_combo.clear()
+            self.model_combo.addItems(ids)
+            if current and current not in ids:
+                self.model_combo.addItem(current)
+            if current:
+                self.model_combo.setCurrentText(current)
+            elif ids:
+                self.model_combo.setCurrentIndex(0)
+            self.model_combo.blockSignals(False)
+            if ids:
+                self.parent_window.log_view.appendPlainText("Модели обновлены: " + ", ".join(ids))
+            else:
+                QMessageBox.warning(self, "Модели", "Сервер ответил, но список моделей пуст.")
+        except Exception as exc:
+            QMessageBox.critical(self, "Ошибка получения моделей", f"Не удалось получить список моделей.\n\n{type(exc).__name__}: {exc}")
+
     def values(self):
         return {k: v.value() for k, v in self.controls.items()}
 
@@ -135,8 +185,9 @@ class MainWindow(QMainWindow):
         self.settings_store = QSettings("LocalCodingAgent", "LocalCodingAgent")
         self.current_chat_id = None
         self.current_chat_title = "Новый чат"
-        self._build_ui()
+        self.change_records = []
         self._create_hidden_connection_fields()
+        self._build_ui()
         self._bind_shortcuts()
         self.refresh_chat_list()
         saved_chat_id = self.settings_store.value("chat/current_id", "")
@@ -145,6 +196,8 @@ class MainWindow(QMainWindow):
             if chat:
                 self._load_chat_record(chat, announce=False)
         self._set_status("Готов", "ready")
+        # Populate the model selector automatically from the configured OpenAI-compatible server.
+        self.refresh_models(show_message=False)
 
     def _build_ui(self):
         root = QWidget(); self.setCentralWidget(root)
@@ -164,7 +217,14 @@ class MainWindow(QMainWindow):
         self.chat_title_label = QLabel("Новый чат"); self.chat_title_label.setObjectName("Muted"); layout.addWidget(self.chat_title_label)
         layout.addStretch(1)
         self.project_label = QLabel("Проект: —"); self.project_label.setObjectName("Muted"); layout.addWidget(self.project_label)
-        self.model_label = QLabel("Модель: local-model"); self.model_label.setObjectName("Muted"); layout.addWidget(self.model_label)
+        self.model_selector = QComboBox()
+        self.model_selector.setMinimumWidth(180)
+        self.model_selector.setToolTip("Модель локального сервера")
+        self.model_selector.addItems([self.model.itemText(i) for i in range(self.model.count())])
+        self.model_selector.setCurrentText(self.model.currentText())
+        self.model_selector.currentTextChanged.connect(self._on_model_selected)
+        layout.addWidget(QLabel("Модель:")); layout.addWidget(self.model_selector)
+        refresh_models = QToolButton(); refresh_models.setText("↻"); refresh_models.setToolTip("Получить список моделей с локального сервера"); refresh_models.clicked.connect(lambda: self.refresh_models(show_message=True)); layout.addWidget(refresh_models)
         self.status_label = QLabel("Готов"); self.status_label.setObjectName("StatusReady"); layout.addWidget(self.status_label)
         settings = QToolButton(); settings.setText("⚙"); settings.setToolTip("Настройки агента"); settings.clicked.connect(self.open_settings); layout.addWidget(settings)
         return bar
@@ -194,7 +254,7 @@ class MainWindow(QMainWindow):
         return panel
 
     def _build_inspector(self):
-        panel = QFrame(); panel.setObjectName("Sidebar"); panel.setMinimumWidth(240); panel.setMaximumWidth(360)
+        panel = QFrame(); panel.setObjectName("Sidebar"); panel.setMinimumWidth(300); panel.setMaximumWidth(460)
         layout = QVBoxLayout(panel); layout.setContentsMargins(12, 14, 12, 14)
         title = QLabel("РАБОЧАЯ ОБЛАСТЬ"); title.setObjectName("Muted"); layout.addWidget(title)
         card = QFrame(); card.setObjectName("InspectorCard"); c = QVBoxLayout(card)
@@ -202,14 +262,23 @@ class MainWindow(QMainWindow):
         self.inspector_model = QLabel("Модель: local-model"); self.inspector_model.setObjectName("Muted"); c.addWidget(self.inspector_model)
         self.inspector_sandbox = QLabel("🔒 Sandbox включён\nФайлы доступны только внутри выбранного проекта."); self.inspector_sandbox.setWordWrap(True); c.addWidget(self.inspector_sandbox)
         layout.addWidget(card)
+
         changes = QFrame(); changes.setObjectName("InspectorCard"); ch = QVBoxLayout(changes)
-        ch.addWidget(QLabel("ИЗМЕНЕНИЯ")); self.changes_label = QLabel("Нет ожидающих изменений"); self.changes_label.setObjectName("Muted"); self.changes_label.setWordWrap(True); ch.addWidget(self.changes_label)
-        layout.addWidget(changes)
+        header = QHBoxLayout(); header.addWidget(QLabel("ЦЕНТР ИЗМЕНЕНИЙ")); header.addStretch(1)
+        self.changes_count = QLabel("0"); self.changes_count.setObjectName("Status"); header.addWidget(self.changes_count); ch.addLayout(header)
+        self.changes_list = QListWidget(); self.changes_list.setMinimumHeight(170); self.changes_list.itemClicked.connect(self.show_change_diff); ch.addWidget(self.changes_list)
+        self.change_diff_view = QTextBrowser(); self.change_diff_view.setPlaceholderText("Выберите файл, чтобы посмотреть diff"); self.change_diff_view.setMinimumHeight(220); ch.addWidget(self.change_diff_view, 1)
+        row = QHBoxLayout()
+        clear = QPushButton("Очистить"); clear.clicked.connect(self.clear_changes)
+        copy_btn = QPushButton("Копировать diff"); copy_btn.clicked.connect(self.copy_selected_diff)
+        row.addWidget(clear); row.addWidget(copy_btn); ch.addLayout(row)
+        layout.addWidget(changes, 1)
+
         tools = QFrame(); tools.setObjectName("InspectorCard"); t = QVBoxLayout(tools); t.addWidget(QLabel("ДИАГНОСТИКА"))
         connection = QPushButton("Проверить подключение"); connection.clicked.connect(self.test_connection); t.addWidget(connection)
         tool_test = QPushButton("Проверить tool calling"); tool_test.clicked.connect(self.test_tool_calling); t.addWidget(tool_test)
         sandbox = QPushButton("🔒 Проверить sandbox"); sandbox.clicked.connect(self.test_sandbox); t.addWidget(sandbox)
-        layout.addWidget(tools); layout.addStretch(1)
+        layout.addWidget(tools)
         return panel
 
     def _build_composer(self):
@@ -246,14 +315,24 @@ class MainWindow(QMainWindow):
         self.project_label.setText(f"Проект: {Path(project).name or project}")
         self.sidebar_project.setText(project)
         self.inspector_project.setText(project)
-        self.model_label.setText(f"Модель: {self.model.text()}")
-        self.inspector_model.setText(f"Модель: {self.model.text()}")
+        if hasattr(self, "model_selector"):
+            self.model_selector.blockSignals(True)
+            self.model_selector.clear()
+            self.model_selector.addItems([self.model.itemText(i) for i in range(self.model.count())])
+            self.model_selector.setCurrentText(self.model.currentText())
+            self.model_selector.blockSignals(False)
+        self.inspector_model.setText(f"Модель: {self.model.currentText() or 'не выбрана'}")
         self.chat_title_label.setText(self.current_chat_title)
 
     def _create_hidden_connection_fields(self):
         self.base_url = QLineEdit(self.settings_store.value("connection/base_url", "http://127.0.0.1:8080/v1"))
         self.api_key = QLineEdit(self.settings_store.value("connection/api_key", "no-key"))
-        self.model = QLineEdit(self.settings_store.value("connection/model", "local-model"))
+        self.model = QComboBox()
+        self.model.setEditable(False)
+        saved_model = str(self.settings_store.value("connection/model", ""))
+        if saved_model:
+            self.model.addItem(saved_model)
+        self.model.setCurrentText(saved_model)
         self.project_path = QLineEdit(self.settings_store.value("project/path", str(Path.home())))
         self.project_path.setReadOnly(True)
 
@@ -271,9 +350,15 @@ class MainWindow(QMainWindow):
     def open_settings(self):
         dialog = SettingsDialog(self)
         if dialog.exec():
+            self.base_url.setText(dialog.base_url.text().strip())
+            self.api_key.setText(dialog.api_key.text())
+            self._set_model(dialog.model_combo.currentText().strip())
+            self.settings_store.setValue("connection/base_url", self.base_url.text())
+            self.settings_store.setValue("connection/api_key", self.api_key.text())
             for key, value in dialog.values().items(): self.settings_store.setValue(f"limits/{key}", value)
             self.settings_store.sync()
-            self.log_view.appendPlainText("Agent limits saved.")
+            self._update_context_labels()
+            self.log_view.appendPlainText("Connection and agent settings saved.")
 
     def choose_project(self):
         current = getattr(self, "project_path", QLineEdit(str(Path.home()))).text()
@@ -284,13 +369,55 @@ class MainWindow(QMainWindow):
             self._update_context_labels()
             self.inspector_sandbox.setText("🔒 Sandbox включён\nФайлы доступны только внутри выбранного проекта.")
 
+    def _on_model_selected(self, model_id):
+        if model_id:
+            self._set_model(model_id)
+
+    def _set_model(self, model_id):
+        model_id = str(model_id).strip()
+        if not model_id:
+            return
+        if self.model.findText(model_id) < 0:
+            self.model.addItem(model_id)
+        self.model.setCurrentText(model_id)
+        self.settings_store.setValue("connection/model", model_id)
+        self._update_context_labels()
+
+    def refresh_models(self, show_message=False):
+        try:
+            client = OpenAI(base_url=self.base_url.text().strip(), api_key=self.api_key.text().strip() or "no-key", timeout=8, max_retries=0)
+            ids = sorted({str(m.id) for m in client.models.list().data if getattr(m, "id", None)})
+            current = self.model.currentText().strip()
+            self.model.blockSignals(True)
+            self.model.clear()
+            self.model.addItems(ids)
+            if current and current not in ids:
+                self.model.addItem(current)
+            if current and current in [self.model.itemText(i) for i in range(self.model.count())]:
+                self.model.setCurrentText(current)
+            elif ids:
+                self.model.setCurrentIndex(0)
+            self.model.blockSignals(False)
+            if ids:
+                self._set_model(self.model.currentText())
+                self.log_view.appendPlainText("Модели сервера: " + ", ".join(ids))
+                if show_message:
+                    QMessageBox.information(self, "Модели", f"Найдено моделей: {len(ids)}")
+            elif show_message:
+                QMessageBox.warning(self, "Модели", "Список моделей пуст.")
+            return ids
+        except Exception as exc:
+            self.log_view.appendPlainText(f"Ошибка получения моделей: {type(exc).__name__}: {exc}")
+            if show_message:
+                QMessageBox.critical(self, "Ошибка получения моделей", f"{type(exc).__name__}: {exc}")
+            return []
+
     def test_connection(self):
         try:
             client = OpenAI(base_url=self.base_url.text().strip(), api_key=self.api_key.text().strip() or "no-key", timeout=15, max_retries=0)
-            models = client.models.list(); ids = [m.id for m in models.data]
+            models = client.models.list(); ids = sorted({str(m.id) for m in models.data if getattr(m, "id", None)})
             self.log_view.appendPlainText("Connection OK. Models: " + (", ".join(ids) if ids else "(none)"))
-            if ids and self.model.text().strip() in ("", "local-model"):
-                self.model.setText(ids[0]); self.settings_store.setValue("connection/model", ids[0]); self._update_context_labels()
+            self.refresh_models(show_message=False)
             self._set_status("Подключено", "ready")
             QMessageBox.information(self, "Подключение", "Подключение успешно.")
         except Exception as exc:
@@ -315,7 +442,7 @@ class MainWindow(QMainWindow):
         if self.worker and self.worker.isRunning():
             QMessageBox.warning(self, "Агент занят", "Дождитесь завершения или нажмите «Остановить»."); return
         self._save_current_chat()
-        chat = create_chat(self.project_path.text(), self.model.text().strip())
+        chat = create_chat(self.project_path.text(), self.model.currentText().strip())
         self.current_chat_id = chat["id"]; self.current_chat_title = chat["title"]; self.conversation_history = []
         self.settings_store.setValue("chat/current_id", self.current_chat_id); self.settings_store.sync()
         self.render_history(); self.refresh_chat_list(select_id=self.current_chat_id); self._update_context_labels(); self._set_status("Готов", "ready")
@@ -326,10 +453,10 @@ class MainWindow(QMainWindow):
         if not root.is_dir(): QMessageBox.warning(self, "Проект", "Выберите существующую папку проекта."); return
         if use_history:
             if not self.current_chat_id:
-                chat = create_chat(str(root.resolve()), self.model.text().strip()); self.current_chat_id = chat["id"]
+                chat = create_chat(str(root.resolve()), self.model.currentText().strip()); self.current_chat_id = chat["id"]
             self._save_current_chat(extra_message={"role": "user", "content": prompt})
-        self.settings_store.setValue("connection/base_url", self.base_url.text()); self.settings_store.setValue("connection/api_key", self.api_key.text()); self.settings_store.setValue("connection/model", self.model.text()); self.settings_store.sync()
-        self.worker = AgentWorker(self.base_url.text().strip(), self.api_key.text().strip() or "no-key", self.model.text().strip(), str(root.resolve()), prompt, force_tool, settings=self.current_limits(), history=self.conversation_history if use_history else [])
+        self.settings_store.setValue("connection/base_url", self.base_url.text()); self.settings_store.setValue("connection/api_key", self.api_key.text()); self.settings_store.setValue("connection/model", self.model.currentText()); self.settings_store.sync()
+        self.worker = AgentWorker(self.base_url.text().strip(), self.api_key.text().strip() or "no-key", self.model.currentText().strip(), str(root.resolve()), prompt, force_tool, settings=self.current_limits(), history=self.conversation_history if use_history else [])
         self.worker.chat.connect(self.on_chat); self.worker.log.connect(self.log_view.appendPlainText); self.worker.failed.connect(self.on_failed); self.worker.finished_text.connect(lambda _: self.log_view.appendPlainText("Agent turn finished.")); self.worker.progress.connect(self.on_progress)
         if use_history: self.worker.conversation_updated.connect(self.update_conversation_history)
         self.worker.write_approval_requested.connect(self.confirm_file_change, Qt.ConnectionType.BlockingQueuedConnection); self.worker.finished.connect(self.on_worker_finished)
@@ -341,10 +468,10 @@ class MainWindow(QMainWindow):
     def _save_current_chat(self, extra_message=None):
         if not self.current_chat_id: return
         chat = load_chat(self.current_chat_id)
-        if not chat: chat = create_chat(self.project_path.text(), self.model.text().strip()); self.current_chat_id = chat["id"]
+        if not chat: chat = create_chat(self.project_path.text(), self.model.currentText().strip()); self.current_chat_id = chat["id"]
         messages = list(self.conversation_history)
         if extra_message is not None and (not messages or messages[-1] != extra_message): messages.append(extra_message)
-        chat["messages"] = messages; chat["project_root"] = self.project_path.text(); chat["model"] = self.model.text().strip()
+        chat["messages"] = messages; chat["project_root"] = self.project_path.text(); chat["model"] = self.model.currentText().strip()
         if messages: chat["title"] = title_from_messages(messages); self.current_chat_title = chat["title"]
         save_chat(chat); self.settings_store.setValue("chat/current_id", self.current_chat_id); self.settings_store.sync(); self._update_context_labels()
 
@@ -366,7 +493,7 @@ class MainWindow(QMainWindow):
     def _load_chat_record(self, chat, announce=True):
         self._save_current_chat(); self.current_chat_id = chat["id"]; self.current_chat_title = chat.get("title", "Новый чат"); self.conversation_history = list(chat.get("messages", []))
         if chat.get("project_root") and Path(chat["project_root"]).is_dir(): self.project_path.setText(str(Path(chat["project_root"]).resolve()))
-        if chat.get("model"): self.model.setText(chat["model"])
+        if chat.get("model"): self._set_model(chat["model"])
         self.settings_store.setValue("chat/current_id", self.current_chat_id); self.settings_store.sync(); self.render_history(); self.refresh_chat_list(select_id=self.current_chat_id); self._update_context_labels()
         if announce: self.log_view.appendPlainText(f"=== Открыт чат: {self.current_chat_title} ===")
 
@@ -405,10 +532,76 @@ class MainWindow(QMainWindow):
     def stop_agent(self):
         if self.worker and self.worker.isRunning(): self.worker.requestInterruption(); self.stop_btn.setEnabled(False); self.log_view.appendPlainText("Stop requested…")
 
+    @staticmethod
+    def format_diff_html(diff):
+        if not diff:
+            return "<span style='color:#8f96a3'>Нет diff</span>"
+        parts = []
+        for line in diff.splitlines():
+            safe = escape(line) or "&nbsp;"
+            if line.startswith("+++") or line.startswith("---"):
+                cls = "#7fb3ff"
+            elif line.startswith("+"):
+                cls = "#79d99a"
+            elif line.startswith("-"):
+                cls = "#ff8d8d"
+            elif line.startswith("@@"):
+                cls = "#d7a8ff"
+            else:
+                cls = "#c7ccd5"
+            parts.append(f"<div style='color:{cls};font-family:Consolas,monospace;white-space:pre'>{safe}</div>")
+        return "".join(parts)
+
+    def add_change_event(self, event):
+        record = dict(event)
+        self.change_records.append(record)
+        # Update an existing record for the same path when the worker moves pending -> applied/rejected.
+        matches = [i for i, r in enumerate(self.change_records[:-1]) if r.get("path") == record.get("path") and r.get("status") == "pending"]
+        if matches and record.get("status") != "pending":
+            idx = matches[-1]
+            self.change_records[idx] = record
+            self.change_records.pop()
+        self.refresh_change_center(select_path=record.get("path"))
+
+    def refresh_change_center(self, select_path=None):
+        self.changes_list.blockSignals(True); self.changes_list.clear()
+        icons = {"pending": "●", "applied": "✓", "rejected": "✕", "cancelled": "⏹", "error": "!"}
+        for record in self.change_records:
+            status = record.get("status", "")
+            item = QListWidgetItem(f"{icons.get(status, '•')}  {record.get('path', '')}")
+            item.setData(Qt.ItemDataRole.UserRole, record)
+            item.setToolTip(record.get("error", "") or status)
+            self.changes_list.addItem(item)
+        self.changes_count.setText(str(len(self.change_records)))
+        selected = None
+        for i in range(self.changes_list.count()):
+            item = self.changes_list.item(i)
+            if select_path and item.data(Qt.ItemDataRole.UserRole).get("path") == select_path:
+                selected = item; break
+        if selected:
+            self.changes_list.setCurrentItem(selected); self.show_change_diff(selected)
+        self.changes_list.blockSignals(False)
+
+    def show_change_diff(self, item):
+        if not item: return
+        record = item.data(Qt.ItemDataRole.UserRole) or {}
+        self.change_diff_view.setHtml(self.format_diff_html(record.get("diff", "")))
+
+    def clear_changes(self):
+        if self.worker and self.worker.isRunning():
+            QMessageBox.information(self, "Центр изменений", "Очистка доступна после завершения текущего запроса."); return
+        self.change_records.clear(); self.refresh_change_center(); self.change_diff_view.clear()
+
+    def copy_selected_diff(self):
+        item = self.changes_list.currentItem()
+        if not item: return
+        record = item.data(Qt.ItemDataRole.UserRole) or {}
+        QApplication.clipboard().setText(record.get("diff", ""))
+        self.log_view.appendPlainText(f"DIFF COPIED: {record.get('path', '')}")
+
     def confirm_file_change(self, path, diff, exists):
         decision = FileChangeDialog.ask(self, path, diff, exists)
         if self.worker: self.worker.resolve_write_approval(decision)
-        self.changes_label.setText({"apply": "Изменение применено: " + path, "reject": "Изменение отклонено: " + path, "cancel": "Изменение отменено: " + path}[decision])
         self.log_view.appendPlainText(f"WRITE {decision.upper()}: {path}")
 
     def on_progress(self, count, maximum): self.stop_btn.setText(f"Остановить ({count}/{maximum})")

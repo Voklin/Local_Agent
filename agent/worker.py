@@ -29,6 +29,8 @@ class AgentWorker(QThread):
     progress = Signal(int, int)
     write_approval_requested = Signal(str, str, bool)
     conversation_updated = Signal(object)
+    # v5.3: emitted for every proposed/processed file change so the UI can keep a multi-file review history.
+    change_event = Signal(object)
 
     def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None):
         super().__init__()
@@ -38,11 +40,14 @@ class AgentWorker(QThread):
         self.settings = {**DEFAULT_SETTINGS, **(settings or {})}
         self._approval_lock = threading.Lock()
         self._approval_event = None
-        self._approval_result = False
+        self._approval_result = "reject"
+        # Applies/rejects all subsequent write proposals in the current worker run.
+        self._batch_decision = None
 
     def resolve_write_approval(self, decision):
-        """Receive Apply/Reject/Cancel from the GUI without a chat message."""
-        if decision not in ("apply", "reject", "cancel"):
+        """Receive Apply/Reject/Cancel (or batch variants) from the GUI without a chat message."""
+        allowed = ("apply", "reject", "cancel", "apply_all", "reject_all")
+        if decision not in allowed:
             decision = "reject"
         with self._approval_lock:
             self._approval_result = decision
@@ -51,6 +56,9 @@ class AgentWorker(QThread):
             event.set()
 
     def _ask_write_approval(self, path, diff, exists):
+        # Batch decision is scoped to this agent run only; it never changes sandbox/security rules.
+        if self._batch_decision in ("apply_all", "reject_all"):
+            return "apply" if self._batch_decision == "apply_all" else "reject"
         event = threading.Event()
         with self._approval_lock:
             self._approval_event = event
@@ -62,9 +70,21 @@ class AgentWorker(QThread):
         with self._approval_lock:
             decision = self._approval_result
             self._approval_event = None
+        if decision in ("apply_all", "reject_all"):
+            self._batch_decision = decision
+            return "apply" if decision == "apply_all" else "reject"
         if self.isInterruptionRequested():
             return "cancel"
         return decision
+
+    def _emit_change(self, path, diff, exists, status, error=""):
+        self.change_event.emit({
+            "path": path,
+            "diff": diff,
+            "exists": bool(exists),
+            "status": status,
+            "error": error,
+        })
 
     def run(self):
         try:
@@ -135,11 +155,7 @@ class AgentWorker(QThread):
                         messages.append({"role": "assistant", "content": content})
                     break
 
-                messages.append({
-                    "role": "assistant",
-                    "content": content or None,
-                    "tool_calls": tool_calls,
-                })
+                messages.append({"role": "assistant", "content": content or None, "tool_calls": tool_calls})
                 hit_limit = False
                 for call in tool_calls:
                     if self.isInterruptionRequested():
@@ -164,30 +180,24 @@ class AgentWorker(QThread):
                             preview = preview_file_change(self.project_root, args.get("path", ""), args.get("content", ""))
                             if not preview.get("ok"):
                                 result = preview
+                                self._emit_change(args.get("path", ""), "", False, "error", preview.get("error", ""))
                             elif preview.get("exists") and not bool(args.get("overwrite", False)):
                                 result = {"ok": False, "error": "Target exists but overwrite=false; no changes made"}
+                                self._emit_change(preview["path"], preview["diff"], preview["exists"], "rejected", result["error"])
                             else:
-                                decision = self._ask_write_approval(
-                                    preview["path"], preview["diff"], preview["exists"]
-                                )
+                                self._emit_change(preview["path"], preview["diff"], preview["exists"], "pending")
+                                decision = self._ask_write_approval(preview["path"], preview["diff"], preview["exists"])
                                 if decision == "apply":
-                                    result = execute_tool(
-                                        name, args, self.project_root, self.settings, approved=True
-                                    )
+                                    result = execute_tool(name, args, self.project_root, self.settings, approved=True)
+                                    self._emit_change(preview["path"], preview["diff"], preview["exists"], "applied" if result.get("ok") else "error", result.get("error", ""))
                                 elif decision == "cancel":
-                                    result = {
-                                        "ok": False,
-                                        "error": "User cancelled the proposed file change; no changes made",
-                                        "code": "USER_CANCELLED",
-                                    }
+                                    result = {"ok": False, "error": "User cancelled the proposed file change; no changes made", "code": "USER_CANCELLED"}
+                                    self._emit_change(preview["path"], preview["diff"], preview["exists"], "cancelled", result["error"])
                                     stop_reason = "Остановлено пользователем: изменение файла отменено."
                                     hit_limit = True
                                 else:
-                                    result = {
-                                        "ok": False,
-                                        "error": "User denied the proposed file change; no changes made",
-                                        "code": "USER_DENIED",
-                                    }
+                                    result = {"ok": False, "error": "User denied the proposed file change; no changes made", "code": "USER_DENIED"}
+                                    self._emit_change(preview["path"], preview["diff"], preview["exists"], "rejected", result["error"])
                         else:
                             result = execute_tool(name, args, self.project_root, self.settings)
                     tool_calls_count += 1
