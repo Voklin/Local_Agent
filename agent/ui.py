@@ -220,7 +220,7 @@ class SettingsDialog(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
         self.setWindowTitle("Настройки агента")
-        self.resize(520, 380)
+        self.resize(620, 650)
         self.parent_window = parent
         layout = QVBoxLayout(self)
 
@@ -250,27 +250,54 @@ class SettingsDialog(QDialog):
         group = QGroupBox("Ограничения агента")
         form = QFormLayout(group)
         self.controls = {}
+        self.profile_combo = QComboBox()
+        self.profile_combo.addItems(["Текущие настройки", "Большой проект", "Длительная задача"])
+        form.addRow("Профиль:", self.profile_combo)
         for key, label, minimum, maximum, step in [
-            ("max_tool_calls", "Вызовов инструментов за запрос", 1, 100, 1),
-            ("max_consecutive_errors", "Ошибок подряд", 1, 20, 1),
-            ("max_tokens", "Максимум токенов ответа", 64, 16384, 64),
-            ("max_entries", "Записей в списке файлов", 10, 5000, 10),
-            ("max_search_depth", "Глубина поиска", 1, 30, 1),
-            ("max_agent_turns", "Максимум циклов модели за запрос", 1, 50, 1),
+            ("max_tool_calls", "Вызовов инструментов за задачу", 1, 10000, 10),
+            ("max_consecutive_errors", "Ошибок подряд до остановки", 1, 50, 1),
+            ("max_tokens", "Максимум токенов одного ответа модели", 256, 32768, 256),
+            ("max_entries", "Записей в списке файлов", 10, 20000, 100),
+            ("max_search_depth", "Глубина поиска по проекту", 1, 100, 1),
+            ("max_agent_turns", "Циклов модели за задачу", 1, 500, 10),
+            ("max_context_chars", "Размер рабочего контекста (символы)", 12000, 500000, 10000),
+            ("max_runtime_minutes", "Максимальное время одной задачи (мин)", 5, 1440, 15),
         ]:
             spin = QSpinBox(); spin.setRange(minimum, maximum); spin.setSingleStep(step)
             spin.setValue(parent.settings_store.value(f"limits/{key}", DEFAULT_SETTINGS[key], type=int))
             self.controls[key] = spin; form.addRow(label, spin)
+        self.profile_combo.currentTextChanged.connect(self.apply_limit_profile)
         layout.addWidget(group)
         self.auto_memory = QCheckBox("Автоматически обновлять память проекта после успешного ответа")
         self.auto_memory.setChecked(parent.settings_store.value("memory/auto_update", True, type=bool))
         layout.addWidget(self.auto_memory)
-        note = QLabel("Память хранится отдельно для каждого проекта. Автообновление не сохраняет сырой вывод инструментов или содержимое файлов. Система разрешений и sandbox остаются без изменений.")
+        note = QLabel("Большие проекты: увеличивайте циклы, вызовы инструментов, контекст и время выполнения. Рабочий контекст автоматически сжимается по мере роста; полная история чата сохраняется. Повтор одного и того же вызова 6 раз подряд останавливается как вероятный цикл. Память проекта хранится отдельно. Sandbox и подтверждение записи не ослабляются.")
         note.setWordWrap(True); note.setObjectName("Muted"); layout.addWidget(note)
         buttons = QHBoxLayout(); buttons.addStretch(1)
         cancel = QPushButton("Отмена"); save = QPushButton("Сохранить"); save.setObjectName("Primary")
         cancel.clicked.connect(self.reject); save.clicked.connect(self.accept)
         buttons.addWidget(cancel); buttons.addWidget(save); layout.addLayout(buttons)
+
+    def apply_limit_profile(self, profile):
+        """Apply a coherent set of limits; choosing current settings never overwrites values."""
+        profiles = {
+            "Большой проект": {
+                "max_tool_calls": 1000, "max_consecutive_errors": 8, "max_tokens": 8192,
+                "max_entries": 5000, "max_search_depth": 30, "max_agent_turns": 200,
+                "max_context_chars": 100000, "max_runtime_minutes": 180,
+            },
+            "Длительная задача": {
+                "max_tool_calls": 5000, "max_consecutive_errors": 12, "max_tokens": 16384,
+                "max_entries": 15000, "max_search_depth": 60, "max_agent_turns": 500,
+                "max_context_chars": 250000, "max_runtime_minutes": 720,
+            },
+        }
+        values = profiles.get(profile)
+        if not values:
+            return
+        for key, value in values.items():
+            if key in self.controls:
+                self.controls[key].setValue(value)
 
     def refresh_models(self):
         try:
