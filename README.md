@@ -1,26 +1,43 @@
-# Local Coding Agent v5.6.7 — Adaptive Limits
+# Local Coding Agent v5.6.8 — Task Checkpoints + UI/UX
 
-Windows GUI local coding agent. Based on the user's confirmed working v5.6.6.
+Windows GUI local coding agent for OpenAI-compatible local servers such as LM Studio.
 
-## What's new
+## What's new in v5.6.8
 
-- Higher limits for long coding tasks: up to 500 model cycles, 10,000 tool calls, 32,768 response tokens, 500,000 context characters, and 24 hours per task.
-- Settings profiles: **Большой проект** and **Длительная задача**.
-- Live model context is compacted between model requests while the canonical conversation transcript remains intact for chat history.
-- Tool-call/result pairs are preserved during context compaction.
-- Runtime limit and repeated identical tool-call loop detection.
-- Tool-call limit returns explicit tool results instead of leaving dangling tool calls in the transcript.
-- Existing sandbox, allowed-root restrictions, write approval, editor, Diff Viewer, memory, and model selection remain in place.
+### Task planner and checkpoints
+- Every chat task gets a persistent five-stage plan:
+  **Анализ → Исследование → Реализация → Проверка → Завершение**.
+- The current stage, model cycle, tool-call count and last event are saved outside the project.
+- If the agent is stopped, hits a limit, or fails unexpectedly, the task becomes **Приостановлена** instead of being lost.
+- **Продолжить** resumes the task from the same chat and asks the agent to inspect the current project state before continuing.
+- **Сбросить** removes only the task checkpoint; chat history remains intact.
+- No project source code or raw tool output is stored in the checkpoint.
+
+### UI/UX
+- Redesigned workspace hierarchy with clearer chat/project context.
+- New persistent task card in the right inspector.
+- Stage progress, live status and last checkpoint event are visible while the agent works.
+- Resume/reset actions are available without typing confirmation into the chat.
+- Existing editor, Diff Viewer, change center, project memory, model selector and diagnostics are preserved.
+- Approval workflow remains unchanged: file writes still require explicit GUI approval.
+- Sandbox/security rules are unchanged.
+
+## Existing capabilities retained
+- Persistent chat history.
+- Separate project memory outside project folders.
+- Adaptive limits for large/long-running projects.
+- Bounded live model context with preserved tool-call pairs.
+- File tree, syntax-highlighted editor, line numbers, search, Ctrl+S, go-to-line and reload.
+- Side-by-side Diff Viewer with synchronized scrolling and change navigation.
+- Automatic model discovery through the OpenAI-compatible models endpoint.
+- Sandbox self-tests.
 
 ## Run
-
-1. Extract the ZIP to a new folder.
-2. Install dependencies: `python -m pip install -r requirements.txt`
+1. Extract the ZIP.
+2. `python -m pip install -r requirements.txt`
 3. Run `run.bat`.
-4. Open Settings → choose **Большой проект** for normal large repositories or **Длительная задача** for extended tasks, then save.
+4. Configure LM Studio / OpenAI-compatible URL and select a model in Settings.
 
 ## Validation
-
-- `python -m py_compile agent/*.py main.py` — passed.
-- `python -m unittest discover -s tests -v` — 27 passed, 1 skipped because PySide6 is unavailable in the build environment.
-- The GUI was not launched in this build environment; please verify it on Windows with your LM Studio model.
+- Python bytecode compilation and unit tests are included in the release validation.
+- GUI should be smoke-tested on Windows with PySide6 and a running LM Studio server.

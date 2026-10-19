@@ -8,6 +8,7 @@ from PySide6.QtCore import QThread, Signal
 from openai import OpenAI
 from .tools import TOOL_DEFINITIONS, execute_tool
 from .project_memory import format_memory_context, merge_memory_update, save_project_memory
+from .task_store import new_task, save_task, set_stage, finish_task
 
 SYSTEM_PROMPT = """Ты локальный помощник по программированию. Отвечай по-русски, если пользователь пишет по-русски.
 Для фактов о проекте используй инструменты, а не угадывай. Доступны только файлы внутри выбранной пользователем корневой директории.
@@ -38,11 +39,13 @@ class AgentWorker(QThread):
     # v5.3: emitted for every proposed/processed file change so the UI can keep a multi-file review history.
     change_event = Signal(object)
     memory_updated = Signal(object)
+    task_updated = Signal(object)
 
-    def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True):
+    def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None):
         super().__init__()
         self.base_url, self.api_key, self.model = base_url, api_key, model
         self.project_root, self.prompt, self.force_tool = project_root, prompt, force_tool
+        self.task_id = str(task_id or '')
         self.history = list(history or [])
         self.memory = dict(memory or {})
         self.auto_memory = bool(auto_memory)
@@ -53,6 +56,17 @@ class AgentWorker(QThread):
         self._approval_result = "reject"
         # Applies/rejects all subsequent write proposals in the current worker run.
         self._batch_decision = None
+        self._task = new_task(self.task_id, self.project_root, self.prompt) if self.task_id else None
+
+    def _checkpoint(self, stage=None, event=''):
+        if not self._task:
+            return
+        if stage:
+            set_stage(self._task, stage, 'active', event)
+        if event:
+            self._task['last_event'] = str(event)[:500]
+        saved = save_task(self._task)
+        self.task_updated.emit(saved)
 
     def resolve_write_approval(self, decision):
         """Receive Apply/Reject/Cancel (or batch variants) from the GUI without a chat message."""
@@ -167,8 +181,12 @@ class AgentWorker(QThread):
             repeated_tool_signature_count = 0
             continuation_attempts = 0
             action_request = self._looks_like_action_request(self.prompt)
+            self._checkpoint('analysis', 'Агент анализирует задачу')
 
             for turn in range(max_agent_turns):
+                if self._task:
+                    self._task['turn'] = turn + 1
+                    self._checkpoint(None, f'Цикл модели {turn + 1}')
                 if time.monotonic() - started_at >= max_runtime_seconds:
                     stop_reason = f"Остановлено: достигнут лимит времени ({max_runtime_seconds // 60} мин). Контекст и история сохранены."
                     break
@@ -225,6 +243,7 @@ class AgentWorker(QThread):
                     final = content
                     self.chat.emit("assistant", content)
                 if not tool_calls:
+                    self._checkpoint('verification', 'Проверка результата и завершённости задачи')
                     if content:
                         messages.append({"role": "assistant", "content": content})
                     # Local models sometimes return a project summary or a progress note as if it
@@ -317,6 +336,9 @@ class AgentWorker(QThread):
                             else:
                                 result = execute_tool(name, args, self.project_root, self.settings)
                     tool_calls_count += 1
+                    if self._task:
+                        self._task['tool_calls'] = tool_calls_count
+                        self._checkpoint(None, f'Выполнено вызовов инструментов: {tool_calls_count}')
                     self.progress.emit(tool_calls_count, max_tool_calls)
                     pretty = json.dumps(result, ensure_ascii=False, indent=2)
                     self.log.emit(f"TOOL RESULT: {pretty[:12000]}")
@@ -400,6 +422,15 @@ class AgentWorker(QThread):
                 except Exception as memory_exc:
                     # Memory is optional; its failure must never fail a normal agent request.
                     self.log.emit(f"Память проекта не обновлена: {type(memory_exc).__name__}: {memory_exc}")
+            if self._task:
+                if stop_reason:
+                    self._task['status'] = 'paused'
+                    self._task['stop_reason'] = stop_reason
+                    self._checkpoint(None, stop_reason)
+                    self.task_updated.emit(save_task(self._task))
+                else:
+                    self._checkpoint('finish', 'Финальный ответ сформирован')
+                    self.task_updated.emit(finish_task(self._task, 'completed'))
             self.conversation_updated.emit(messages[1:])
             self.finished_text.emit(final)
         except Exception as exc:
@@ -407,4 +438,8 @@ class AgentWorker(QThread):
                 self.chat.emit("system", "Остановлено пользователем.")
                 self.finished_text.emit("Остановлено пользователем.")
             else:
+                if self._task:
+                    self._task['status'] = 'paused'
+                    self._task['stop_reason'] = f'{type(exc).__name__}: {exc}'
+                    self.task_updated.emit(save_task(self._task))
                 self.failed.emit(f"{type(exc).__name__}: {exc}")

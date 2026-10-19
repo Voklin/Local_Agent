@@ -8,13 +8,14 @@ from PySide6.QtWidgets import (
     QPushButton, QFileDialog, QTextBrowser, QPlainTextEdit, QMessageBox,
     QSplitter, QSpinBox, QGroupBox, QFormLayout, QDialog, QListWidget,
     QListWidgetItem, QInputDialog, QFrame, QToolButton, QComboBox, QTextEdit,
-    QSizePolicy, QApplication, QCheckBox, QTabWidget, QTreeWidget, QTreeWidgetItem
+    QSizePolicy, QApplication, QCheckBox, QTabWidget, QTreeWidget, QTreeWidgetItem, QProgressBar
 )
 from openai import OpenAI
 from .worker import AgentWorker, DEFAULT_SETTINGS
 from .tools import run_sandbox_self_test
 from .chat_store import list_chats, create_chat, load_chat, save_chat, delete_chat, rename_chat, title_from_messages
 from .project_memory import load_project_memory, save_project_memory, clear_project_memory
+from .task_store import load_task, clear_task
 from .security import resolve_allowed_path, AccessDenied
 from .editor_io import read_project_text, save_project_text, MAX_EDITOR_FILE_BYTES
 
@@ -22,7 +23,7 @@ from .editor_io import read_project_text, save_project_text, MAX_EDITOR_FILE_BYT
 APP_QSS = """
 QMainWindow, QWidget { background: #0b0d0f; color: #e8e9ea; font-family: "Segoe UI"; font-size: 13px; }
 QFrame#Sidebar { background: #101214; border-right: 1px solid #24272b; }
-QFrame#TopBar { background: #0d0f11; border-bottom: 1px solid #24272b; }
+QFrame#TopBar { background: #0d0f11; border-bottom: 1px solid #24272b; min-height: 48px; }
 QFrame#Composer { background: #0b0d0f; border-top: 1px solid #24272b; }
 QTabWidget::pane { border: 0; background: #0b0d0f; top: 0; }
 QTabBar { background: #101214; }
@@ -67,8 +68,14 @@ QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; color:
 QSpinBox { background: #0d1012; border: 1px solid #292d32; border-radius: 8px; padding: 5px; }
 QToolButton#IconButton { min-width: 34px; max-width: 34px; min-height: 34px; max-height: 34px; padding: 0; }
 QLabel#ModelBadge { background: #171a1d; border: 1px solid #302b21; color: #d9b46a; border-radius: 9px; padding: 6px 10px; }
-QLabel#WorkspaceTitle { font-size: 14px; font-weight: 700; color: #eceeef; }
+QLabel#WorkspaceTitle { font-size: 15px; font-weight: 700; color: #eceeef; }
 QLabel#Hint { color: #666d75; font-size: 11px; }
+QFrame#TaskCard { background: #11161a; border: 1px solid #2a3036; border-radius: 12px; }
+QLabel#TaskStageActive { color: #e2bd70; font-weight: 700; }
+QLabel#TaskStageDone { color: #8fd3a5; }
+QLabel#TaskStagePending { color: #737b84; }
+QProgressBar { background: #15191d; border: 0; border-radius: 5px; text-align: center; color: #d9dde2; height: 10px; }
+QProgressBar::chunk { background: #d6a64f; border-radius: 5px; }
 """
 
 
@@ -557,6 +564,7 @@ class MainWindow(QMainWindow):
         self._sync_workspace_title()
         self._bind_shortcuts()
         self.refresh_chat_list()
+        self.refresh_task_panel()
         saved_chat_id = self.settings_store.value("chat/current_id", "")
         if saved_chat_id:
             chat = load_chat(str(saved_chat_id))
@@ -682,6 +690,15 @@ class MainWindow(QMainWindow):
         self.inspector_model = QLabel("Модель: local-model"); self.inspector_model.setObjectName("Muted"); c.addWidget(self.inspector_model)
         self.inspector_sandbox = QLabel("🔒 Sandbox включён\nФайлы доступны только внутри выбранного проекта."); self.inspector_sandbox.setWordWrap(True); c.addWidget(self.inspector_sandbox)
         layout.addWidget(card)
+
+        task_card = QFrame(); task_card.setObjectName("TaskCard"); tc = QVBoxLayout(task_card); tc.setContentsMargins(10,10,10,10)
+        task_head = QHBoxLayout(); task_head.addWidget(QLabel("ПЛАН ЗАДАЧИ")); task_head.addStretch(1)
+        self.task_status_label = QLabel("Нет активной задачи"); self.task_status_label.setObjectName("Muted"); task_head.addWidget(self.task_status_label); tc.addLayout(task_head)
+        self.task_progress = QProgressBar(); self.task_progress.setRange(0,5); self.task_progress.setValue(0); self.task_progress.setTextVisible(False); tc.addWidget(self.task_progress)
+        self.task_stages = QListWidget(); self.task_stages.setMaximumHeight(180); tc.addWidget(self.task_stages)
+        self.task_event_label = QLabel("После остановки задачу можно продолжить."); self.task_event_label.setWordWrap(True); self.task_event_label.setObjectName("Muted"); tc.addWidget(self.task_event_label)
+        task_row = QHBoxLayout(); self.resume_task_btn = QPushButton("▶ Продолжить"); self.resume_task_btn.setObjectName("Primary"); self.resume_task_btn.setEnabled(False); self.resume_task_btn.clicked.connect(self.resume_task); clear_task_btn = QPushButton("Сбросить"); clear_task_btn.clicked.connect(self.reset_task); task_row.addWidget(self.resume_task_btn); task_row.addWidget(clear_task_btn); tc.addLayout(task_row)
+        layout.addWidget(task_card)
 
         changes = QFrame(); changes.setObjectName("InspectorCard"); ch = QVBoxLayout(changes)
         header = QHBoxLayout(); header.addWidget(QLabel("ЦЕНТР ИЗМЕНЕНИЙ")); header.addStretch(1)
@@ -1162,7 +1179,7 @@ class MainWindow(QMainWindow):
         chat = create_chat(self.project_path.text(), self.model.currentText().strip())
         self.current_chat_id = chat["id"]; self.current_chat_title = chat["title"]; self.conversation_history = []
         self.settings_store.setValue("chat/current_id", self.current_chat_id); self.settings_store.sync()
-        self.render_history(); self.refresh_chat_list(select_id=self.current_chat_id); self._update_context_labels(); self._set_status("Готов", "ready")
+        self.render_history(); self.refresh_task_panel(); self.refresh_chat_list(select_id=self.current_chat_id); self._update_context_labels(); self._set_status("Готов", "ready")
 
     def start_agent(self, prompt, force_tool=None, use_history=True):
         if self.worker and self.worker.isRunning(): return
@@ -1173,11 +1190,54 @@ class MainWindow(QMainWindow):
                 chat = create_chat(str(root.resolve()), self.model.currentText().strip()); self.current_chat_id = chat["id"]
             self._save_current_chat(extra_message={"role": "user", "content": prompt})
         self.settings_store.setValue("connection/base_url", self.base_url.text()); self.settings_store.setValue("connection/api_key", self.api_key.text()); self.settings_store.setValue("connection/model", self.model.currentText()); self.settings_store.sync()
-        self.worker = AgentWorker(self.base_url.text().strip(), self.api_key.text().strip() or "no-key", self.model.currentText().strip(), str(root.resolve()), prompt, force_tool, settings=self.current_limits(), history=self.conversation_history if use_history else [], memory=load_project_memory(str(root.resolve())), auto_memory=(self.settings_store.value("memory/auto_update", True, type=bool) and use_history))
-        self.worker.chat.connect(self.on_chat); self.worker.log.connect(self.log_view.appendPlainText); self.worker.memory_updated.connect(self.on_memory_updated); self.worker.failed.connect(self.on_failed); self.worker.finished_text.connect(lambda _: self.log_view.appendPlainText("Agent turn finished.")); self.worker.progress.connect(self.on_progress)
+        self.worker = AgentWorker(self.base_url.text().strip(), self.api_key.text().strip() or "no-key", self.model.currentText().strip(), str(root.resolve()), prompt, force_tool, settings=self.current_limits(), history=self.conversation_history if use_history else [], memory=load_project_memory(str(root.resolve())), auto_memory=(self.settings_store.value("memory/auto_update", True, type=bool) and use_history), task_id=self.current_chat_id if use_history else None)
+        self.worker.chat.connect(self.on_chat); self.worker.log.connect(self.log_view.appendPlainText); self.worker.memory_updated.connect(self.on_memory_updated); self.worker.failed.connect(self.on_failed); self.worker.finished_text.connect(lambda _: self.log_view.appendPlainText("Agent turn finished.")); self.worker.progress.connect(self.on_progress); self.worker.task_updated.connect(self.on_task_updated)
         if use_history: self.worker.conversation_updated.connect(self.update_conversation_history)
         self.worker.write_approval_requested.connect(self.confirm_file_change, Qt.ConnectionType.BlockingQueuedConnection); self.worker.change_event.connect(self.add_change_event); self.worker.finished.connect(self.on_worker_finished)
         self.send_btn.setEnabled(False); self.stop_btn.setEnabled(True); self._set_status("Работает…", "working"); self.worker.start()
+
+    def on_task_updated(self, task):
+        if not isinstance(task, dict): return
+        stages = task.get("stages", [])
+        self.task_stages.clear()
+        done = 0
+        for stage in stages:
+            status = stage.get("status", "pending")
+            if status == "done": done += 1; prefix = "✓"
+            elif status == "active": prefix = "●"
+            else: prefix = "○"
+            item = QListWidgetItem(f"{prefix}  {stage.get('title','Этап')}")
+            item.setData(Qt.ItemDataRole.UserRole, status)
+            self.task_stages.addItem(item)
+            if status == "done": item.setForeground(QColor("#8fd3a5"))
+            elif status == "active": item.setForeground(QColor("#e2bd70"))
+        self.task_progress.setValue(done)
+        status = task.get("status", "running")
+        labels = {"running":"В работе", "paused":"Приостановлена", "completed":"Завершена"}
+        self.task_status_label.setText(labels.get(status, status))
+        self.task_event_label.setText(task.get("last_event", "") or "Готово к продолжению")
+        self.resume_task_btn.setEnabled(status == "paused" and not (self.worker and self.worker.isRunning()))
+
+    def refresh_task_panel(self):
+        if not hasattr(self, "task_stages") or not self.current_chat_id: return
+        task = load_task(self.current_chat_id)
+        if task: self.on_task_updated(task)
+        else:
+            self.task_stages.clear(); self.task_progress.setValue(0); self.task_status_label.setText("Нет активной задачи"); self.task_event_label.setText("План появится при запуске задачи."); self.resume_task_btn.setEnabled(False)
+
+    def resume_task(self):
+        if not self.current_chat_id or (self.worker and self.worker.isRunning()): return
+        task = load_task(self.current_chat_id)
+        if not task or task.get("status") != "paused": return
+        prompt = ("Продолжи незавершённую задачу с контрольной точки. Не начинай работу заново без необходимости. "
+                  "Проверь актуальное состояние проекта инструментами и продолжи с последнего незавершённого этапа. "
+                  f"Исходная задача: {task.get('prompt','')[:7000]}")
+        self.start_agent(prompt, use_history=True)
+
+    def reset_task(self):
+        if not self.current_chat_id: return
+        if QMessageBox.question(self, "Сбросить план", "Удалить контрольную точку текущей задачи? История чата останется.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes: return
+        clear_task(self.current_chat_id); self.refresh_task_panel()
 
     def update_conversation_history(self, messages):
         self.conversation_history = list(messages); self._save_current_chat(); self.refresh_chat_list(select_id=self.current_chat_id)
@@ -1211,7 +1271,7 @@ class MainWindow(QMainWindow):
         self._save_current_chat(); self.current_chat_id = chat["id"]; self.current_chat_title = chat.get("title", "Новый чат"); self.conversation_history = list(chat.get("messages", []))
         if chat.get("project_root") and Path(chat["project_root"]).is_dir(): self.project_path.setText(str(Path(chat["project_root"]).resolve()))
         if chat.get("model"): self._set_model(chat["model"])
-        self.settings_store.setValue("chat/current_id", self.current_chat_id); self.settings_store.sync(); self.render_history(); self.refresh_chat_list(select_id=self.current_chat_id); self._update_context_labels()
+        self.settings_store.setValue("chat/current_id", self.current_chat_id); self.settings_store.sync(); self.render_history(); self.refresh_task_panel(); self.refresh_chat_list(select_id=self.current_chat_id); self._update_context_labels()
         if announce: self.log_view.appendPlainText(f"=== Открыт чат: {self.current_chat_title} ===")
 
     def open_chat_item(self, item):
