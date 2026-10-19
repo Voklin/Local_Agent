@@ -1,14 +1,11 @@
 import json
-import re
 import threading
-import time
 from .tools import preview_file_change
-from .conversation import build_messages, compact_live_messages
+from .conversation import build_messages
 from PySide6.QtCore import QThread, Signal
 from openai import OpenAI
 from .tools import TOOL_DEFINITIONS, execute_tool
 from .project_memory import format_memory_context, merge_memory_update, save_project_memory
-from .task_store import new_task, save_task, set_stage, finish_task
 
 SYSTEM_PROMPT = """Ты локальный помощник по программированию. Отвечай по-русски, если пользователь пишет по-русски.
 Для фактов о проекте используй инструменты, а не угадывай. Доступны только файлы внутри выбранной пользователем корневой директории.
@@ -17,14 +14,11 @@ SYSTEM_PROMPT = """Ты локальный помощник по програм�
 При запросе просмотра папок Users, Windows, профиля пользователя или других каталогов вне проекта объясни, что доступ ограничен выбранной директорией. Не повторяй отклонённый вызов инструмента."""
 
 DEFAULT_SETTINGS = {
-    "max_tool_calls": 1000,
-    "max_consecutive_errors": 5,
-    "max_tokens": 8192,
-    "max_entries": 1000,
-    "max_search_depth": 15,
-    "max_agent_turns": 200,
-    "max_context_chars": 80000,
-    "max_runtime_minutes": 180,
+    "max_tool_calls": 10,
+    "max_consecutive_errors": 3,
+    "max_tokens": 2048,
+    "max_entries": 200,
+    "max_search_depth": 5,
 }
 
 
@@ -39,13 +33,11 @@ class AgentWorker(QThread):
     # v5.3: emitted for every proposed/processed file change so the UI can keep a multi-file review history.
     change_event = Signal(object)
     memory_updated = Signal(object)
-    task_updated = Signal(object)
 
-    def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None):
+    def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True):
         super().__init__()
         self.base_url, self.api_key, self.model = base_url, api_key, model
         self.project_root, self.prompt, self.force_tool = project_root, prompt, force_tool
-        self.task_id = str(task_id or '')
         self.history = list(history or [])
         self.memory = dict(memory or {})
         self.auto_memory = bool(auto_memory)
@@ -56,17 +48,6 @@ class AgentWorker(QThread):
         self._approval_result = "reject"
         # Applies/rejects all subsequent write proposals in the current worker run.
         self._batch_decision = None
-        self._task = new_task(self.task_id, self.project_root, self.prompt) if self.task_id else None
-
-    def _checkpoint(self, stage=None, event=''):
-        if not self._task:
-            return
-        if stage:
-            set_stage(self._task, stage, 'active', event)
-        if event:
-            self._task['last_event'] = str(event)[:500]
-        saved = save_task(self._task)
-        self.task_updated.emit(saved)
 
     def resolve_write_approval(self, decision):
         """Receive Apply/Reject/Cancel (or batch variants) from the GUI without a chat message."""
@@ -101,61 +82,17 @@ class AgentWorker(QThread):
             return "cancel"
         return decision
 
-    def _emit_change(self, path, diff, exists, status, error=""):
+    def _emit_change(self, path, diff, exists, status, error="", old_content="", new_content=""):
         self.change_event.emit({
             "path": path,
             "diff": diff,
             "exists": bool(exists),
             "status": status,
             "error": error,
+            # Kept only in the in-memory UI event; it is not persisted to chat history.
+            "old_content": old_content,
+            "new_content": new_content,
         })
-
-    @staticmethod
-    def _looks_like_action_request(prompt):
-        """Avoid completion-check overhead for ordinary informational questions."""
-        text = (prompt or "").lower()
-        patterns = (
-            r"\b(сделай|добавь|исправь|измени|переделай|реализуй|создай|напиши|разработай|проверь|запусти|прочитай|открой|удали|обнови|перенеси|интегрируй|рефактор|внеси|доработай|перепиши)\b",
-            r"\b(implement|create|write|fix|change|modify|update|refactor|test|run|inspect|edit|add|build)\b",
-            r"(нужно|надо|необходимо).{0,40}(добавить|исправить|изменить|создать|проверить|реализовать|запустить)",
-        )
-        return any(re.search(pattern, text) for pattern in patterns)
-
-    def _verify_task_completion(self, client, messages, max_tokens):
-        """Return (complete, reason); fail open to avoid trapping the user in a loop."""
-        try:
-            compact = []
-            for item in self._memory_tool_events[-20:]:
-                compact.append({k: item.get(k) for k in ("tool", "path", "query", "ok", "error") if k in item})
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": (
-                        "Ты проверяешь завершённость задачи coding-агента. Верни только JSON: "
-                        '{"complete": true|false, "reason": "краткая причина"}. '
-                        "complete=false только если исходный запрос явно требует действия, а ответ является лишь "
-                        "описанием проекта, планом или промежуточным сообщением без выполнения задачи. "
-                        "Не требуй лишних действий, если ответ полноценно отвечает на запрос. Не выдумывай факты."
-                    )},
-                    {"role": "user", "content": json.dumps({
-                        "original_request": self.prompt[:1800],
-                        "latest_answer": next((m.get("content", "") for m in reversed(messages) if m.get("role") == "assistant" and isinstance(m.get("content"), str)), "")[:1800],
-                        "tool_events": compact,
-                    }, ensure_ascii=False)},
-                ],
-                temperature=0,
-                max_tokens=min(300, max(100, max_tokens)),
-                stream=False,
-            )
-            raw = (response.choices[0].message.content or "").strip()
-            start, end = raw.find("{"), raw.rfind("}")
-            if start < 0 or end <= start:
-                return True, "Проверка не вернула JSON; завершаю безопасно."
-            parsed = json.loads(raw[start:end + 1])
-            return bool(parsed.get("complete", True)), str(parsed.get("reason", ""))[:500]
-        except Exception as exc:
-            self.log.emit(f"Проверка завершения пропущена: {type(exc).__name__}: {exc}")
-            return True, "Проверка недоступна; завершаю без дополнительного цикла."
 
     def run(self):
         try:
@@ -173,31 +110,14 @@ class AgentWorker(QThread):
             max_tool_calls = max(1, int(self.settings["max_tool_calls"]))
             max_errors = max(1, int(self.settings["max_consecutive_errors"]))
             max_tokens = max(64, int(self.settings["max_tokens"]))
-            max_agent_turns = max(1, min(500, int(self.settings.get("max_agent_turns", 200))))
-            max_context_chars = max(12000, min(500000, int(self.settings.get("max_context_chars", 80000))))
-            max_runtime_seconds = max(5, min(24 * 60, int(self.settings.get("max_runtime_minutes", 180)))) * 60
-            started_at = time.monotonic()
-            last_tool_signature = None
-            repeated_tool_signature_count = 0
-            continuation_attempts = 0
-            action_request = self._looks_like_action_request(self.prompt)
-            self._checkpoint('analysis', 'Агент анализирует задачу')
 
-            for turn in range(max_agent_turns):
-                if self._task:
-                    self._task['turn'] = turn + 1
-                    self._checkpoint(None, f'Цикл модели {turn + 1}')
-                if time.monotonic() - started_at >= max_runtime_seconds:
-                    stop_reason = f"Остановлено: достигнут лимит времени ({max_runtime_seconds // 60} мин). Контекст и история сохранены."
-                    break
+            for turn in range(8):
                 if self.isInterruptionRequested():
                     stop_reason = "Остановлено пользователем."
                     break
-                # Keep the persisted transcript intact, but send a bounded, recent working context.
-                model_messages = compact_live_messages(messages, max_chars=max_context_chars, keep_recent_rounds=12)
                 kwargs = dict(
                     model=self.model,
-                    messages=model_messages,
+                    messages=messages,
                     tools=TOOL_DEFINITIONS,
                     tool_choice="auto",
                     temperature=0.2,
@@ -243,28 +163,8 @@ class AgentWorker(QThread):
                     final = content
                     self.chat.emit("assistant", content)
                 if not tool_calls:
-                    self._checkpoint('verification', 'Проверка результата и завершённости задачи')
                     if content:
                         messages.append({"role": "assistant", "content": content})
-                    # Local models sometimes return a project summary or a progress note as if it
-                    # were the final answer. For actionable requests, ask for a bounded completion
-                    # check before ending the turn. This does not grant any additional tool access.
-                    if action_request and continuation_attempts < 2 and not self.isInterruptionRequested():
-                        complete, reason = self._verify_task_completion(client, messages, max_tokens)
-                        if not complete:
-                            continuation_attempts += 1
-                            self.log.emit(f"Проверка завершения: задача выглядит незавершённой; продолжаю ({continuation_attempts}/2). {reason}")
-                            messages.append({
-                                "role": "user",
-                                "content": (
-                                    "Внутренняя проверка агента показывает, что исходная задача может быть не завершена. "
-                                    "Продолжи именно выполнение исходного запроса, опираясь на историю и результаты инструментов. "
-                                    "Не повторяй общее описание проекта и не объявляй завершение без выполнения необходимых шагов. "
-                                    "Если требуется изучить или изменить файлы, используй доступные инструменты; изменения файлов всё равно требуют подтверждения. "
-                                    f"Замечание проверки: {reason[:500]}"
-                                ),
-                            })
-                            continue
                     break
 
                 messages.append({"role": "assistant", "content": content or None, "tool_calls": tool_calls})
@@ -275,70 +175,57 @@ class AgentWorker(QThread):
                         hit_limit = True
                         break
                     if tool_calls_count >= max_tool_calls:
-                        stop_reason = f"Остановлено: достигнут лимит вызовов инструментов ({max_tool_calls}). Увеличь лимит или раздели задачу на этапы."
-                        limit_result = json.dumps({"ok": False, "error": stop_reason}, ensure_ascii=False)
-                        messages.append({"role": "tool", "tool_call_id": call.get("id", ""), "content": limit_result})
-                        self.log.emit(stop_reason)
+                        stop_reason = f"Остановлено: достигнут лимит вызовов инструментов ({max_tool_calls})."
                         hit_limit = True
-                        continue
+                        break
                     name = call["function"]["name"]
-                    try:
-                        signature = name + ":" + json.dumps(json.loads(call["function"].get("arguments") or "{}"), sort_keys=True, ensure_ascii=False)
-                    except Exception:
-                        signature = name + ":<invalid-args>"
-                    if signature == last_tool_signature:
-                        repeated_tool_signature_count += 1
-                    else:
-                        last_tool_signature = signature
-                        repeated_tool_signature_count = 1
-                    repeated_call_detected = repeated_tool_signature_count >= 6
                     memory_event = {"tool": name}
                     self._memory_tool_events.append(memory_event)
-                    if repeated_call_detected:
-                        # Return a tool result for the outstanding call so the transcript remains
-                        # structurally valid for OpenAI-compatible servers.
-                        result = {"ok": False, "error": "Repeated identical tool call detected 6 times; stopped to prevent an agent loop."}
-                        stop_reason = "Остановлено: обнаружен повтор одного и того же вызова инструмента 6 раз подряд. Проверь журнал — агент, вероятно, зациклился."
+                    try:
+                        args = json.loads(call["function"]["arguments"] or "{}")
+                        if not isinstance(args, dict):
+                            raise ValueError("Аргументы инструмента должны быть JSON-объектом")
+                    except (json.JSONDecodeError, ValueError) as exc:
+                        args = {}
+                        result = {"ok": False, "error": f"Invalid tool arguments: {exc}"}
                     else:
-                        try:
-                            args = json.loads(call["function"]["arguments"] or "{}")
-                            if not isinstance(args, dict):
-                                raise ValueError("Аргументы инструмента должны быть JSON-объектом")
-                        except (json.JSONDecodeError, ValueError) as exc:
-                            args = {}
-                            result = {"ok": False, "error": f"Invalid tool arguments: {exc}"}
-                        else:
-                            self.log.emit(f"TOOL CALL [{tool_calls_count + 1}/{max_tool_calls}]: {name}({json.dumps(args, ensure_ascii=False)})")
-                            memory_event["path"] = str(args.get("path", ""))[:240]
-                            memory_event["query"] = str(args.get("query", ""))[:160]
-                            if name == "write_file":
-                                preview = preview_file_change(self.project_root, args.get("path", ""), args.get("content", ""))
-                                if not preview.get("ok"):
-                                    result = preview
-                                    self._emit_change(args.get("path", ""), "", False, "error", preview.get("error", ""))
-                                elif preview.get("exists") and not bool(args.get("overwrite", False)):
-                                    result = {"ok": False, "error": "Target exists but overwrite=false; no changes made"}
-                                    self._emit_change(preview["path"], preview["diff"], preview["exists"], "rejected", result["error"])
-                                else:
-                                    self._emit_change(preview["path"], preview["diff"], preview["exists"], "pending")
-                                    decision = self._ask_write_approval(preview["path"], preview["diff"], preview["exists"])
-                                    if decision == "apply":
-                                        result = execute_tool(name, args, self.project_root, self.settings, approved=True)
-                                        self._emit_change(preview["path"], preview["diff"], preview["exists"], "applied" if result.get("ok") else "error", result.get("error", ""))
-                                    elif decision == "cancel":
-                                        result = {"ok": False, "error": "User cancelled the proposed file change; no changes made", "code": "USER_CANCELLED"}
-                                        self._emit_change(preview["path"], preview["diff"], preview["exists"], "cancelled", result["error"])
-                                        stop_reason = "Остановлено пользователем: изменение файла отменено."
-                                        hit_limit = True
-                                    else:
-                                        result = {"ok": False, "error": "User denied the proposed file change; no changes made", "code": "USER_DENIED"}
-                                        self._emit_change(preview["path"], preview["diff"], preview["exists"], "rejected", result["error"])
+                        self.log.emit(f"TOOL CALL [{tool_calls_count + 1}/{max_tool_calls}]: {name}({json.dumps(args, ensure_ascii=False)})")
+                        memory_event["path"] = str(args.get("path", ""))[:240]
+                        memory_event["query"] = str(args.get("query", ""))[:160]
+                        if name == "write_file":
+                            preview = preview_file_change(self.project_root, args.get("path", ""), args.get("content", ""))
+                            if not preview.get("ok"):
+                                result = preview
+                                self._emit_change(args.get("path", ""), "", False, "error", preview.get("error", ""))
+                            elif preview.get("exists") and not bool(args.get("overwrite", False)):
+                                result = {"ok": False, "error": "Target exists but overwrite=false; no changes made"}
+                                self._emit_change(preview["path"], preview["diff"], preview["exists"], "rejected", result["error"], old_content, new_content)
                             else:
-                                result = execute_tool(name, args, self.project_root, self.settings)
+                                old_content = ""
+                                try:
+                                    target_path = self.project_root / preview["path"]
+                                    if target_path.exists():
+                                        old_content = target_path.read_text(encoding="utf-8")
+                                except Exception:
+                                    old_content = ""
+                                new_content = str(args.get("content", ""))
+                                self._emit_change(preview["path"], preview["diff"], preview["exists"], "pending",
+                                                  old_content=old_content, new_content=new_content)
+                                decision = self._ask_write_approval(preview["path"], preview["diff"], preview["exists"])
+                                if decision == "apply":
+                                    result = execute_tool(name, args, self.project_root, self.settings, approved=True)
+                                    self._emit_change(preview["path"], preview["diff"], preview["exists"], "applied" if result.get("ok") else "error", result.get("error", ""), old_content, new_content)
+                                elif decision == "cancel":
+                                    result = {"ok": False, "error": "User cancelled the proposed file change; no changes made", "code": "USER_CANCELLED"}
+                                    self._emit_change(preview["path"], preview["diff"], preview["exists"], "cancelled", result["error"], old_content, new_content)
+                                    stop_reason = "Остановлено пользователем: изменение файла отменено."
+                                    hit_limit = True
+                                else:
+                                    result = {"ok": False, "error": "User denied the proposed file change; no changes made", "code": "USER_DENIED"}
+                                    self._emit_change(preview["path"], preview["diff"], preview["exists"], "rejected", result["error"], old_content, new_content)
+                        else:
+                            result = execute_tool(name, args, self.project_root, self.settings)
                     tool_calls_count += 1
-                    if self._task:
-                        self._task['tool_calls'] = tool_calls_count
-                        self._checkpoint(None, f'Выполнено вызовов инструментов: {tool_calls_count}')
                     self.progress.emit(tool_calls_count, max_tool_calls)
                     pretty = json.dumps(result, ensure_ascii=False, indent=2)
                     self.log.emit(f"TOOL RESULT: {pretty[:12000]}")
@@ -347,9 +234,6 @@ class AgentWorker(QThread):
                     if result.get("error"):
                         memory_event["error"] = str(result.get("error"))[:240]
                     messages.append({"role": "tool", "tool_call_id": call["id"], "content": pretty[:20000]})
-                    if repeated_call_detected:
-                        hit_limit = True
-                        break
                     if result.get("code") == "USER_CANCELLED":
                         hit_limit = True
                         consecutive_errors = 0
@@ -364,10 +248,6 @@ class AgentWorker(QThread):
                             break
                 if hit_limit:
                     break
-                # Do not mutate the canonical transcript: compact_live_messages is applied only
-                # to the next model request, so the UI can persist the full conversation history.
-            else:
-                stop_reason = f"Остановлено: достигнут лимит циклов модели ({max_agent_turns})."
             if self.isInterruptionRequested():
                 stop_reason = "Остановлено пользователем."
             if stop_reason:
@@ -422,15 +302,6 @@ class AgentWorker(QThread):
                 except Exception as memory_exc:
                     # Memory is optional; its failure must never fail a normal agent request.
                     self.log.emit(f"Память проекта не обновлена: {type(memory_exc).__name__}: {memory_exc}")
-            if self._task:
-                if stop_reason:
-                    self._task['status'] = 'paused'
-                    self._task['stop_reason'] = stop_reason
-                    self._checkpoint(None, stop_reason)
-                    self.task_updated.emit(save_task(self._task))
-                else:
-                    self._checkpoint('finish', 'Финальный ответ сформирован')
-                    self.task_updated.emit(finish_task(self._task, 'completed'))
             self.conversation_updated.emit(messages[1:])
             self.finished_text.emit(final)
         except Exception as exc:
@@ -438,8 +309,4 @@ class AgentWorker(QThread):
                 self.chat.emit("system", "Остановлено пользователем.")
                 self.finished_text.emit("Остановлено пользователем.")
             else:
-                if self._task:
-                    self._task['status'] = 'paused'
-                    self._task['stop_reason'] = f'{type(exc).__name__}: {exc}'
-                    self.task_updated.emit(save_task(self._task))
                 self.failed.emit(f"{type(exc).__name__}: {exc}")

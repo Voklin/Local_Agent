@@ -1,6 +1,6 @@
 """Conversation history regression tests. Run: python -m unittest discover -s tests -v"""
 import unittest
-from agent.conversation import build_messages, select_recent_history, compact_live_messages
+from agent.conversation import build_messages, select_recent_history
 
 
 class ConversationHistoryTests(unittest.TestCase):
@@ -46,22 +46,6 @@ class ConversationHistoryTests(unittest.TestCase):
         self.assertLess(len(selected), len(history))
         self.assertEqual(selected[-1]["content"], "Предлагаю diff. Подтвердить?")
         self.assertEqual(len(history), original_count)
-
-    def test_live_compaction_preserves_system_original_request_and_recent_tool_pair(self):
-        history = [{"role": "system", "content": "system"}, {"role": "user", "content": "Original task"}]
-        for i in range(15):
-            call_id = f"c{i}"
-            history.extend([
-                {"role": "assistant", "content": f"step {i}", "tool_calls": [{"id": call_id, "type": "function", "function": {"name": "read_file", "arguments": '{"path":"x.py"}'}}]},
-                {"role": "tool", "tool_call_id": call_id, "content": f"result {i}"},
-            ])
-        compacted = compact_live_messages(history, max_chars=12000, keep_recent_rounds=4)
-        self.assertEqual(compacted[0]["role"], "system")
-        self.assertTrue(any(m.get("role") == "user" and m.get("content") == "Original task" for m in compacted))
-        assistant_calls = [tc["id"] for m in compacted if m.get("role") == "assistant" for tc in m.get("tool_calls", [])]
-        tool_results = [m["tool_call_id"] for m in compacted if m.get("role") == "tool"]
-        self.assertEqual(assistant_calls, tool_results)
-        self.assertLess(len(compacted), len(history))
 
     def test_tool_results_are_bounded_without_dropping_tool_call_pair(self):
         history = [

@@ -8,70 +8,62 @@ from PySide6.QtWidgets import (
     QPushButton, QFileDialog, QTextBrowser, QPlainTextEdit, QMessageBox,
     QSplitter, QSpinBox, QGroupBox, QFormLayout, QDialog, QListWidget,
     QListWidgetItem, QInputDialog, QFrame, QToolButton, QComboBox, QTextEdit,
-    QSizePolicy, QApplication, QCheckBox, QTabWidget, QTreeWidget, QTreeWidgetItem, QProgressBar
+    QSizePolicy, QApplication, QCheckBox, QTabWidget, QTreeWidget, QTreeWidgetItem
 )
 from openai import OpenAI
 from .worker import AgentWorker, DEFAULT_SETTINGS
 from .tools import run_sandbox_self_test
 from .chat_store import list_chats, create_chat, load_chat, save_chat, delete_chat, rename_chat, title_from_messages
 from .project_memory import load_project_memory, save_project_memory, clear_project_memory
-from .task_store import load_task, clear_task
 from .security import resolve_allowed_path, AccessDenied
 from .editor_io import read_project_text, save_project_text, MAX_EDITOR_FILE_BYTES
 
 
 APP_QSS = """
-QMainWindow, QWidget { background:#111214; color:#e6e7e9; font-family:"Segoe UI"; font-size:13px; }
-QFrame#Sidebar { background:#151618; border-right:1px solid #26282b; }
-QFrame#TopBar { background:#151618; border-bottom:1px solid #26282b; min-height:44px; }
-QFrame#Composer { background:#111214; border-top:1px solid #26282b; }
-QTabWidget::pane { border:0; background:#111214; top:0; }
-QTabBar { background:#151618; }
-QTabBar::tab { background:transparent; color:#858991; border:0; padding:9px 14px; margin-right:2px; }
-QTabBar::tab:selected { color:#f2f2f3; border-bottom:2px solid #c9a56a; }
-QTabBar::tab:hover { color:#d7d9dc; }
-QTreeWidget { background:#151618; border:0; alternate-background-color:#191b1e; }
-QTreeWidget::item { padding:4px; }
-QTreeWidget::item:selected { background:#303033; color:#fff; }
-QLabel#SectionTitle { color:#b9bbc0; font-weight:600; }
-QLabel#EditorPath, QLabel#Muted { color:#858991; }
-QFrame#Card, QFrame#InspectorCard, QFrame#TaskCard { background:#17191b; border:1px solid #292b2f; border-radius:8px; }
-QLabel#Brand { font-size:14px; font-weight:700; color:#f2f2f3; }
-QLabel#Status { color:#c5c7cb; padding:4px 8px; border-radius:6px; background:#222427; }
-QLabel#StatusWorking { color:#e8c88f; background:#30291f; padding:4px 8px; border-radius:6px; }
-QLabel#StatusReady { color:#a5d4b1; background:#1b2920; padding:4px 8px; border-radius:6px; }
-QLabel#StatusError { color:#f2a0a0; background:#301e20; padding:4px 8px; border-radius:6px; }
-QPushButton, QToolButton { background:#202225; border:1px solid #303236; border-radius:6px; padding:6px 9px; color:#dedfe2; }
-QPushButton:hover, QToolButton:hover { background:#292b2f; border-color:#414349; }
-QPushButton:pressed, QToolButton:pressed { background:#33353a; }
-QPushButton#Primary { background:#c9a56a; border-color:#c9a56a; color:#191611; font-weight:600; }
-QPushButton#Primary:hover { background:#d6b47c; }
-QPushButton#Danger { background:#2a1d1e; border-color:#4b2b2d; color:#eaa0a0; }
-QLineEdit, QPlainTextEdit, QTextBrowser, QComboBox { background:#151719; border:1px solid #2b2d31; border-radius:7px; color:#e6e7e9; selection-background-color:#55452d; }
-QLineEdit { padding:7px 9px; }
-QPlainTextEdit { padding:8px; }
-QTextBrowser { padding:12px; border:0; }
-QComboBox { padding:6px 8px; }
-QComboBox QAbstractItemView { background:#191b1e; color:#e6e7e9; selection-background-color:#38332a; border:1px solid #303236; }
-QListWidget { background:transparent; border:0; outline:0; }
-QListWidget::item { padding:7px 9px; margin:1px; border-radius:5px; color:#b9bbc0; }
-QListWidget::item:hover { background:#202225; }
-QListWidget::item:selected { background:#2a2c30; color:#fff; }
-QSplitter::handle { background:#26282b; }
-QScrollBar:vertical { background:transparent; width:8px; margin:1px; }
-QScrollBar::handle:vertical { background:#37393e; border-radius:4px; min-height:28px; }
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height:0; }
-QGroupBox { border:1px solid #303236; border-radius:7px; margin-top:9px; padding:9px; }
-QGroupBox::title { subcontrol-origin:margin; left:9px; padding:0 4px; color:#aeb1b7; }
-QSpinBox { background:#151719; border:1px solid #303236; border-radius:6px; padding:5px; }
-QToolButton#IconButton { min-width:32px; max-width:32px; min-height:32px; max-height:32px; padding:0; }
-QLabel#ModelBadge { background:#222427; color:#c9a56a; border-radius:5px; padding:5px 7px; }
-QLabel#WorkspaceTitle { font-size:14px; font-weight:600; color:#ececef; }
-QLabel#Hint { color:#777b83; font-size:11px; }
-QProgressBar { background:#25272b; border:0; border-radius:4px; text-align:center; color:#d9dde2; height:7px; }
-QProgressBar::chunk { background:#c9a56a; border-radius:4px; }
+QMainWindow, QWidget { background: #111318; color: #e7e9ee; font-family: "Segoe UI"; font-size: 13px; }
+QFrame#Sidebar { background: #17191f; border-right: 1px solid #292d36; }
+QFrame#TopBar { background: #15171c; border-bottom: 1px solid #292d36; }
+QFrame#Composer { background: #15171c; border-top: 1px solid #292d36; }
+QTabWidget::pane { border: 1px solid #292d36; border-radius: 9px; background: #111318; top: -1px; }
+QTabBar::tab { background: #171a20; color: #9ca4b2; border: 1px solid #292d36; padding: 9px 16px; margin-right: 3px; border-top-left-radius: 7px; border-top-right-radius: 7px; }
+QTabBar::tab:selected { background: #222731; color: #f2f4f8; border-bottom-color: #3b82f6; }
+QTreeWidget { background: #12151a; border: 1px solid #292d36; border-radius: 8px; alternate-background-color: #171a20; }
+QTreeWidget::item { padding: 4px; }
+QTreeWidget::item:selected { background: #26354a; color: #ffffff; }
+QLabel#SectionTitle { color: #c6cbd4; font-weight: 700; letter-spacing: 1px; }
+QLabel#EditorPath { color: #8f96a3; padding: 4px 8px; }
+QFrame#Card { background: #181b21; border: 1px solid #292d36; border-radius: 10px; }
+QFrame#InspectorCard { background: #171a20; border: 1px solid #292d36; border-radius: 10px; }
+QLabel#Brand { font-size: 16px; font-weight: 700; }
+QLabel#Muted { color: #8f96a3; }
+QLabel#Status { color: #9aa2af; padding: 4px 8px; border-radius: 8px; background: #1c2027; }
+QLabel#StatusWorking { color: #f0c36b; background: #2b2518; padding: 4px 8px; border-radius: 8px; }
+QLabel#StatusReady { color: #75d49a; background: #18261f; padding: 4px 8px; border-radius: 8px; }
+QLabel#StatusError { color: #ff8d8d; background: #2b1b1e; padding: 4px 8px; border-radius: 8px; }
+QPushButton, QToolButton { background: #20242c; border: 1px solid #303540; border-radius: 7px; padding: 7px 11px; color: #e8eaf0; }
+QPushButton:hover, QToolButton:hover { background: #292e38; }
+QPushButton:pressed, QToolButton:pressed { background: #343a46; }
+QPushButton#Primary { background: #3b82f6; border-color: #3b82f6; color: white; font-weight: 600; }
+QPushButton#Primary:hover { background: #4b8df7; }
+QPushButton#Danger { background: #342024; border-color: #5a2b32; color: #ff9b9b; }
+QLineEdit, QPlainTextEdit, QTextBrowser, QComboBox { background: #0f1115; border: 1px solid #2b3039; border-radius: 8px; color: #e8eaf0; selection-background-color: #315f9f; }
+QLineEdit { padding: 8px 10px; }
+QPlainTextEdit { padding: 8px; }
+QTextBrowser { padding: 14px; }
+QComboBox { padding: 7px 9px; }
+QComboBox QAbstractItemView { background: #171a20; color: #e8eaf0; selection-background-color: #2c5b95; }
+QListWidget { background: transparent; border: none; outline: none; }
+QListWidget::item { padding: 10px 10px; margin: 2px 4px; border-radius: 7px; color: #c8ccd5; }
+QListWidget::item:hover { background: #20242c; }
+QListWidget::item:selected { background: #252b35; color: white; }
+QSplitter::handle { background: #252932; }
+QScrollBar:vertical { background: transparent; width: 9px; margin: 2px; }
+QScrollBar::handle:vertical { background: #343a46; border-radius: 4px; min-height: 30px; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QGroupBox { border: 1px solid #2a2f38; border-radius: 9px; margin-top: 10px; padding: 10px; }
+QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; color: #aeb5c1; }
+QSpinBox { background: #0f1115; border: 1px solid #2b3039; border-radius: 7px; padding: 5px; }
 """
-
 
 
 class LineNumberArea(QWidget):
@@ -221,7 +213,7 @@ class SettingsDialog(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
         self.setWindowTitle("Настройки агента")
-        self.resize(620, 650)
+        self.resize(520, 380)
         self.parent_window = parent
         layout = QVBoxLayout(self)
 
@@ -251,54 +243,26 @@ class SettingsDialog(QDialog):
         group = QGroupBox("Ограничения агента")
         form = QFormLayout(group)
         self.controls = {}
-        self.profile_combo = QComboBox()
-        self.profile_combo.addItems(["Текущие настройки", "Большой проект", "Длительная задача"])
-        form.addRow("Профиль:", self.profile_combo)
         for key, label, minimum, maximum, step in [
-            ("max_tool_calls", "Вызовов инструментов за задачу", 1, 10000, 10),
-            ("max_consecutive_errors", "Ошибок подряд до остановки", 1, 50, 1),
-            ("max_tokens", "Максимум токенов одного ответа модели", 256, 32768, 256),
-            ("max_entries", "Записей в списке файлов", 10, 20000, 100),
-            ("max_search_depth", "Глубина поиска по проекту", 1, 100, 1),
-            ("max_agent_turns", "Циклов модели за задачу", 1, 500, 10),
-            ("max_context_chars", "Размер рабочего контекста (символы)", 12000, 500000, 10000),
-            ("max_runtime_minutes", "Максимальное время одной задачи (мин)", 5, 1440, 15),
+            ("max_tool_calls", "Вызовов инструментов за запрос", 1, 100, 1),
+            ("max_consecutive_errors", "Ошибок подряд", 1, 20, 1),
+            ("max_tokens", "Максимум токенов ответа", 64, 16384, 64),
+            ("max_entries", "Записей в списке файлов", 10, 5000, 10),
+            ("max_search_depth", "Глубина поиска", 1, 30, 1),
         ]:
             spin = QSpinBox(); spin.setRange(minimum, maximum); spin.setSingleStep(step)
             spin.setValue(parent.settings_store.value(f"limits/{key}", DEFAULT_SETTINGS[key], type=int))
             self.controls[key] = spin; form.addRow(label, spin)
-        self.profile_combo.currentTextChanged.connect(self.apply_limit_profile)
         layout.addWidget(group)
         self.auto_memory = QCheckBox("Автоматически обновлять память проекта после успешного ответа")
         self.auto_memory.setChecked(parent.settings_store.value("memory/auto_update", True, type=bool))
         layout.addWidget(self.auto_memory)
-        note = QLabel("Большие проекты: увеличивайте циклы, вызовы инструментов, контекст и время выполнения. Рабочий контекст автоматически сжимается по мере роста; полная история чата сохраняется. Повтор одного и того же вызова 6 раз подряд останавливается как вероятный цикл. Память проекта хранится отдельно. Sandbox и подтверждение записи не ослабляются.")
+        note = QLabel("Память хранится отдельно для каждого проекта. Автообновление не сохраняет сырой вывод инструментов или содержимое файлов. Система разрешений и sandbox остаются без изменений.")
         note.setWordWrap(True); note.setObjectName("Muted"); layout.addWidget(note)
         buttons = QHBoxLayout(); buttons.addStretch(1)
         cancel = QPushButton("Отмена"); save = QPushButton("Сохранить"); save.setObjectName("Primary")
         cancel.clicked.connect(self.reject); save.clicked.connect(self.accept)
         buttons.addWidget(cancel); buttons.addWidget(save); layout.addLayout(buttons)
-
-    def apply_limit_profile(self, profile):
-        """Apply a coherent set of limits; choosing current settings never overwrites values."""
-        profiles = {
-            "Большой проект": {
-                "max_tool_calls": 1000, "max_consecutive_errors": 8, "max_tokens": 8192,
-                "max_entries": 5000, "max_search_depth": 30, "max_agent_turns": 200,
-                "max_context_chars": 100000, "max_runtime_minutes": 180,
-            },
-            "Длительная задача": {
-                "max_tool_calls": 5000, "max_consecutive_errors": 12, "max_tokens": 16384,
-                "max_entries": 15000, "max_search_depth": 60, "max_agent_turns": 500,
-                "max_context_chars": 250000, "max_runtime_minutes": 720,
-            },
-        }
-        values = profiles.get(profile)
-        if not values:
-            return
-        for key, value in values.items():
-            if key in self.controls:
-                self.controls[key].setValue(value)
 
     def refresh_models(self):
         try:
@@ -370,182 +334,12 @@ class ProjectMemoryDialog(QDialog):
         QMessageBox.information(self, "Память", "Память проекта очищена. История чатов сохранена.")
 
 
-class SideBySideDiffDialog(QDialog):
-    """Safe read-only side-by-side view of a unified diff.
-
-    This dialog intentionally works only with the diff already produced by the
-    existing change pipeline. It never writes files and does not touch sandbox
-    or approval state.
-    """
-    def __init__(self, parent, path, diff):
-        super().__init__(parent)
-        self.setWindowTitle(f"Сравнение изменений — {Path(path).name}")
-        self.resize(1200, 760)
-        layout = QVBoxLayout(self)
-
-        header = QHBoxLayout()
-        title = QLabel(str(path))
-        title.setObjectName("EditorPath")
-        header.addWidget(title, 1)
-        info = QLabel("Только просмотр · файл не изменяется")
-        info.setObjectName("Muted")
-        header.addWidget(info)
-        layout.addLayout(header)
-
-        toolbar = QHBoxLayout()
-        self.sync_scroll = QCheckBox("Синхронная прокрутка")
-        self.sync_scroll.setChecked(True)
-        self.sync_scroll.setToolTip("Прокручивать оригинал и новую версию одновременно")
-        toolbar.addWidget(self.sync_scroll)
-        self.change_position = QLabel("Изменения: 0")
-        self.change_position.setObjectName("Muted")
-        toolbar.addWidget(self.change_position)
-        toolbar.addStretch(1)
-        self.prev_change_btn = QPushButton("↑ Предыдущее")
-        self.next_change_btn = QPushButton("Следующее ↓")
-        self.prev_change_btn.setEnabled(False)
-        self.next_change_btn.setEnabled(False)
-        toolbar.addWidget(self.prev_change_btn)
-        toolbar.addWidget(self.next_change_btn)
-        copy_left = QPushButton("Копировать оригинал")
-        copy_right = QPushButton("Копировать новую версию")
-        copy_left.clicked.connect(lambda: QApplication.clipboard().setText(self.left.toPlainText()))
-        copy_right.clicked.connect(lambda: QApplication.clipboard().setText(self.right.toPlainText()))
-        toolbar.addWidget(copy_left); toolbar.addWidget(copy_right)
-        layout.addLayout(toolbar)
-
-        panes = QSplitter(Qt.Horizontal)
-        self.left = CodeEditor()
-        self.right = CodeEditor()
-        for editor in (self.left, self.right):
-            editor.setReadOnly(True)
-            editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-            editor.setFont(QFont("Consolas", 10))
-            editor.verticalScrollBar().valueChanged.connect(self._scroll_from_editor)
-        self.left.setPlaceholderText("Оригинал")
-        self.right.setPlaceholderText("Предложенная версия")
-        panes.addWidget(self.left)
-        panes.addWidget(self.right)
-        panes.setSizes([1, 1])
-        layout.addWidget(panes, 1)
-
-        self._syncing_scroll = False
-        self._changed_groups = []
-        self._current_change = -1
-        self.prev_change_btn.clicked.connect(lambda: self._go_to_change(-1))
-        self.next_change_btn.clicked.connect(lambda: self._go_to_change(1))
-
-        self._populate(diff)
-        close_btn = QPushButton("Закрыть")
-        close_btn.clicked.connect(self.accept)
-        layout.addWidget(close_btn, 0, Qt.AlignmentFlag.AlignRight)
-
-    def _populate(self, diff):
-        left_lines, right_lines = [], []
-        for raw in (diff or "").splitlines():
-            if raw.startswith("diff ") or raw.startswith("index ") or raw.startswith("--- ") or raw.startswith("+++ "):
-                continue
-            if raw.startswith("@@"):
-                marker = raw
-                left_lines.append(marker)
-                right_lines.append(marker)
-            elif raw.startswith("-"):
-                left_lines.append(raw[1:])
-                right_lines.append("")
-            elif raw.startswith("+"):
-                left_lines.append("")
-                right_lines.append(raw[1:])
-            elif raw.startswith(" "):
-                value = raw[1:]
-                left_lines.append(value)
-                right_lines.append(value)
-            elif raw.startswith("\\ No newline"):
-                # Metadata line; show it on both sides without trying to patch.
-                left_lines.append(raw)
-                right_lines.append(raw)
-            elif raw:
-                left_lines.append(raw)
-                right_lines.append(raw)
-
-        self.left.setPlainText("\n".join(left_lines))
-        self.right.setPlainText("\n".join(right_lines))
-        self._highlight_changed_lines(left_lines, right_lines)
-
-    @staticmethod
-    def _line_selection(editor, line_number, background):
-        """Create a read-only line highlight using the supported Qt API."""
-        selection = QTextEdit.ExtraSelection()
-        selection.format.setBackground(QColor(background))
-        selection.format.setProperty(QTextFormat.FullWidthSelection, True)
-        cursor = editor.textCursor()
-        cursor.movePosition(cursor.MoveOperation.Start)
-        cursor.movePosition(cursor.MoveOperation.Down, cursor.MoveMode.MoveAnchor, line_number)
-        selection.cursor = cursor
-        return selection
-
-    def _highlight_changed_lines(self, left_lines, right_lines):
-        """Highlight deleted/added lines and build navigation groups."""
-        left_selections = []
-        right_selections = []
-        changed = []
-
-        for index in range(max(len(left_lines), len(right_lines))):
-            left_value = left_lines[index] if index < len(left_lines) else ""
-            right_value = right_lines[index] if index < len(right_lines) else ""
-            if left_value and not right_value:
-                left_selections.append(self._line_selection(self.left, index, "#4a2529"))
-                changed.append(index)
-            elif right_value and not left_value:
-                right_selections.append(self._line_selection(self.right, index, "#1f4030"))
-                changed.append(index)
-
-        self.left.setExtraSelections(left_selections)
-        self.right.setExtraSelections(right_selections)
-
-        # Collapse consecutive changed rows into navigation groups.
-        groups = []
-        for line in sorted(set(changed)):
-            if not groups or line > groups[-1][-1] + 1:
-                groups.append([line])
-            else:
-                groups[-1].append(line)
-        self._changed_groups = groups
-        self._current_change = -1
-        count = len(groups)
-        self.change_position.setText(f"Изменения: {count}")
-        self.prev_change_btn.setEnabled(count > 0)
-        self.next_change_btn.setEnabled(count > 0)
-
-    def _scroll_from_editor(self, value):
-        """Keep both panes vertically aligned without recursive signal loops."""
-        if self._syncing_scroll or not self.sync_scroll.isChecked():
-            return
-        sender = self.sender()
-        target = self.right if sender is self.left else self.left
-        self._syncing_scroll = True
-        try:
-            target.verticalScrollBar().setValue(value)
-        finally:
-            self._syncing_scroll = False
-
-    def _go_to_change(self, direction):
-        if not self._changed_groups:
-            return
-        self._current_change = (self._current_change + direction) % len(self._changed_groups)
-        line = self._changed_groups[self._current_change][0]
-        self.left.verticalScrollBar().setValue(line)
-        self.right.verticalScrollBar().setValue(line)
-        self.change_position.setText(
-            f"Изменение {self._current_change + 1}/{len(self._changed_groups)}"
-        )
-
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Local Coding Agent")
         self.resize(1450, 900)
-        self.setMinimumSize(900, 620)
+        self.setMinimumSize(1050, 700)
         self.setStyleSheet(APP_QSS)
         self.worker = None
         self.conversation_history = []
@@ -555,10 +349,8 @@ class MainWindow(QMainWindow):
         self.change_records = []
         self._create_hidden_connection_fields()
         self._build_ui()
-        self._sync_workspace_title()
         self._bind_shortcuts()
         self.refresh_chat_list()
-        self.refresh_task_panel()
         saved_chat_id = self.settings_store.value("chat/current_id", "")
         if saved_chat_id:
             chat = load_chat(str(saved_chat_id))
@@ -573,13 +365,11 @@ class MainWindow(QMainWindow):
         root = QWidget(); self.setCentralWidget(root)
         outer = QVBoxLayout(root); outer.setContentsMargins(0, 0, 0, 0); outer.setSpacing(0)
         outer.addWidget(self._build_topbar())
-        self.body_splitter = QSplitter(Qt.Horizontal); self.body_splitter.setChildrenCollapsible(False)
-        self.body_splitter.addWidget(self._build_sidebar())
-        self.body_splitter.addWidget(self._build_center())
-        self.inspector_panel = self._build_inspector()
-        self.body_splitter.addWidget(self.inspector_panel)
-        self.inspector_panel.hide()
-        self.body_splitter.setSizes([220, 980, 300]); outer.addWidget(self.body_splitter, 1)
+        body = QSplitter(Qt.Horizontal); body.setChildrenCollapsible(False)
+        body.addWidget(self._build_sidebar())
+        body.addWidget(self._build_center())
+        body.addWidget(self._build_inspector())
+        body.setSizes([250, 850, 280]); outer.addWidget(body, 1)
         outer.addWidget(self._build_composer())
 
     def _build_topbar(self):
@@ -595,46 +385,28 @@ class MainWindow(QMainWindow):
         self.model_selector.addItems([self.model.itemText(i) for i in range(self.model.count())])
         self.model_selector.setCurrentText(self.model.currentText())
         self.model_selector.currentTextChanged.connect(self._on_model_selected)
-        model_badge = QLabel("MODEL"); model_badge.setObjectName("ModelBadge"); layout.addWidget(model_badge); layout.addWidget(self.model_selector)
+        layout.addWidget(QLabel("Модель:")); layout.addWidget(self.model_selector)
         refresh_models = QToolButton(); refresh_models.setText("↻"); refresh_models.setToolTip("Получить список моделей с локального сервера"); refresh_models.clicked.connect(lambda: self.refresh_models(show_message=True)); layout.addWidget(refresh_models)
         editor_btn = QToolButton(); editor_btn.setText("</>"); editor_btn.setToolTip("Открыть редактор кода · Ctrl+Shift+E"); editor_btn.clicked.connect(self.open_editor_tab); layout.addWidget(editor_btn)
         self.status_label = QLabel("Готов"); self.status_label.setObjectName("StatusReady"); layout.addWidget(self.status_label)
-        self.inspector_toggle = QToolButton(); self.inspector_toggle.setText("Панель"); self.inspector_toggle.setToolTip("Показать/скрыть план, изменения и диагностику"); self.inspector_toggle.setCheckable(True); self.inspector_toggle.toggled.connect(self.toggle_inspector); layout.addWidget(self.inspector_toggle)
         settings = QToolButton(); settings.setText("⚙"); settings.setToolTip("Настройки агента"); settings.clicked.connect(self.open_settings); layout.addWidget(settings)
         return bar
 
-    def toggle_inspector(self, visible):
-        if not hasattr(self, "inspector_panel"):
-            return
-        self.inspector_panel.setVisible(bool(visible))
-        if visible:
-            self.body_splitter.setSizes([210, 760, 300])
-        else:
-            self.body_splitter.setSizes([220, 980, 0])
-
     def _build_sidebar(self):
-        panel = QFrame(); panel.setObjectName("Sidebar"); panel.setMinimumWidth(185); panel.setMaximumWidth(280)
-        layout = QVBoxLayout(panel); layout.setContentsMargins(8, 10, 8, 10)
+        panel = QFrame(); panel.setObjectName("Sidebar"); panel.setMinimumWidth(220); panel.setMaximumWidth(340)
+        layout = QVBoxLayout(panel); layout.setContentsMargins(10, 12, 10, 12)
         new_btn = QPushButton("＋  Новый чат"); new_btn.setObjectName("Primary"); new_btn.clicked.connect(self.new_chat); layout.addWidget(new_btn)
-        nav = QHBoxLayout()
-        chat_nav = QToolButton(); chat_nav.setText("Чат"); chat_nav.setCheckable(True); chat_nav.setChecked(True); chat_nav.setToolTip("Рабочий чат")
-        editor_nav = QToolButton(); editor_nav.setText("</>"); editor_nav.setToolTip("Редактор проекта · Ctrl+Shift+E")
-        chat_nav.clicked.connect(lambda: self.center_tabs.setCurrentWidget(self.chat_panel))
-        editor_nav.clicked.connect(self.open_editor_tab)
-        nav.addWidget(chat_nav, 1); nav.addWidget(editor_nav)
-        layout.addLayout(nav)
         self.chat_search = QLineEdit(); self.chat_search.setPlaceholderText("Поиск по истории…"); self.chat_search.textChanged.connect(self.filter_chats); layout.addWidget(self.chat_search)
-        label = QLabel("ЧАТЫ"); label.setObjectName("Muted"); layout.addWidget(label)
+        label = QLabel("ИСТОРИЯ"); label.setObjectName("Muted"); layout.addWidget(label)
         self.chat_list = QListWidget(); self.chat_list.itemClicked.connect(self.open_chat_item); layout.addWidget(self.chat_list, 1)
         row = QHBoxLayout()
         rename = QPushButton("Переименовать"); rename.clicked.connect(self.rename_current_chat)
         delete = QPushButton("Удалить"); delete.setObjectName("Danger"); delete.clicked.connect(self.delete_current_chat)
         row.addWidget(rename); row.addWidget(delete); layout.addLayout(row)
-        project_card = QFrame(); project_card.setObjectName("Card"); p = QVBoxLayout(project_card); p.setContentsMargins(9,8,9,8); p.setSpacing(5)
-        project_head = QHBoxLayout(); project_head.addWidget(QLabel("Проект")); project_head.addStretch(1)
-        choose = QToolButton(); choose.setText("＋"); choose.setToolTip("Выбрать папку проекта"); choose.clicked.connect(self.choose_project); project_head.addWidget(choose); p.addLayout(project_head)
-        self.sidebar_project = QLabel("Не выбран"); self.sidebar_project.setWordWrap(True); self.sidebar_project.setObjectName("Muted"); p.addWidget(self.sidebar_project)
-        memory_btn = QToolButton(); memory_btn.setText("Память проекта…"); memory_btn.clicked.connect(self.open_project_memory); p.addWidget(memory_btn); layout.addWidget(project_card)
+        project_card = QFrame(); project_card.setObjectName("Card"); p = QVBoxLayout(project_card)
+        p.addWidget(QLabel("ПРОЕКТ")); self.sidebar_project = QLabel("—"); self.sidebar_project.setWordWrap(True); self.sidebar_project.setObjectName("Muted"); p.addWidget(self.sidebar_project)
+        choose = QPushButton("Выбрать папку"); choose.clicked.connect(self.choose_project); p.addWidget(choose)
+        memory_btn = QPushButton("Память проекта…"); memory_btn.clicked.connect(self.open_project_memory); p.addWidget(memory_btn); layout.addWidget(project_card)
         return panel
 
     def _build_center(self):
@@ -646,12 +418,7 @@ class MainWindow(QMainWindow):
         return self.center_tabs
 
     def _build_chat_panel(self):
-        panel = QWidget(); layout = QVBoxLayout(panel); layout.setContentsMargins(20, 16, 20, 8)
-        head = QHBoxLayout()
-        self.workspace_title = QLabel("Новый чат"); self.workspace_title.setObjectName("WorkspaceTitle"); head.addWidget(self.workspace_title)
-        head.addStretch(1)
-        self.context_hint = QLabel("Локально · sandbox"); self.context_hint.setObjectName("Hint"); head.addWidget(self.context_hint)
-        layout.addLayout(head)
+        panel = QWidget(); layout = QVBoxLayout(panel); layout.setContentsMargins(14, 14, 14, 14)
         self.chat_view = QTextBrowser(); self.chat_view.setOpenExternalLinks(False); self.chat_view.setPlaceholderText("Начните диалог с агентом…"); layout.addWidget(self.chat_view, 1)
         self.log_toggle = QToolButton(); self.log_toggle.setText("⌄  Журнал инструментов"); self.log_toggle.setCheckable(True); self.log_toggle.setChecked(False); layout.addWidget(self.log_toggle)
         self.log_view = QPlainTextEdit(); self.log_view.setReadOnly(True); self.log_view.setMaximumHeight(220); self.log_view.hide(); layout.addWidget(self.log_view)
@@ -663,14 +430,10 @@ class MainWindow(QMainWindow):
         toolbar = QFrame(); toolbar.setObjectName("Card"); row = QHBoxLayout(toolbar); row.setContentsMargins(10, 7, 10, 7)
         heading = QLabel("WORKSPACE / EDITOR"); heading.setObjectName("SectionTitle"); row.addWidget(heading); row.addStretch(1)
         self.editor_path_label = QLabel("Файл не открыт"); self.editor_path_label.setObjectName("EditorPath"); row.addWidget(self.editor_path_label, 1)
-        self.editor_position_label = QLabel("Ln 1, Col 1"); self.editor_position_label.setObjectName("Muted"); row.addWidget(self.editor_position_label)
         self.editor_find = QLineEdit(); self.editor_find.setPlaceholderText("Найти в файле…"); self.editor_find.setMaximumWidth(190); self.editor_find.returnPressed.connect(self.find_in_editor); row.addWidget(self.editor_find)
         find_btn = QToolButton(); find_btn.setText("⌕"); find_btn.setToolTip("Найти следующий результат"); find_btn.clicked.connect(self.find_in_editor); row.addWidget(find_btn)
         save_btn = QPushButton("Сохранить  Ctrl+S"); save_btn.setObjectName("Primary"); save_btn.clicked.connect(self.save_current_editor); row.addWidget(save_btn)
         refresh_btn = QToolButton(); refresh_btn.setText("↻"); refresh_btn.setToolTip("Обновить дерево файлов"); refresh_btn.clicked.connect(self.refresh_project_tree); row.addWidget(refresh_btn)
-        goto_btn = QToolButton(); goto_btn.setText("#"); goto_btn.setToolTip("Перейти к строке · Ctrl+G"); goto_btn.clicked.connect(self.goto_editor_line); row.addWidget(goto_btn)
-        reload_btn = QToolButton(); reload_btn.setText("⟳"); reload_btn.setToolTip("Перечитать текущий файл с диска"); reload_btn.clicked.connect(self.reload_current_editor); row.addWidget(reload_btn)
-        self.wrap_btn = QToolButton(); self.wrap_btn.setText("↔"); self.wrap_btn.setCheckable(True); self.wrap_btn.setToolTip("Перенос строк"); self.wrap_btn.toggled.connect(self.toggle_editor_wrap); row.addWidget(self.wrap_btn)
         outer.addWidget(toolbar)
         splitter = QSplitter(Qt.Horizontal); splitter.setChildrenCollapsible(False)
         file_panel = QFrame(); file_panel.setObjectName("Card"); file_layout = QVBoxLayout(file_panel); file_layout.setContentsMargins(8, 8, 8, 8)
@@ -698,15 +461,6 @@ class MainWindow(QMainWindow):
         self.inspector_sandbox = QLabel("🔒 Sandbox включён\nФайлы доступны только внутри выбранного проекта."); self.inspector_sandbox.setWordWrap(True); c.addWidget(self.inspector_sandbox)
         layout.addWidget(card)
 
-        task_card = QFrame(); task_card.setObjectName("TaskCard"); tc = QVBoxLayout(task_card); tc.setContentsMargins(10,10,10,10)
-        task_head = QHBoxLayout(); task_head.addWidget(QLabel("ПЛАН ЗАДАЧИ")); task_head.addStretch(1)
-        self.task_status_label = QLabel("Нет активной задачи"); self.task_status_label.setObjectName("Muted"); task_head.addWidget(self.task_status_label); tc.addLayout(task_head)
-        self.task_progress = QProgressBar(); self.task_progress.setRange(0,5); self.task_progress.setValue(0); self.task_progress.setTextVisible(False); tc.addWidget(self.task_progress)
-        self.task_stages = QListWidget(); self.task_stages.setMaximumHeight(180); tc.addWidget(self.task_stages)
-        self.task_event_label = QLabel("После остановки задачу можно продолжить."); self.task_event_label.setWordWrap(True); self.task_event_label.setObjectName("Muted"); tc.addWidget(self.task_event_label)
-        task_row = QHBoxLayout(); self.resume_task_btn = QPushButton("▶ Продолжить"); self.resume_task_btn.setObjectName("Primary"); self.resume_task_btn.setEnabled(False); self.resume_task_btn.clicked.connect(self.resume_task); clear_task_btn = QPushButton("Сбросить"); clear_task_btn.clicked.connect(self.reset_task); task_row.addWidget(self.resume_task_btn); task_row.addWidget(clear_task_btn); tc.addLayout(task_row)
-        layout.addWidget(task_card)
-
         changes = QFrame(); changes.setObjectName("InspectorCard"); ch = QVBoxLayout(changes)
         header = QHBoxLayout(); header.addWidget(QLabel("ЦЕНТР ИЗМЕНЕНИЙ")); header.addStretch(1)
         self.changes_count = QLabel("0"); self.changes_count.setObjectName("Status"); header.addWidget(self.changes_count); ch.addLayout(header)
@@ -714,10 +468,9 @@ class MainWindow(QMainWindow):
         self.change_diff_view = QTextBrowser(); self.change_diff_view.setPlaceholderText("Выберите файл, чтобы посмотреть diff"); self.change_diff_view.setMinimumHeight(220); ch.addWidget(self.change_diff_view, 1)
         row = QHBoxLayout()
         open_diff_file = QPushButton("Открыть файл"); open_diff_file.clicked.connect(self.open_selected_change_in_editor)
-        compare = QPushButton("Сравнить"); compare.clicked.connect(self.open_selected_diff_viewer)
         clear = QPushButton("Очистить"); clear.clicked.connect(self.clear_changes)
         copy_btn = QPushButton("Копировать diff"); copy_btn.clicked.connect(self.copy_selected_diff)
-        row.addWidget(open_diff_file); row.addWidget(compare); row.addWidget(clear); row.addWidget(copy_btn); ch.addLayout(row)
+        row.addWidget(open_diff_file); row.addWidget(clear); row.addWidget(copy_btn); ch.addLayout(row)
         layout.addWidget(changes, 1)
 
         tools = QFrame(); tools.setObjectName("InspectorCard"); t = QVBoxLayout(tools); t.addWidget(QLabel("ДИАГНОСТИКА"))
@@ -728,27 +481,13 @@ class MainWindow(QMainWindow):
         return panel
 
     def _build_composer(self):
-        panel = QFrame(); panel.setObjectName("Composer"); outer = QVBoxLayout(panel); outer.setContentsMargins(16, 9, 16, 12); outer.setSpacing(7)
-        tools = QHBoxLayout()
-        project_btn = QToolButton(); project_btn.setText("＋ Проект"); project_btn.setToolTip("Выбрать папку проекта"); project_btn.clicked.connect(self.choose_project); tools.addWidget(project_btn)
-        memory_btn = QToolButton(); memory_btn.setText("Память"); memory_btn.setToolTip("Память текущего проекта"); memory_btn.clicked.connect(self.open_project_memory); tools.addWidget(memory_btn)
-        editor_btn = QToolButton(); editor_btn.setText("</> Редактор"); editor_btn.setToolTip("Открыть редактор"); editor_btn.clicked.connect(self.open_editor_tab); tools.addWidget(editor_btn)
-        tools.addStretch(1)
-        self.composer_hint = QLabel("Enter — отправить · Shift+Enter — новая строка"); self.composer_hint.setObjectName("Hint"); tools.addWidget(self.composer_hint)
-        outer.addLayout(tools)
-        row = QHBoxLayout()
-        self.prompt = QPlainTextEdit(); self.prompt.setPlaceholderText("Что нужно сделать? Опишите задачу для агента…"); self.prompt.setFixedHeight(68); row.addWidget(self.prompt, 1)
+        panel = QFrame(); panel.setObjectName("Composer"); layout = QHBoxLayout(panel); layout.setContentsMargins(14, 10, 14, 10)
+        self.prompt = QPlainTextEdit(); self.prompt.setPlaceholderText("Опишите задачу…  Enter — отправить, Shift+Enter — новая строка"); self.prompt.setFixedHeight(72); layout.addWidget(self.prompt, 1)
         buttons = QVBoxLayout()
         self.send_btn = QPushButton("Отправить  ↵"); self.send_btn.setObjectName("Primary"); self.send_btn.clicked.connect(self.send_message); buttons.addWidget(self.send_btn)
         self.stop_btn = QPushButton("Остановить"); self.stop_btn.setObjectName("Danger"); self.stop_btn.setEnabled(False); self.stop_btn.clicked.connect(self.stop_agent); buttons.addWidget(self.stop_btn)
-        row.addLayout(buttons); outer.addLayout(row)
+        layout.addLayout(buttons)
         return panel
-
-    def _sync_workspace_title(self):
-        if hasattr(self, "workspace_title"):
-            self.workspace_title.setText(self.current_chat_title or "Новый чат")
-        if hasattr(self, "chat_title_label"):
-            self.chat_title_label.setText(self.current_chat_title or "Новый чат")
 
     def open_editor_tab(self):
         self.center_tabs.setCurrentWidget(self.editor_workspace)
@@ -838,7 +577,6 @@ class MainWindow(QMainWindow):
             editor.setPlainText(text)
             editor.document().setModified(False)
             editor.highlighter = CodeHighlighter(editor.document(), path.suffix)
-            editor.cursorPositionChanged.connect(self.update_editor_position)
             editor.document().modificationChanged.connect(
                 lambda modified, e=editor: self.update_editor_tab_title(e, modified)
             )
@@ -878,55 +616,9 @@ class MainWindow(QMainWindow):
     def on_editor_tab_changed(self, index):
         widget = self.editor_tabs.widget(index) if index >= 0 else None
         if isinstance(widget, CodeEditor):
-            self.editor_path_label.setText(str(widget.file_path)); self.update_editor_tab_title(widget); self.update_editor_position()
+            self.editor_path_label.setText(str(widget.file_path)); self.update_editor_tab_title(widget)
         else:
             self.editor_path_label.setText("Файл не открыт")
-
-    def update_editor_position(self):
-        editor = self.current_code_editor()
-        if not editor:
-            self.editor_position_label.setText("Ln 1, Col 1")
-            return
-        cursor = editor.textCursor()
-        self.editor_position_label.setText(f"Ln {cursor.blockNumber() + 1}, Col {cursor.positionInBlock() + 1}")
-
-    def goto_editor_line(self):
-        editor = self.current_code_editor()
-        if not editor:
-            return
-        line, ok = QInputDialog.getInt(self, "Перейти к строке", "Номер строки:", editor.textCursor().blockNumber() + 1, 1, max(1, editor.blockCount()))
-        if not ok:
-            return
-        cursor = editor.textCursor()
-        cursor.movePosition(cursor.MoveOperation.Start)
-        cursor.movePosition(cursor.MoveOperation.Down, cursor.MoveMode.MoveAnchor, line - 1)
-        editor.setTextCursor(cursor)
-        editor.centerCursor()
-        editor.setFocus()
-        self.update_editor_position()
-
-    def toggle_editor_wrap(self, enabled):
-        editor = self.current_code_editor()
-        if not editor:
-            return
-        editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth if enabled else QPlainTextEdit.LineWrapMode.NoWrap)
-        self.editor_status.setText("Перенос строк включён" if enabled else "Перенос строк выключен")
-
-    def reload_current_editor(self):
-        editor = self.current_code_editor()
-        if not editor:
-            return
-        if editor.document().isModified():
-            answer = QMessageBox.question(self, "Перечитать файл", "Есть несохранённые изменения. Заменить их содержимым с диска?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-            if answer != QMessageBox.Yes:
-                return
-        try:
-            root = self._project_root(); path, text = read_project_text(root, editor.file_path)
-            editor.setPlainText(text); editor.saved_text = text; editor.document().setModified(False)
-            self.update_editor_tab_title(editor, False); self.editor_status.setText(f"Перечитано с диска · {path.relative_to(root)}")
-            self.update_editor_position()
-        except (OSError, RuntimeError, AccessDenied, UnicodeDecodeError, ValueError) as exc:
-            QMessageBox.warning(self, "Не удалось перечитать файл", str(exc))
 
     def save_current_editor(self):
         editor = self.current_code_editor()
@@ -988,6 +680,11 @@ class MainWindow(QMainWindow):
             cursor = editor.textCursor(); cursor.movePosition(cursor.MoveOperation.Start); editor.setTextCursor(cursor)
             if not editor.find(term): self.editor_status.setText(f"Не найдено: {term}")
 
+    def open_selected_diff_viewer(self):
+        item = self.changes_list.currentItem()
+        if not item: return
+        self.show_change_diff(item)
+
     def _bind_shortcuts(self):
         QShortcut(QKeySequence("Ctrl+N"), self, activated=self.new_chat)
         QShortcut(QKeySequence("Ctrl+L"), self, activated=self.prompt.setFocus)
@@ -995,9 +692,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+S"), self, activated=self.save_current_editor)
         QShortcut(QKeySequence("Ctrl+Shift+E"), self, activated=self.open_editor_tab)
         QShortcut(QKeySequence("Ctrl+F"), self, activated=self.focus_editor_search)
-        QShortcut(QKeySequence("Ctrl+G"), self, activated=self.goto_editor_line)
-        QShortcut(QKeySequence("Ctrl+Shift+R"), self, activated=self.reload_current_editor)
-        QShortcut(QKeySequence("Ctrl+Shift+W"), self, activated=lambda: self.wrap_btn.toggle())
+        QShortcut(QKeySequence("Ctrl+Shift+D"), self, activated=self.open_selected_diff_viewer)
 
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Return, Qt.Key_Enter) and self.prompt.hasFocus():
@@ -1186,7 +881,7 @@ class MainWindow(QMainWindow):
         chat = create_chat(self.project_path.text(), self.model.currentText().strip())
         self.current_chat_id = chat["id"]; self.current_chat_title = chat["title"]; self.conversation_history = []
         self.settings_store.setValue("chat/current_id", self.current_chat_id); self.settings_store.sync()
-        self.render_history(); self.refresh_task_panel(); self.refresh_chat_list(select_id=self.current_chat_id); self._update_context_labels(); self._set_status("Готов", "ready")
+        self.render_history(); self.refresh_chat_list(select_id=self.current_chat_id); self._update_context_labels(); self._set_status("Готов", "ready")
 
     def start_agent(self, prompt, force_tool=None, use_history=True):
         if self.worker and self.worker.isRunning(): return
@@ -1197,54 +892,11 @@ class MainWindow(QMainWindow):
                 chat = create_chat(str(root.resolve()), self.model.currentText().strip()); self.current_chat_id = chat["id"]
             self._save_current_chat(extra_message={"role": "user", "content": prompt})
         self.settings_store.setValue("connection/base_url", self.base_url.text()); self.settings_store.setValue("connection/api_key", self.api_key.text()); self.settings_store.setValue("connection/model", self.model.currentText()); self.settings_store.sync()
-        self.worker = AgentWorker(self.base_url.text().strip(), self.api_key.text().strip() or "no-key", self.model.currentText().strip(), str(root.resolve()), prompt, force_tool, settings=self.current_limits(), history=self.conversation_history if use_history else [], memory=load_project_memory(str(root.resolve())), auto_memory=(self.settings_store.value("memory/auto_update", True, type=bool) and use_history), task_id=self.current_chat_id if use_history else None)
-        self.worker.chat.connect(self.on_chat); self.worker.log.connect(self.log_view.appendPlainText); self.worker.memory_updated.connect(self.on_memory_updated); self.worker.failed.connect(self.on_failed); self.worker.finished_text.connect(lambda _: self.log_view.appendPlainText("Agent turn finished.")); self.worker.progress.connect(self.on_progress); self.worker.task_updated.connect(self.on_task_updated)
+        self.worker = AgentWorker(self.base_url.text().strip(), self.api_key.text().strip() or "no-key", self.model.currentText().strip(), str(root.resolve()), prompt, force_tool, settings=self.current_limits(), history=self.conversation_history if use_history else [], memory=load_project_memory(str(root.resolve())), auto_memory=(self.settings_store.value("memory/auto_update", True, type=bool) and use_history))
+        self.worker.chat.connect(self.on_chat); self.worker.log.connect(self.log_view.appendPlainText); self.worker.memory_updated.connect(self.on_memory_updated); self.worker.failed.connect(self.on_failed); self.worker.finished_text.connect(lambda _: self.log_view.appendPlainText("Agent turn finished.")); self.worker.progress.connect(self.on_progress)
         if use_history: self.worker.conversation_updated.connect(self.update_conversation_history)
         self.worker.write_approval_requested.connect(self.confirm_file_change, Qt.ConnectionType.BlockingQueuedConnection); self.worker.change_event.connect(self.add_change_event); self.worker.finished.connect(self.on_worker_finished)
         self.send_btn.setEnabled(False); self.stop_btn.setEnabled(True); self._set_status("Работает…", "working"); self.worker.start()
-
-    def on_task_updated(self, task):
-        if not isinstance(task, dict): return
-        stages = task.get("stages", [])
-        self.task_stages.clear()
-        done = 0
-        for stage in stages:
-            status = stage.get("status", "pending")
-            if status == "done": done += 1; prefix = "✓"
-            elif status == "active": prefix = "●"
-            else: prefix = "○"
-            item = QListWidgetItem(f"{prefix}  {stage.get('title','Этап')}")
-            item.setData(Qt.ItemDataRole.UserRole, status)
-            self.task_stages.addItem(item)
-            if status == "done": item.setForeground(QColor("#8fd3a5"))
-            elif status == "active": item.setForeground(QColor("#e2bd70"))
-        self.task_progress.setValue(done)
-        status = task.get("status", "running")
-        labels = {"running":"В работе", "paused":"Приостановлена", "completed":"Завершена"}
-        self.task_status_label.setText(labels.get(status, status))
-        self.task_event_label.setText(task.get("last_event", "") or "Готово к продолжению")
-        self.resume_task_btn.setEnabled(status == "paused" and not (self.worker and self.worker.isRunning()))
-
-    def refresh_task_panel(self):
-        if not hasattr(self, "task_stages") or not self.current_chat_id: return
-        task = load_task(self.current_chat_id)
-        if task: self.on_task_updated(task)
-        else:
-            self.task_stages.clear(); self.task_progress.setValue(0); self.task_status_label.setText("Нет активной задачи"); self.task_event_label.setText("План появится при запуске задачи."); self.resume_task_btn.setEnabled(False)
-
-    def resume_task(self):
-        if not self.current_chat_id or (self.worker and self.worker.isRunning()): return
-        task = load_task(self.current_chat_id)
-        if not task or task.get("status") != "paused": return
-        prompt = ("Продолжи незавершённую задачу с контрольной точки. Не начинай работу заново без необходимости. "
-                  "Проверь актуальное состояние проекта инструментами и продолжи с последнего незавершённого этапа. "
-                  f"Исходная задача: {task.get('prompt','')[:7000]}")
-        self.start_agent(prompt, use_history=True)
-
-    def reset_task(self):
-        if not self.current_chat_id: return
-        if QMessageBox.question(self, "Сбросить план", "Удалить контрольную точку текущей задачи? История чата останется.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes: return
-        clear_task(self.current_chat_id); self.refresh_task_panel()
 
     def update_conversation_history(self, messages):
         self.conversation_history = list(messages); self._save_current_chat(); self.refresh_chat_list(select_id=self.current_chat_id)
@@ -1278,7 +930,7 @@ class MainWindow(QMainWindow):
         self._save_current_chat(); self.current_chat_id = chat["id"]; self.current_chat_title = chat.get("title", "Новый чат"); self.conversation_history = list(chat.get("messages", []))
         if chat.get("project_root") and Path(chat["project_root"]).is_dir(): self.project_path.setText(str(Path(chat["project_root"]).resolve()))
         if chat.get("model"): self._set_model(chat["model"])
-        self.settings_store.setValue("chat/current_id", self.current_chat_id); self.settings_store.sync(); self.render_history(); self.refresh_task_panel(); self.refresh_chat_list(select_id=self.current_chat_id); self._update_context_labels()
+        self.settings_store.setValue("chat/current_id", self.current_chat_id); self.settings_store.sync(); self.render_history(); self.refresh_chat_list(select_id=self.current_chat_id); self._update_context_labels()
         if announce: self.log_view.appendPlainText(f"=== Открыт чат: {self.current_chat_title} ===")
 
     def open_chat_item(self, item):
@@ -1343,7 +995,10 @@ class MainWindow(QMainWindow):
         matches = [i for i, r in enumerate(self.change_records[:-1]) if r.get("path") == record.get("path") and r.get("status") == "pending"]
         if matches and record.get("status") != "pending":
             idx = matches[-1]
-            self.change_records[idx] = record
+            previous = self.change_records[idx]
+            merged = dict(previous)
+            merged.update({k: v for k, v in record.items() if v not in ("", None)})
+            self.change_records[idx] = merged
             self.change_records.pop()
         self.refresh_change_center(select_path=record.get("path"))
 
@@ -1375,19 +1030,6 @@ class MainWindow(QMainWindow):
         if self.worker and self.worker.isRunning():
             QMessageBox.information(self, "Центр изменений", "Очистка доступна после завершения текущего запроса."); return
         self.change_records.clear(); self.refresh_change_center(); self.change_diff_view.clear()
-
-    def open_selected_diff_viewer(self):
-        item = self.changes_list.currentItem()
-        if not item:
-            QMessageBox.information(self, "Центр изменений", "Сначала выберите изменение.")
-            return
-        record = item.data(Qt.ItemDataRole.UserRole) or {}
-        diff = record.get("diff", "")
-        if not diff:
-            QMessageBox.information(self, "Центр изменений", "Для выбранного изменения нет diff.")
-            return
-        dialog = SideBySideDiffDialog(self, record.get("path", ""), diff)
-        dialog.exec()
 
     def copy_selected_diff(self):
         item = self.changes_list.currentItem()
