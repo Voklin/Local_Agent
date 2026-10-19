@@ -1,6 +1,7 @@
 import json
 import threading
 from .tools import preview_file_change
+from .conversation import build_messages
 from PySide6.QtCore import QThread, Signal
 from openai import OpenAI
 from .tools import TOOL_DEFINITIONS, execute_tool
@@ -27,11 +28,13 @@ class AgentWorker(QThread):
     failed = Signal(str)
     progress = Signal(int, int)
     write_approval_requested = Signal(str, str, bool)
+    conversation_updated = Signal(object)
 
-    def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None):
+    def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None):
         super().__init__()
         self.base_url, self.api_key, self.model = base_url, api_key, model
         self.project_root, self.prompt, self.force_tool = project_root, prompt, force_tool
+        self.history = list(history or [])
         self.settings = {**DEFAULT_SETTINGS, **(settings or {})}
         self._approval_lock = threading.Lock()
         self._approval_event = None
@@ -61,7 +64,8 @@ class AgentWorker(QThread):
     def run(self):
         try:
             client = OpenAI(base_url=self.base_url, api_key=self.api_key or "no-key", timeout=180, max_retries=0)
-            messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": self.prompt}]
+            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+            messages.extend(build_messages(self.history, self.prompt))
             final = ""
             tool_calls_count = 0
             consecutive_errors = 0
@@ -122,6 +126,8 @@ class AgentWorker(QThread):
                     final = content
                     self.chat.emit("assistant", content)
                 if not tool_calls:
+                    if content:
+                        messages.append({"role": "assistant", "content": content})
                     break
 
                 messages.append({
@@ -185,6 +191,7 @@ class AgentWorker(QThread):
                 final = (final + "\n\n" if final else "") + stop_reason
             if not final:
                 final = "Модель завершила обработку без текстового ответа. Посмотри журнал вызовов инструментов."
+            self.conversation_updated.emit(messages[1:])
             self.finished_text.emit(final)
         except Exception as exc:
             if self.isInterruptionRequested():

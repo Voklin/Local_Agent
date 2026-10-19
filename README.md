@@ -68,3 +68,17 @@ Run all tests after updating:
 ```powershell
 python -m unittest discover -s tests -v
 ```
+
+## v4.2 — Conversation history fix
+
+- The agent now sends prior chat turns with each new user message, rather than sending only the latest message.
+- Tool-call assistant messages and tool results are retained in the conversation context.
+- Added a **New chat** button to clear the current in-memory conversation deliberately.
+- The connection/tool-calling diagnostic runs without using or overwriting the normal chat history.
+- Chat history is held in memory for the current app session; it is not persisted after closing the app.
+
+Run regression tests from the project directory:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```

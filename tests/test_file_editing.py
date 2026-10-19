@@ -24,18 +24,24 @@ class FileEditingTests(unittest.TestCase):
         self.assertIn("-print(\"old\")", result["diff"])
         self.assertEqual((self.root / "existing.py").read_text(encoding="utf-8"), 'print("old")\n')
 
+    def test_write_file_denies_without_explicit_approval(self):
+        result = write_file(self.root, "blocked.txt", "must not be written")
+        self.assertFalse(result["ok"])
+        self.assertEqual(result.get("code"), "APPROVAL_REQUIRED")
+        self.assertFalse((self.root / "blocked.txt").exists())
+
     def test_create_new_file(self):
-        result = write_file(self.root, "new.py", 'print("hello")\n')
+        result = write_file(self.root, "new.py", 'print("hello")\n', approved=True)
         self.assertTrue(result["ok"], result)
         self.assertEqual((self.root / "new.py").read_text(encoding="utf-8"), 'print("hello")\n')
 
     def test_existing_file_requires_overwrite_flag(self):
-        result = write_file(self.root, "existing.py", "new content")
+        result = write_file(self.root, "existing.py", "new content", approved=True)
         self.assertFalse(result["ok"])
         self.assertEqual((self.root / "existing.py").read_text(encoding="utf-8"), 'print("old")\n')
 
     def test_overwrite_existing_file(self):
-        result = write_file(self.root, "existing.py", "new content", overwrite=True)
+        result = write_file(self.root, "existing.py", "new content", overwrite=True, approved=True)
         self.assertTrue(result["ok"], result)
         self.assertEqual((self.root / "existing.py").read_text(encoding="utf-8"), "new content")
 

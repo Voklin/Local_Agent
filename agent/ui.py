@@ -16,6 +16,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Local Coding Agent — File Editing Edition")
         self.resize(1100, 850)
         self.worker = None
+        # In-memory chat history for this session, including tool calls/results.
+        self.conversation_history = []
         self.settings_store = QSettings("LocalCodingAgent", "LocalCodingAgent")
 
         central = QWidget()
@@ -98,6 +100,10 @@ class MainWindow(QMainWindow):
         self.clear_btn = QPushButton("Clear log")
         self.clear_btn.clicked.connect(self.log_view.clear)
         input_row.addWidget(self.clear_btn)
+        self.new_chat_btn = QPushButton("New chat")
+        self.new_chat_btn.setToolTip("Очистить историю диалога и начать новый разговор")
+        self.new_chat_btn.clicked.connect(self.new_chat)
+        input_row.addWidget(self.new_chat_btn)
 
         for control in self._limit_controls():
             control.valueChanged.connect(self.save_limits)
@@ -147,7 +153,7 @@ class MainWindow(QMainWindow):
         (QMessageBox.information if result["ok"] else QMessageBox.warning)(self, "Sandbox test", summary + "\nПодробности записаны в журнал.")
 
     def test_tool_calling(self):
-        self.start_agent("Вызови list_files ровно один раз для корня проекта: path='.', recursive=false. Затем кратко опиши результат, не угадывай содержимое.", force_tool="list_files")
+        self.start_agent("Вызови list_files ровно один раз для корня проекта: path='.', recursive=false. Затем кратко опиши результат, не угадывай содержимое.", force_tool="list_files", use_history=False)
 
     def send_message(self):
         prompt = self.prompt.text().strip()
@@ -156,7 +162,15 @@ class MainWindow(QMainWindow):
             self.chat_view.append(f"<b>Вы:</b> {prompt}")
             self.start_agent(prompt)
 
-    def start_agent(self, prompt, force_tool=None):
+    def new_chat(self):
+        if self.worker and self.worker.isRunning():
+            QMessageBox.warning(self, "Agent busy", "Сначала дождись завершения запроса или нажми Stop.")
+            return
+        self.conversation_history = []
+        self.chat_view.clear()
+        self.log_view.appendPlainText("=== New chat: conversation history cleared ===")
+
+    def start_agent(self, prompt, force_tool=None, use_history=True):
         if self.worker and self.worker.isRunning():
             QMessageBox.warning(self, "Agent busy", "Дождись завершения текущего запроса или нажми Stop.")
             return
@@ -169,17 +183,26 @@ class MainWindow(QMainWindow):
             self.base_url.text().strip(), self.api_key.text().strip() or "no-key",
             self.model.text().strip(), str(root.resolve()), prompt, force_tool,
             settings=self.current_limits(),
+            history=self.conversation_history if use_history else [],
         )
         self.worker.chat.connect(self.on_chat)
         self.worker.log.connect(self.log_view.appendPlainText)
         self.worker.failed.connect(lambda err: QMessageBox.critical(self, "Agent error", err))
         self.worker.finished_text.connect(lambda _: self.log_view.appendPlainText("Agent turn finished."))
         self.worker.progress.connect(self.on_progress)
-        self.worker.write_approval_requested.connect(self.confirm_file_change)
+        if use_history:
+            self.worker.conversation_updated.connect(self.update_conversation_history)
+        self.worker.write_approval_requested.connect(
+            self.confirm_file_change, Qt.ConnectionType.BlockingQueuedConnection
+        )
         self.worker.finished.connect(self.on_worker_finished)
         self.send_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
         self.worker.start()
+
+    def update_conversation_history(self, messages):
+        # Copy the list so later worker-side mutations cannot alter GUI state.
+        self.conversation_history = list(messages)
 
     def stop_agent(self):
         if self.worker and self.worker.isRunning():

@@ -153,8 +153,10 @@ def preview_file_change(root, path, content):
     return {"ok": True, "path": target.relative_to(base).as_posix(), "exists": exists, "diff": diff or "(No textual changes)"}
 
 
-def write_file(root, path, content, overwrite=False):
-    """Write UTF-8 text atomically. Caller must obtain user approval before calling."""
+def write_file(root, path, content, overwrite=False, *, approved=False):
+    """Write UTF-8 text atomically; deny by default unless the GUI explicitly approved."""
+    if not approved:
+        return {"ok": False, "error": "User approval is required before writing a file", "code": "APPROVAL_REQUIRED"}
     preview = preview_file_change(root, path, content)
     if not preview.get("ok"):
         return preview
@@ -211,7 +213,7 @@ def execute_tool(name, arguments, project_root, settings=None, *, approved=False
         if name == "write_file":
             if not approved:
                 return {"ok": False, "error": "User approval is required before writing a file", "code": "APPROVAL_REQUIRED"}
-            return write_file(project_root, arguments["path"], arguments["content"], bool(arguments.get("overwrite", False)))
+            return write_file(project_root, arguments["path"], arguments["content"], bool(arguments.get("overwrite", False)), approved=approved)
         return {"ok": False, "error": f"Unknown tool: {name}"}
     except AccessDenied as exc:
         return {"ok": False, "error": str(exc), "code": "ACCESS_DENIED"}
