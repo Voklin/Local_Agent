@@ -1,20 +1,22 @@
 from pathlib import Path
 from html import escape
 
-from PySide6.QtCore import Qt, QSettings, QSize
-from PySide6.QtGui import QFont, QKeySequence, QShortcut
+from PySide6.QtCore import Qt, QSettings, QSize, QRect, Signal
+from PySide6.QtGui import (QFont, QKeySequence, QShortcut, QSyntaxHighlighter, QTextCharFormat, QColor, QPainter, QTextFormat)
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QFileDialog, QTextBrowser, QPlainTextEdit, QMessageBox,
     QSplitter, QSpinBox, QGroupBox, QFormLayout, QDialog, QListWidget,
     QListWidgetItem, QInputDialog, QFrame, QToolButton, QComboBox,
-    QSizePolicy, QApplication, QCheckBox
+    QSizePolicy, QApplication, QCheckBox, QTabWidget, QTreeWidget, QTreeWidgetItem
 )
 from openai import OpenAI
 from .worker import AgentWorker, DEFAULT_SETTINGS
 from .tools import run_sandbox_self_test
 from .chat_store import list_chats, create_chat, load_chat, save_chat, delete_chat, rename_chat, title_from_messages
 from .project_memory import load_project_memory, save_project_memory, clear_project_memory
+from .security import resolve_allowed_path, AccessDenied
+from .editor_io import read_project_text, save_project_text, MAX_EDITOR_FILE_BYTES
 
 
 APP_QSS = """
@@ -22,6 +24,14 @@ QMainWindow, QWidget { background: #111318; color: #e7e9ee; font-family: "Segoe 
 QFrame#Sidebar { background: #17191f; border-right: 1px solid #292d36; }
 QFrame#TopBar { background: #15171c; border-bottom: 1px solid #292d36; }
 QFrame#Composer { background: #15171c; border-top: 1px solid #292d36; }
+QTabWidget::pane { border: 1px solid #292d36; border-radius: 9px; background: #111318; top: -1px; }
+QTabBar::tab { background: #171a20; color: #9ca4b2; border: 1px solid #292d36; padding: 9px 16px; margin-right: 3px; border-top-left-radius: 7px; border-top-right-radius: 7px; }
+QTabBar::tab:selected { background: #222731; color: #f2f4f8; border-bottom-color: #3b82f6; }
+QTreeWidget { background: #12151a; border: 1px solid #292d36; border-radius: 8px; alternate-background-color: #171a20; }
+QTreeWidget::item { padding: 4px; }
+QTreeWidget::item:selected { background: #26354a; color: #ffffff; }
+QLabel#SectionTitle { color: #c6cbd4; font-weight: 700; letter-spacing: 1px; }
+QLabel#EditorPath { color: #8f96a3; padding: 4px 8px; }
 QFrame#Card { background: #181b21; border: 1px solid #292d36; border-radius: 10px; }
 QFrame#InspectorCard { background: #171a20; border: 1px solid #292d36; border-radius: 10px; }
 QLabel#Brand { font-size: 16px; font-weight: 700; }
@@ -54,6 +64,110 @@ QGroupBox { border: 1px solid #2a2f38; border-radius: 9px; margin-top: 10px; pad
 QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; color: #aeb5c1; }
 QSpinBox { background: #0f1115; border: 1px solid #2b3039; border-radius: 7px; padding: 5px; }
 """
+
+
+class LineNumberArea(QWidget):
+    def __init__(self, editor):
+        super().__init__(editor)
+        self.editor = editor
+
+    def sizeHint(self):
+        return QSize(self.editor.line_number_area_width(), 0)
+
+    def paintEvent(self, event):
+        self.editor.line_number_area_paint_event(event)
+
+
+class CodeHighlighter(QSyntaxHighlighter):
+    """Small dependency-free syntax highlighter for common source formats."""
+    def __init__(self, document, suffix):
+        super().__init__(document)
+        self.rules = []
+        self._rule(r"\b(def|class|return|if|elif|else|for|while|try|except|finally|with|as|import|from|pass|break|continue|yield|async|await|lambda|raise|in|is|not|and|or|True|False|None|self)\b", "#c792ea")
+        self._rule(r"\b(const|let|var|function|new|this|export|default|extends|public|private|static|void|int|string|bool|null|undefined|true|false)\b", "#c792ea")
+        self._rule(r"\b[0-9]+(\.[0-9]+)?\b", "#f78c6c")
+        self._rule(r"\"([^\"\\]|\\.)*\"|'([^'\\]|\\.)*'", "#c3e88d")
+        self._rule(r"#.*$", "#697386")
+        self._rule(r"//.*$", "#697386")
+        self._rule(r"/\*.*\*/", "#697386")
+        self._rule(r"\b(print|len|range|open|str|int|float|list|dict|set|tuple|super|enumerate|zip|map|filter)\b", "#82aaff")
+        self._rule(r"[{}\[\]()]", "#89ddff")
+        self._rule(r"[=+*/<>!%-]", "#89ddff")
+        self.suffix = suffix.lower()
+
+    def _rule(self, pattern, color):
+        fmt = QTextCharFormat(); fmt.setForeground(QColor(color))
+        self.rules.append((pattern, fmt))
+
+    def highlightBlock(self, text):
+        for pattern, fmt in self.rules:
+            from PySide6.QtCore import QRegularExpression
+            expression = QRegularExpression(pattern)
+            iterator = expression.globalMatch(text)
+            while iterator.hasNext():
+                match = iterator.next()
+                self.setFormat(match.capturedStart(), match.capturedLength(), fmt)
+
+
+class CodeEditor(QPlainTextEdit):
+    """Editor with line numbers and a subtle current-line highlight."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.line_number_area = LineNumberArea(self)
+        self.blockCountChanged.connect(self.update_line_number_area_width)
+        self.updateRequest.connect(self.update_line_number_area)
+        self.cursorPositionChanged.connect(self.highlight_current_line)
+        self.update_line_number_area_width(0)
+        self.highlight_current_line()
+        self.setFont(QFont("Cascadia Code", 10))
+        self.setTabStopDistance(4 * self.fontMetrics().horizontalAdvance(' '))
+        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.setStyleSheet("QPlainTextEdit { background:#11151b; color:#d6deeb; border:0; border-radius:0; padding:8px; selection-background-color:#294b70; }")
+
+    def line_number_area_width(self):
+        digits = max(2, len(str(max(1, self.blockCount()))))
+        return 14 + self.fontMetrics().horizontalAdvance('9') * digits
+
+    def update_line_number_area_width(self, _):
+        self.setViewportMargins(self.line_number_area_width(), 0, 0, 0)
+
+    def update_line_number_area(self, rect, dy):
+        if dy:
+            self.line_number_area.scroll(0, dy)
+        else:
+            self.line_number_area.update(0, rect.y(), self.line_number_area.width(), rect.height())
+        if rect.contains(self.viewport().rect()):
+            self.update_line_number_area_width(0)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        cr = self.contentsRect()
+        self.line_number_area.setGeometry(QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height()))
+
+    def line_number_area_paint_event(self, event):
+        painter = QPainter(self.line_number_area)
+        painter.fillRect(event.rect(), QColor("#171b22"))
+        block = self.firstVisibleBlock()
+        block_number = block.blockNumber()
+        top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
+        bottom = top + int(self.blockBoundingRect(block).height())
+        while block.isValid() and top <= event.rect().bottom():
+            if block.isVisible() and bottom >= event.rect().top():
+                painter.setPen(QColor("#687386"))
+                painter.drawText(0, top, self.line_number_area.width() - 6, self.fontMetrics().height(), Qt.AlignmentFlag.AlignRight, str(block_number + 1))
+            block = block.next(); top = bottom; bottom = top + int(self.blockBoundingRect(block).height())
+            block_number += 1
+
+    def highlight_current_line(self):
+        selections = []
+        if not self.isReadOnly():
+            from PySide6.QtWidgets import QPlainTextEdit as _QPlainTextEdit
+            selection = _QPlainTextEdit.ExtraSelection()
+            selection.format.setBackground(QColor("#1a2230"))
+            selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
+            selection.cursor = self.textCursor(); selection.cursor.clearSelection()
+            selections.append(selection)
+        self.setExtraSelections(selections)
 
 
 class FileChangeDialog(QDialog):
@@ -246,6 +360,7 @@ class MainWindow(QMainWindow):
         self._set_status("Готов", "ready")
         # Populate the model selector automatically from the configured OpenAI-compatible server.
         self.refresh_models(show_message=False)
+        self.refresh_project_tree()
 
     def _build_ui(self):
         root = QWidget(); self.setCentralWidget(root)
@@ -273,6 +388,7 @@ class MainWindow(QMainWindow):
         self.model_selector.currentTextChanged.connect(self._on_model_selected)
         layout.addWidget(QLabel("Модель:")); layout.addWidget(self.model_selector)
         refresh_models = QToolButton(); refresh_models.setText("↻"); refresh_models.setToolTip("Получить список моделей с локального сервера"); refresh_models.clicked.connect(lambda: self.refresh_models(show_message=True)); layout.addWidget(refresh_models)
+        editor_btn = QToolButton(); editor_btn.setText("</>"); editor_btn.setToolTip("Открыть редактор кода · Ctrl+Shift+E"); editor_btn.clicked.connect(self.open_editor_tab); layout.addWidget(editor_btn)
         self.status_label = QLabel("Готов"); self.status_label.setObjectName("StatusReady"); layout.addWidget(self.status_label)
         settings = QToolButton(); settings.setText("⚙"); settings.setToolTip("Настройки агента"); settings.clicked.connect(self.open_settings); layout.addWidget(settings)
         return bar
@@ -295,11 +411,45 @@ class MainWindow(QMainWindow):
         return panel
 
     def _build_center(self):
+        self.center_tabs = QTabWidget(); self.center_tabs.setDocumentMode(True)
+        self.chat_panel = self._build_chat_panel()
+        self.editor_workspace = self._build_editor_workspace()
+        self.center_tabs.addTab(self.chat_panel, "◉  Чат")
+        self.center_tabs.addTab(self.editor_workspace, "</>  Редактор")
+        return self.center_tabs
+
+    def _build_chat_panel(self):
         panel = QWidget(); layout = QVBoxLayout(panel); layout.setContentsMargins(14, 14, 14, 14)
         self.chat_view = QTextBrowser(); self.chat_view.setOpenExternalLinks(False); self.chat_view.setPlaceholderText("Начните диалог с агентом…"); layout.addWidget(self.chat_view, 1)
         self.log_toggle = QToolButton(); self.log_toggle.setText("⌄  Журнал инструментов"); self.log_toggle.setCheckable(True); self.log_toggle.setChecked(False); layout.addWidget(self.log_toggle)
         self.log_view = QPlainTextEdit(); self.log_view.setReadOnly(True); self.log_view.setMaximumHeight(220); self.log_view.hide(); layout.addWidget(self.log_view)
         self.log_toggle.toggled.connect(self.log_view.setVisible)
+        return panel
+
+    def _build_editor_workspace(self):
+        panel = QWidget(); outer = QVBoxLayout(panel); outer.setContentsMargins(10, 10, 10, 10); outer.setSpacing(8)
+        toolbar = QFrame(); toolbar.setObjectName("Card"); row = QHBoxLayout(toolbar); row.setContentsMargins(10, 7, 10, 7)
+        heading = QLabel("WORKSPACE / EDITOR"); heading.setObjectName("SectionTitle"); row.addWidget(heading); row.addStretch(1)
+        self.editor_path_label = QLabel("Файл не открыт"); self.editor_path_label.setObjectName("EditorPath"); row.addWidget(self.editor_path_label, 1)
+        self.editor_find = QLineEdit(); self.editor_find.setPlaceholderText("Найти в файле…"); self.editor_find.setMaximumWidth(190); self.editor_find.returnPressed.connect(self.find_in_editor); row.addWidget(self.editor_find)
+        find_btn = QToolButton(); find_btn.setText("⌕"); find_btn.setToolTip("Найти следующий результат"); find_btn.clicked.connect(self.find_in_editor); row.addWidget(find_btn)
+        save_btn = QPushButton("Сохранить  Ctrl+S"); save_btn.setObjectName("Primary"); save_btn.clicked.connect(self.save_current_editor); row.addWidget(save_btn)
+        refresh_btn = QToolButton(); refresh_btn.setText("↻"); refresh_btn.setToolTip("Обновить дерево файлов"); refresh_btn.clicked.connect(self.refresh_project_tree); row.addWidget(refresh_btn)
+        outer.addWidget(toolbar)
+        splitter = QSplitter(Qt.Horizontal); splitter.setChildrenCollapsible(False)
+        file_panel = QFrame(); file_panel.setObjectName("Card"); file_layout = QVBoxLayout(file_panel); file_layout.setContentsMargins(8, 8, 8, 8)
+        file_head = QHBoxLayout(); file_head.addWidget(QLabel("ФАЙЛЫ ПРОЕКТА")); file_head.addStretch(1)
+        self.file_count_label = QLabel("0"); self.file_count_label.setObjectName("Status"); file_head.addWidget(self.file_count_label); file_layout.addLayout(file_head)
+        self.project_tree = QTreeWidget(); self.project_tree.setHeaderHidden(True); self.project_tree.setIndentation(15); self.project_tree.setAnimated(True); self.project_tree.setUniformRowHeights(True); self.project_tree.itemDoubleClicked.connect(self.on_project_tree_double_click); file_layout.addWidget(self.project_tree, 1)
+        tree_buttons = QHBoxLayout(); open_btn = QPushButton("Открыть файл…"); open_btn.clicked.connect(self.open_file_dialog); tree_buttons.addWidget(open_btn); file_layout.addLayout(tree_buttons)
+        splitter.addWidget(file_panel)
+        editor_panel = QFrame(); editor_panel.setObjectName("Card"); editor_layout = QVBoxLayout(editor_panel); editor_layout.setContentsMargins(6, 6, 6, 6)
+        self.editor_tabs = QTabWidget(); self.editor_tabs.setDocumentMode(True); self.editor_tabs.setTabsClosable(True); self.editor_tabs.tabCloseRequested.connect(self.close_editor_tab); self.editor_tabs.currentChanged.connect(self.on_editor_tab_changed); editor_layout.addWidget(self.editor_tabs, 1)
+        self.editor_empty = QLabel("Выберите файл в дереве проекта\n\n• Подсветка синтаксиса\n• Номера строк\n• Ctrl+S — сохранить\n• Поиск по открытому файлу\n\nРедактор работает только внутри выбранной папки проекта.")
+        self.editor_empty.setAlignment(Qt.AlignmentFlag.AlignCenter); self.editor_empty.setObjectName("Muted")
+        self.editor_tabs.addTab(self.editor_empty, "Старт")
+        splitter.addWidget(editor_panel); splitter.setSizes([250, 720]); outer.addWidget(splitter, 1)
+        self.editor_status = QLabel("Готов к работе · файлы не изменены"); self.editor_status.setObjectName("Muted"); outer.addWidget(self.editor_status)
         return panel
 
     def _build_inspector(self):
@@ -318,9 +468,10 @@ class MainWindow(QMainWindow):
         self.changes_list = QListWidget(); self.changes_list.setMinimumHeight(170); self.changes_list.itemClicked.connect(self.show_change_diff); ch.addWidget(self.changes_list)
         self.change_diff_view = QTextBrowser(); self.change_diff_view.setPlaceholderText("Выберите файл, чтобы посмотреть diff"); self.change_diff_view.setMinimumHeight(220); ch.addWidget(self.change_diff_view, 1)
         row = QHBoxLayout()
+        open_diff_file = QPushButton("Открыть файл"); open_diff_file.clicked.connect(self.open_selected_change_in_editor)
         clear = QPushButton("Очистить"); clear.clicked.connect(self.clear_changes)
         copy_btn = QPushButton("Копировать diff"); copy_btn.clicked.connect(self.copy_selected_diff)
-        row.addWidget(clear); row.addWidget(copy_btn); ch.addLayout(row)
+        row.addWidget(open_diff_file); row.addWidget(clear); row.addWidget(copy_btn); ch.addLayout(row)
         layout.addWidget(changes, 1)
 
         tools = QFrame(); tools.setObjectName("InspectorCard"); t = QVBoxLayout(tools); t.addWidget(QLabel("ДИАГНОСТИКА"))
@@ -339,10 +490,186 @@ class MainWindow(QMainWindow):
         layout.addLayout(buttons)
         return panel
 
+    def open_editor_tab(self):
+        self.center_tabs.setCurrentWidget(self.editor_workspace)
+        self.refresh_project_tree()
+        if self.editor_tabs.currentWidget() is self.editor_empty:
+            self.editor_status.setText("Выберите файл в дереве проекта или нажмите «Открыть файл…»")
+
+    def _project_root(self):
+        return Path(self.project_path.text()).expanduser().resolve(strict=True)
+
+    def refresh_project_tree(self):
+        if not hasattr(self, "project_tree"):
+            return
+        self.project_tree.clear(); count = 0
+        try:
+            root = self._project_root()
+            root_item = QTreeWidgetItem([f"📁  {root.name or str(root)}"]); root_item.setData(0, Qt.ItemDataRole.UserRole, str(root)); root_item.setExpanded(True); self.project_tree.addTopLevelItem(root_item)
+            ignored = {".git", ".venv", "venv", "__pycache__", "node_modules", ".pytest_cache", "dist", "build"}
+            max_entries, max_depth = 2500, 5
+            def populate(parent_item, directory, depth):
+                nonlocal count
+                if depth > max_depth or count >= max_entries: return
+                try: children = sorted(directory.iterdir(), key=lambda item: (not item.is_dir(), item.name.lower()))
+                except OSError: return
+                for child in children:
+                    if count >= max_entries: break
+                    if child.name in ignored: continue
+                    try:
+                        safe = resolve_allowed_path(root, child, must_exist=True)
+                    except (AccessDenied, OSError, RuntimeError):
+                        continue
+                    # Never follow a symlink to a location outside the project root.
+                    if child.is_symlink() and safe == root: continue
+                    is_dir = safe.is_dir()
+                    node = QTreeWidgetItem([("📁  " if is_dir else "   ") + child.name])
+                    node.setData(0, Qt.ItemDataRole.UserRole, str(safe)); node.setToolTip(0, str(safe)); parent_item.addChild(node); count += 1
+                    if is_dir and depth < max_depth: populate(node, safe, depth + 1)
+            populate(root_item, root, 1)
+            self.file_count_label.setText(str(count))
+            if count >= max_entries: self.editor_status.setText(f"Показаны первые {max_entries} элементов; скрытые служебные каталоги пропущены.")
+            else: self.editor_status.setText(f"Проект: {root.name} · {count} элементов")
+        except (OSError, RuntimeError, AccessDenied) as exc:
+            self.file_count_label.setText("—"); self.editor_status.setText(f"Не удалось прочитать дерево проекта: {exc}")
+
+    def on_project_tree_double_click(self, item, _column=0):
+        raw = item.data(0, Qt.ItemDataRole.UserRole)
+        if not raw: return
+        try:
+            root = self._project_root(); path = resolve_allowed_path(root, raw, must_exist=True)
+            if path.is_dir():
+                return
+            self.open_project_file(path)
+        except (OSError, RuntimeError, AccessDenied) as exc:
+            QMessageBox.warning(self, "Доступ к файлу", str(exc))
+
+    def open_file_dialog(self):
+        try: root = self._project_root()
+        except (OSError, RuntimeError, AccessDenied) as exc:
+            QMessageBox.warning(self, "Проект", str(exc)); return
+        selected, _ = QFileDialog.getOpenFileName(self, "Открыть файл проекта", str(root), "Все файлы (*.*)")
+        if not selected: return
+        try:
+            path = resolve_allowed_path(root, selected, must_exist=True)
+            if not path.is_file(): raise ValueError("Выбранный путь не является файлом.")
+            self.open_project_file(path)
+        except (OSError, RuntimeError, AccessDenied, ValueError) as exc:
+            QMessageBox.warning(self, "Файл вне проекта", f"Можно открывать только файлы внутри выбранного проекта.\n\n{exc}")
+
+    def open_project_file(self, path):
+        root = self._project_root()
+        path = resolve_allowed_path(root, path, must_exist=True)
+        if not path.is_file(): raise ValueError("Путь не является файлом.")
+        if path.stat().st_size > MAX_EDITOR_FILE_BYTES:
+            QMessageBox.warning(self, "Слишком большой файл", "Редактор пока открывает текстовые файлы размером до 2 МБ."); return
+        for i in range(self.editor_tabs.count()):
+            widget = self.editor_tabs.widget(i)
+            if getattr(widget, "file_path", None) == path:
+                self.editor_tabs.setCurrentIndex(i); self.center_tabs.setCurrentWidget(self.editor_workspace); return
+        try: path, text = read_project_text(root, path)
+        except UnicodeDecodeError:
+            QMessageBox.warning(self, "Не текстовый файл", "Файл не удалось прочитать как UTF-8. Бинарные файлы редактор не открывает."); return
+        except OSError as exc:
+            QMessageBox.warning(self, "Ошибка чтения", str(exc)); return
+        if self.editor_tabs.count() == 1 and self.editor_tabs.widget(0) is self.editor_empty:
+            self.editor_tabs.removeTab(0); self.editor_empty.setParent(None)
+        editor = CodeEditor(); editor.file_path = path; editor.saved_text = text; editor.setPlainText(text); editor.document().setModified(False)
+        editor.highlighter = CodeHighlighter(editor.document(), path.suffix)
+        editor.document().modificationChanged.connect(lambda modified, e=editor: self.update_editor_tab_title(e, modified))
+        index = self.editor_tabs.addTab(editor, path.name); self.editor_tabs.setTabToolTip(index, str(path)); self.editor_tabs.setCurrentIndex(index)
+        self.center_tabs.setCurrentWidget(self.editor_workspace); self.update_editor_tab_title(editor, False); self.on_editor_tab_changed(index)
+        self.editor_status.setText(f"Открыт {path.relative_to(root)} · UTF-8")
+
+    def current_code_editor(self):
+        widget = self.editor_tabs.currentWidget() if hasattr(self, "editor_tabs") else None
+        return widget if isinstance(widget, CodeEditor) else None
+
+    def update_editor_tab_title(self, editor, modified=None):
+        if editor not in [self.editor_tabs.widget(i) for i in range(self.editor_tabs.count())]: return
+        if modified is None: modified = editor.document().isModified()
+        idx = self.editor_tabs.indexOf(editor)
+        if idx >= 0:
+            self.editor_tabs.setTabText(idx, editor.file_path.name + (" •" if modified else ""))
+            self.editor_tabs.setTabToolTip(idx, str(editor.file_path) + (" (есть несохранённые изменения)" if modified else ""))
+        if self.current_code_editor() is editor:
+            self.editor_path_label.setText(str(editor.file_path))
+            self.editor_status.setText("Есть несохранённые изменения" if modified else f"Сохранено · {editor.file_path.name}")
+
+    def on_editor_tab_changed(self, index):
+        widget = self.editor_tabs.widget(index) if index >= 0 else None
+        if isinstance(widget, CodeEditor):
+            self.editor_path_label.setText(str(widget.file_path)); self.update_editor_tab_title(widget)
+        else:
+            self.editor_path_label.setText("Файл не открыт")
+
+    def save_current_editor(self):
+        editor = self.current_code_editor()
+        if not editor: return
+        try:
+            root = self._project_root(); path = save_project_text(root, editor.file_path, editor.toPlainText())
+            editor.saved_text = editor.toPlainText(); editor.document().setModified(False)
+            self.update_editor_tab_title(editor, False); self.editor_status.setText(f"Сохранено · {path.relative_to(root)}")
+            self.log_view.appendPlainText(f"EDITOR SAVE: {path}")
+        except (OSError, RuntimeError, AccessDenied, ValueError) as exc:
+            QMessageBox.warning(self, "Не удалось сохранить файл", str(exc))
+
+    def close_editor_tab(self, index):
+        editor = self.editor_tabs.widget(index)
+        if not isinstance(editor, CodeEditor): return
+        if editor.document().isModified():
+            answer = QMessageBox.question(self, "Несохранённые изменения", f"Сохранить изменения в {editor.file_path.name} перед закрытием?", QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, QMessageBox.Save)
+            if answer == QMessageBox.Cancel: return
+            if answer == QMessageBox.Save:
+                self.editor_tabs.setCurrentIndex(index); self.save_current_editor()
+                if editor.document().isModified(): return
+        self.editor_tabs.removeTab(index); editor.deleteLater()
+        if self.editor_tabs.count() == 0:
+            self.editor_tabs.addTab(self.editor_empty, "Старт")
+        self.on_editor_tab_changed(self.editor_tabs.currentIndex())
+
+    def refresh_open_editors_from_disk(self):
+        for i in range(self.editor_tabs.count()):
+            editor = self.editor_tabs.widget(i)
+            if not isinstance(editor, CodeEditor) or editor.document().isModified(): continue
+            try:
+                root = self._project_root(); path, text = read_project_text(root, editor.file_path)
+                if text != editor.toPlainText():
+                    cursor = editor.textCursor(); pos = cursor.position(); editor.setPlainText(text); cursor.setPosition(min(pos, len(text))); editor.setTextCursor(cursor); editor.document().setModified(False); editor.saved_text = text
+            except (OSError, RuntimeError, AccessDenied, UnicodeDecodeError, ValueError):
+                continue
+        self.refresh_project_tree()
+
+    def open_selected_change_in_editor(self):
+        item = self.changes_list.currentItem()
+        if not item: return
+        record = item.data(Qt.ItemDataRole.UserRole) or {}; raw = record.get("path")
+        if not raw: return
+        try:
+            path = resolve_allowed_path(self._project_root(), raw, must_exist=True)
+            self.open_project_file(path)
+        except (OSError, RuntimeError, AccessDenied, ValueError) as exc:
+            QMessageBox.warning(self, "Не удалось открыть файл", str(exc))
+
+    def focus_editor_search(self):
+        self.open_editor_tab(); self.editor_find.setFocus(); self.editor_find.selectAll()
+
+    def find_in_editor(self):
+        editor = self.current_code_editor()
+        if not editor: return
+        term = self.editor_find.text()
+        if not term: return
+        if not editor.find(term):
+            cursor = editor.textCursor(); cursor.movePosition(cursor.MoveOperation.Start); editor.setTextCursor(cursor)
+            if not editor.find(term): self.editor_status.setText(f"Не найдено: {term}")
+
     def _bind_shortcuts(self):
         QShortcut(QKeySequence("Ctrl+N"), self, activated=self.new_chat)
         QShortcut(QKeySequence("Ctrl+L"), self, activated=self.prompt.setFocus)
         QShortcut(QKeySequence("Escape"), self, activated=self.stop_agent)
+        QShortcut(QKeySequence("Ctrl+S"), self, activated=self.save_current_editor)
+        QShortcut(QKeySequence("Ctrl+Shift+E"), self, activated=self.open_editor_tab)
+        QShortcut(QKeySequence("Ctrl+F"), self, activated=self.focus_editor_search)
 
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Return, Qt.Key_Enter) and self.prompt.hasFocus():
@@ -423,13 +750,36 @@ class MainWindow(QMainWindow):
         summary = memory.get("project_summary", "") if isinstance(memory, dict) else ""
         self.log_view.appendPlainText("Память проекта обновлена." + (f" Краткое описание: {summary[:180]}" if summary else ""))
 
+    def _confirm_project_switch_with_dirty_editors(self):
+        dirty = [self.editor_tabs.widget(i) for i in range(self.editor_tabs.count()) if isinstance(self.editor_tabs.widget(i), CodeEditor) and self.editor_tabs.widget(i).document().isModified()]
+        if dirty:
+            answer = QMessageBox.question(self, "Несохранённые изменения", f"В редакторе есть несохранённые изменения в {len(dirty)} файле(ах). Сохранить их перед сменой проекта?", QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, QMessageBox.Save)
+            if answer == QMessageBox.Cancel:
+                return False
+            if answer == QMessageBox.Save:
+                for editor in dirty:
+                    self.editor_tabs.setCurrentWidget(editor)
+                    self.save_current_editor()
+                    if editor.document().isModified():
+                        return False
+        for i in reversed(range(self.editor_tabs.count())):
+            widget = self.editor_tabs.widget(i)
+            if isinstance(widget, CodeEditor):
+                self.editor_tabs.removeTab(i); widget.deleteLater()
+        if self.editor_tabs.count() == 0:
+            self.editor_tabs.addTab(self.editor_empty, "Старт")
+        return True
+
     def choose_project(self):
+        if not self._confirm_project_switch_with_dirty_editors():
+            return
         current = getattr(self, "project_path", QLineEdit(str(Path.home()))).text()
         selected = QFileDialog.getExistingDirectory(self, "Выберите папку проекта", current)
         if selected:
             path = str(Path(selected).resolve())
             self.project_path.setText(path); self.settings_store.setValue("project/path", path); self.settings_store.sync()
             self._update_context_labels()
+            self.refresh_project_tree()
             self.inspector_sandbox.setText("🔒 Sandbox включён\nФайлы доступны только внутри выбранного проекта.")
 
     def _on_model_selected(self, model_id):
@@ -522,7 +872,7 @@ class MainWindow(QMainWindow):
         self.worker = AgentWorker(self.base_url.text().strip(), self.api_key.text().strip() or "no-key", self.model.currentText().strip(), str(root.resolve()), prompt, force_tool, settings=self.current_limits(), history=self.conversation_history if use_history else [], memory=load_project_memory(str(root.resolve())), auto_memory=(self.settings_store.value("memory/auto_update", True, type=bool) and use_history))
         self.worker.chat.connect(self.on_chat); self.worker.log.connect(self.log_view.appendPlainText); self.worker.memory_updated.connect(self.on_memory_updated); self.worker.failed.connect(self.on_failed); self.worker.finished_text.connect(lambda _: self.log_view.appendPlainText("Agent turn finished.")); self.worker.progress.connect(self.on_progress)
         if use_history: self.worker.conversation_updated.connect(self.update_conversation_history)
-        self.worker.write_approval_requested.connect(self.confirm_file_change, Qt.ConnectionType.BlockingQueuedConnection); self.worker.finished.connect(self.on_worker_finished)
+        self.worker.write_approval_requested.connect(self.confirm_file_change, Qt.ConnectionType.BlockingQueuedConnection); self.worker.change_event.connect(self.add_change_event); self.worker.finished.connect(self.on_worker_finished)
         self.send_btn.setEnabled(False); self.stop_btn.setEnabled(True); self._set_status("Работает…", "working"); self.worker.start()
 
     def update_conversation_history(self, messages):
@@ -673,8 +1023,19 @@ class MainWindow(QMainWindow):
 
     def on_worker_finished(self):
         self.send_btn.setEnabled(True); self.stop_btn.setEnabled(False); self.stop_btn.setText("Остановить"); self._set_status("Готов", "ready")
+        self.refresh_open_editors_from_disk()
 
     def on_chat(self, role, content): self._append_message(role, content)
+
+    def closeEvent(self, event):
+        dirty = [self.editor_tabs.widget(i) for i in range(self.editor_tabs.count()) if isinstance(self.editor_tabs.widget(i), CodeEditor) and self.editor_tabs.widget(i).document().isModified()]
+        if dirty:
+            answer = QMessageBox.question(self, "Несохранённые файлы", f"Есть несохранённые изменения в {len(dirty)} файле(ах). Всё равно закрыть приложение?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if answer != QMessageBox.Yes:
+                event.ignore(); return
+        if self.worker and self.worker.isRunning():
+            self.worker.requestInterruption()
+        super().closeEvent(event)
 
 
 # Keep the original connection fields out of the visual layout while preserving the existing backend API.

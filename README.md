@@ -1,4 +1,4 @@
-# Local Coding Agent — File Editing Edition
+# Local Coding Agent — v5.5 Code Editor Edition
 
 Windows GUI prototype: PySide6 + OpenAI-compatible local API (for example `llama-server`).
 
@@ -131,3 +131,17 @@ Run regression tests from the project directory:
 - Project memory does not change the sandbox, file access restrictions, or write approval flow.
 
 Run tests: `python -m unittest discover -s tests -v`.
+
+## v5.5 — Built-in Code Editor + UI refinement
+
+- Adds a dedicated **Редактор** workspace alongside the chat, with a project file tree, multi-file tabs, path breadcrumb, in-file search, and a save button (`Ctrl+S`).
+- Adds line numbers, current-line highlighting, a dark code-focused theme, and lightweight syntax coloring for common programming text.
+- Supports UTF-8 text files up to 2 MB; binary/non-UTF-8 and oversized files are refused.
+- The editor only opens and saves paths validated against the selected project root. The project tree skips common generated/vendor folders and is bounded to a maximum number of entries and nesting depth.
+- Switching projects prompts about unsaved editor changes. Closing an edited tab also asks whether to save.
+- Selecting a file in the Diff Center can open it in the editor. After an agent run, clean editor tabs reload changed files from disk; unsaved manual edits are left untouched.
+- The Diff Center worker events are connected to the UI so proposed/applied/rejected change states populate the list.
+- Agent writes still use the existing per-file approval/batch review flow. Manual editor saves are explicit user actions and do not grant the agent extra permissions.
+- Added sandboxed editor I/O tests for in-project read/save, outside-path denial, oversized files and refusal to create a new file through the editor.
+
+The GUI could not be launched in the build environment because PySide6 is not installed there. Python syntax checks and the non-GUI regression suite were run; install dependencies with `python -m pip install -r requirements.txt` before launching on Windows.
