@@ -371,11 +371,16 @@ class SideBySideDiffDialog(QDialog):
         self.next_change_btn.setEnabled(False)
         toolbar.addWidget(self.prev_change_btn)
         toolbar.addWidget(self.next_change_btn)
+        copy_left = QPushButton("Копировать оригинал")
+        copy_right = QPushButton("Копировать новую версию")
+        copy_left.clicked.connect(lambda: QApplication.clipboard().setText(self.left.toPlainText()))
+        copy_right.clicked.connect(lambda: QApplication.clipboard().setText(self.right.toPlainText()))
+        toolbar.addWidget(copy_left); toolbar.addWidget(copy_right)
         layout.addLayout(toolbar)
 
         panes = QSplitter(Qt.Horizontal)
-        self.left = QPlainTextEdit()
-        self.right = QPlainTextEdit()
+        self.left = CodeEditor()
+        self.right = CodeEditor()
         for editor in (self.left, self.right):
             editor.setReadOnly(True)
             editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
@@ -595,10 +600,14 @@ class MainWindow(QMainWindow):
         toolbar = QFrame(); toolbar.setObjectName("Card"); row = QHBoxLayout(toolbar); row.setContentsMargins(10, 7, 10, 7)
         heading = QLabel("WORKSPACE / EDITOR"); heading.setObjectName("SectionTitle"); row.addWidget(heading); row.addStretch(1)
         self.editor_path_label = QLabel("Файл не открыт"); self.editor_path_label.setObjectName("EditorPath"); row.addWidget(self.editor_path_label, 1)
+        self.editor_position_label = QLabel("Ln 1, Col 1"); self.editor_position_label.setObjectName("Muted"); row.addWidget(self.editor_position_label)
         self.editor_find = QLineEdit(); self.editor_find.setPlaceholderText("Найти в файле…"); self.editor_find.setMaximumWidth(190); self.editor_find.returnPressed.connect(self.find_in_editor); row.addWidget(self.editor_find)
         find_btn = QToolButton(); find_btn.setText("⌕"); find_btn.setToolTip("Найти следующий результат"); find_btn.clicked.connect(self.find_in_editor); row.addWidget(find_btn)
         save_btn = QPushButton("Сохранить  Ctrl+S"); save_btn.setObjectName("Primary"); save_btn.clicked.connect(self.save_current_editor); row.addWidget(save_btn)
         refresh_btn = QToolButton(); refresh_btn.setText("↻"); refresh_btn.setToolTip("Обновить дерево файлов"); refresh_btn.clicked.connect(self.refresh_project_tree); row.addWidget(refresh_btn)
+        goto_btn = QToolButton(); goto_btn.setText("#"); goto_btn.setToolTip("Перейти к строке · Ctrl+G"); goto_btn.clicked.connect(self.goto_editor_line); row.addWidget(goto_btn)
+        reload_btn = QToolButton(); reload_btn.setText("⟳"); reload_btn.setToolTip("Перечитать текущий файл с диска"); reload_btn.clicked.connect(self.reload_current_editor); row.addWidget(reload_btn)
+        self.wrap_btn = QToolButton(); self.wrap_btn.setText("↔"); self.wrap_btn.setCheckable(True); self.wrap_btn.setToolTip("Перенос строк"); self.wrap_btn.toggled.connect(self.toggle_editor_wrap); row.addWidget(self.wrap_btn)
         outer.addWidget(toolbar)
         splitter = QSplitter(Qt.Horizontal); splitter.setChildrenCollapsible(False)
         file_panel = QFrame(); file_panel.setObjectName("Card"); file_layout = QVBoxLayout(file_panel); file_layout.setContentsMargins(8, 8, 8, 8)
@@ -743,6 +752,7 @@ class MainWindow(QMainWindow):
             editor.setPlainText(text)
             editor.document().setModified(False)
             editor.highlighter = CodeHighlighter(editor.document(), path.suffix)
+            editor.cursorPositionChanged.connect(self.update_editor_position)
             editor.document().modificationChanged.connect(
                 lambda modified, e=editor: self.update_editor_tab_title(e, modified)
             )
@@ -782,9 +792,55 @@ class MainWindow(QMainWindow):
     def on_editor_tab_changed(self, index):
         widget = self.editor_tabs.widget(index) if index >= 0 else None
         if isinstance(widget, CodeEditor):
-            self.editor_path_label.setText(str(widget.file_path)); self.update_editor_tab_title(widget)
+            self.editor_path_label.setText(str(widget.file_path)); self.update_editor_tab_title(widget); self.update_editor_position()
         else:
             self.editor_path_label.setText("Файл не открыт")
+
+    def update_editor_position(self):
+        editor = self.current_code_editor()
+        if not editor:
+            self.editor_position_label.setText("Ln 1, Col 1")
+            return
+        cursor = editor.textCursor()
+        self.editor_position_label.setText(f"Ln {cursor.blockNumber() + 1}, Col {cursor.positionInBlock() + 1}")
+
+    def goto_editor_line(self):
+        editor = self.current_code_editor()
+        if not editor:
+            return
+        line, ok = QInputDialog.getInt(self, "Перейти к строке", "Номер строки:", editor.textCursor().blockNumber() + 1, 1, max(1, editor.blockCount()))
+        if not ok:
+            return
+        cursor = editor.textCursor()
+        cursor.movePosition(cursor.MoveOperation.Start)
+        cursor.movePosition(cursor.MoveOperation.Down, cursor.MoveMode.MoveAnchor, line - 1)
+        editor.setTextCursor(cursor)
+        editor.centerCursor()
+        editor.setFocus()
+        self.update_editor_position()
+
+    def toggle_editor_wrap(self, enabled):
+        editor = self.current_code_editor()
+        if not editor:
+            return
+        editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth if enabled else QPlainTextEdit.LineWrapMode.NoWrap)
+        self.editor_status.setText("Перенос строк включён" if enabled else "Перенос строк выключен")
+
+    def reload_current_editor(self):
+        editor = self.current_code_editor()
+        if not editor:
+            return
+        if editor.document().isModified():
+            answer = QMessageBox.question(self, "Перечитать файл", "Есть несохранённые изменения. Заменить их содержимым с диска?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if answer != QMessageBox.Yes:
+                return
+        try:
+            root = self._project_root(); path, text = read_project_text(root, editor.file_path)
+            editor.setPlainText(text); editor.saved_text = text; editor.document().setModified(False)
+            self.update_editor_tab_title(editor, False); self.editor_status.setText(f"Перечитано с диска · {path.relative_to(root)}")
+            self.update_editor_position()
+        except (OSError, RuntimeError, AccessDenied, UnicodeDecodeError, ValueError) as exc:
+            QMessageBox.warning(self, "Не удалось перечитать файл", str(exc))
 
     def save_current_editor(self):
         editor = self.current_code_editor()
@@ -853,6 +909,9 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+S"), self, activated=self.save_current_editor)
         QShortcut(QKeySequence("Ctrl+Shift+E"), self, activated=self.open_editor_tab)
         QShortcut(QKeySequence("Ctrl+F"), self, activated=self.focus_editor_search)
+        QShortcut(QKeySequence("Ctrl+G"), self, activated=self.goto_editor_line)
+        QShortcut(QKeySequence("Ctrl+Shift+R"), self, activated=self.reload_current_editor)
+        QShortcut(QKeySequence("Ctrl+Shift+W"), self, activated=lambda: self.wrap_btn.toggle())
 
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Return, Qt.Key_Enter) and self.prompt.hasFocus():
