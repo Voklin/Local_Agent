@@ -13,9 +13,12 @@ Windows GUI local coding agent for OpenAI-compatible local servers such as LM St
 - **Сбросить** removes only the task checkpoint; chat history remains intact.
 - No project source code or raw tool output is stored in the checkpoint.
 
-### UI/UX
-- Redesigned workspace hierarchy with clearer chat/project context.
-- New persistent task card in the right inspector.
+### UI/UX — minimalist layout
+- The right inspector is hidden by default to give the chat and editor more space. Open it with the **Панель** button when you need task progress, changes or diagnostics.
+- Narrower project/chat sidebar and a quieter top bar.
+- Flatter surfaces, fewer borders and cards, tighter visual hierarchy, muted neutral palette and one restrained accent color.
+- Project selection and memory actions are compacted into the sidebar/composer.
+- New persistent task card in the optional right inspector.
 - Stage progress, live status and last checkpoint event are visible while the agent works.
 - Resume/reset actions are available without typing confirmation into the chat.
 - Existing editor, Diff Viewer, change center, project memory, model selector and diagnostics are preserved.

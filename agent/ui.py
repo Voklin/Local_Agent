@@ -21,61 +21,55 @@ from .editor_io import read_project_text, save_project_text, MAX_EDITOR_FILE_BYT
 
 
 APP_QSS = """
-QMainWindow, QWidget { background: #0b0d0f; color: #e8e9ea; font-family: "Segoe UI"; font-size: 13px; }
-QFrame#Sidebar { background: #101214; border-right: 1px solid #24272b; }
-QFrame#TopBar { background: #0d0f11; border-bottom: 1px solid #24272b; min-height: 48px; }
-QFrame#Composer { background: #0b0d0f; border-top: 1px solid #24272b; }
-QTabWidget::pane { border: 0; background: #0b0d0f; top: 0; }
-QTabBar { background: #101214; }
-QTabBar::tab { background: transparent; color: #858b92; border: 0; padding: 9px 16px; margin-right: 2px; border-radius: 8px; }
-QTabBar::tab:selected { background: #1b1d20; color: #f1f2f3; }
-QTabBar::tab:hover { background: #17191c; color: #d8dadd; }
-QTreeWidget { background: #0f1113; border: 1px solid #24272b; border-radius: 10px; alternate-background-color: #131619; }
-QTreeWidget::item { padding: 5px; }
-QTreeWidget::item:selected { background: #2b2416; color: #ffffff; }
-QLabel#SectionTitle { color: #c9cbd0; font-weight: 700; letter-spacing: 1px; }
-QLabel#EditorPath { color: #858b92; padding: 4px 8px; }
-QFrame#Card { background: #121518; border: 1px solid #25292e; border-radius: 12px; }
-QFrame#InspectorCard { background: #121518; border: 1px solid #25292e; border-radius: 12px; }
-QLabel#Brand { font-size: 15px; font-weight: 700; color: #f2f3f4; }
-QLabel#Muted { color: #858b92; }
-QLabel#Status { color: #b6bac0; padding: 5px 9px; border-radius: 9px; background: #181b1f; }
-QLabel#StatusWorking { color: #f2c46d; background: #2d2618; padding: 5px 9px; border-radius: 9px; }
-QLabel#StatusReady { color: #9ad8ad; background: #17251c; padding: 5px 9px; border-radius: 9px; }
-QLabel#StatusError { color: #ff9a9a; background: #2b191c; padding: 5px 9px; border-radius: 9px; }
-QPushButton, QToolButton { background: #171a1d; border: 1px solid #292d32; border-radius: 8px; padding: 7px 11px; color: #e4e6e8; }
-QPushButton:hover, QToolButton:hover { background: #202428; border-color: #383d43; }
-QPushButton:pressed, QToolButton:pressed { background: #282d32; }
-QPushButton#Primary { background: #d6a64f; border-color: #d6a64f; color: #17120a; font-weight: 700; }
-QPushButton#Primary:hover { background: #e1b361; border-color: #e1b361; }
-QPushButton#Danger { background: #2a191b; border-color: #4b272c; color: #ff9d9d; }
-QLineEdit, QPlainTextEdit, QTextBrowser, QComboBox { background: #0d1012; border: 1px solid #292d32; border-radius: 9px; color: #e8e9ea; selection-background-color: #5a4827; }
-QLineEdit { padding: 8px 10px; }
-QPlainTextEdit { padding: 9px; }
-QTextBrowser { padding: 14px; }
-QComboBox { padding: 7px 9px; }
-QComboBox QAbstractItemView { background: #15181b; color: #e8e9ea; selection-background-color: #4b3a20; border: 1px solid #30353a; }
-QListWidget { background: transparent; border: none; outline: none; }
-QListWidget::item { padding: 9px 10px; margin: 2px 2px; border-radius: 8px; color: #bfc3c8; }
-QListWidget::item:hover { background: #191c20; }
-QListWidget::item:selected { background: #25282d; color: white; }
-QSplitter::handle { background: #1b1e22; }
-QScrollBar:vertical { background: transparent; width: 9px; margin: 2px; }
-QScrollBar::handle:vertical { background: #30353b; border-radius: 4px; min-height: 30px; }
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-QGroupBox { border: 1px solid #292d32; border-radius: 10px; margin-top: 10px; padding: 10px; }
-QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; color: #aeb3ba; }
-QSpinBox { background: #0d1012; border: 1px solid #292d32; border-radius: 8px; padding: 5px; }
-QToolButton#IconButton { min-width: 34px; max-width: 34px; min-height: 34px; max-height: 34px; padding: 0; }
-QLabel#ModelBadge { background: #171a1d; border: 1px solid #302b21; color: #d9b46a; border-radius: 9px; padding: 6px 10px; }
-QLabel#WorkspaceTitle { font-size: 15px; font-weight: 700; color: #eceeef; }
-QLabel#Hint { color: #666d75; font-size: 11px; }
-QFrame#TaskCard { background: #11161a; border: 1px solid #2a3036; border-radius: 12px; }
-QLabel#TaskStageActive { color: #e2bd70; font-weight: 700; }
-QLabel#TaskStageDone { color: #8fd3a5; }
-QLabel#TaskStagePending { color: #737b84; }
-QProgressBar { background: #15191d; border: 0; border-radius: 5px; text-align: center; color: #d9dde2; height: 10px; }
-QProgressBar::chunk { background: #d6a64f; border-radius: 5px; }
+QMainWindow, QWidget { background:#111214; color:#e6e7e9; font-family:"Segoe UI"; font-size:13px; }
+QFrame#Sidebar { background:#151618; border-right:1px solid #26282b; }
+QFrame#TopBar { background:#151618; border-bottom:1px solid #26282b; min-height:44px; }
+QFrame#Composer { background:#111214; border-top:1px solid #26282b; }
+QTabWidget::pane { border:0; background:#111214; top:0; }
+QTabBar { background:#151618; }
+QTabBar::tab { background:transparent; color:#858991; border:0; padding:9px 14px; margin-right:2px; }
+QTabBar::tab:selected { color:#f2f2f3; border-bottom:2px solid #c9a56a; }
+QTabBar::tab:hover { color:#d7d9dc; }
+QTreeWidget { background:#151618; border:0; alternate-background-color:#191b1e; }
+QTreeWidget::item { padding:4px; }
+QTreeWidget::item:selected { background:#303033; color:#fff; }
+QLabel#SectionTitle { color:#b9bbc0; font-weight:600; }
+QLabel#EditorPath, QLabel#Muted { color:#858991; }
+QFrame#Card, QFrame#InspectorCard, QFrame#TaskCard { background:#17191b; border:1px solid #292b2f; border-radius:8px; }
+QLabel#Brand { font-size:14px; font-weight:700; color:#f2f2f3; }
+QLabel#Status { color:#c5c7cb; padding:4px 8px; border-radius:6px; background:#222427; }
+QLabel#StatusWorking { color:#e8c88f; background:#30291f; padding:4px 8px; border-radius:6px; }
+QLabel#StatusReady { color:#a5d4b1; background:#1b2920; padding:4px 8px; border-radius:6px; }
+QLabel#StatusError { color:#f2a0a0; background:#301e20; padding:4px 8px; border-radius:6px; }
+QPushButton, QToolButton { background:#202225; border:1px solid #303236; border-radius:6px; padding:6px 9px; color:#dedfe2; }
+QPushButton:hover, QToolButton:hover { background:#292b2f; border-color:#414349; }
+QPushButton:pressed, QToolButton:pressed { background:#33353a; }
+QPushButton#Primary { background:#c9a56a; border-color:#c9a56a; color:#191611; font-weight:600; }
+QPushButton#Primary:hover { background:#d6b47c; }
+QPushButton#Danger { background:#2a1d1e; border-color:#4b2b2d; color:#eaa0a0; }
+QLineEdit, QPlainTextEdit, QTextBrowser, QComboBox { background:#151719; border:1px solid #2b2d31; border-radius:7px; color:#e6e7e9; selection-background-color:#55452d; }
+QLineEdit { padding:7px 9px; }
+QPlainTextEdit { padding:8px; }
+QTextBrowser { padding:12px; border:0; }
+QComboBox { padding:6px 8px; }
+QComboBox QAbstractItemView { background:#191b1e; color:#e6e7e9; selection-background-color:#38332a; border:1px solid #303236; }
+QListWidget { background:transparent; border:0; outline:0; }
+QListWidget::item { padding:7px 9px; margin:1px; border-radius:5px; color:#b9bbc0; }
+QListWidget::item:hover { background:#202225; }
+QListWidget::item:selected { background:#2a2c30; color:#fff; }
+QSplitter::handle { background:#26282b; }
+QScrollBar:vertical { background:transparent; width:8px; margin:1px; }
+QScrollBar::handle:vertical { background:#37393e; border-radius:4px; min-height:28px; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height:0; }
+QGroupBox { border:1px solid #303236; border-radius:7px; margin-top:9px; padding:9px; }
+QGroupBox::title { subcontrol-origin:margin; left:9px; padding:0 4px; color:#aeb1b7; }
+QSpinBox { background:#151719; border:1px solid #303236; border-radius:6px; padding:5px; }
+QToolButton#IconButton { min-width:32px; max-width:32px; min-height:32px; max-height:32px; padding:0; }
+QLabel#ModelBadge { background:#222427; color:#c9a56a; border-radius:5px; padding:5px 7px; }
+QLabel#WorkspaceTitle { font-size:14px; font-weight:600; color:#ececef; }
+QLabel#Hint { color:#777b83; font-size:11px; }
+QProgressBar { background:#25272b; border:0; border-radius:4px; text-align:center; color:#d9dde2; height:7px; }
+QProgressBar::chunk { background:#c9a56a; border-radius:4px; }
 """
 
 
@@ -551,7 +545,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Local Coding Agent")
         self.resize(1450, 900)
-        self.setMinimumSize(1050, 700)
+        self.setMinimumSize(900, 620)
         self.setStyleSheet(APP_QSS)
         self.worker = None
         self.conversation_history = []
@@ -579,11 +573,13 @@ class MainWindow(QMainWindow):
         root = QWidget(); self.setCentralWidget(root)
         outer = QVBoxLayout(root); outer.setContentsMargins(0, 0, 0, 0); outer.setSpacing(0)
         outer.addWidget(self._build_topbar())
-        body = QSplitter(Qt.Horizontal); body.setChildrenCollapsible(False)
-        body.addWidget(self._build_sidebar())
-        body.addWidget(self._build_center())
-        body.addWidget(self._build_inspector())
-        body.setSizes([250, 850, 280]); outer.addWidget(body, 1)
+        self.body_splitter = QSplitter(Qt.Horizontal); self.body_splitter.setChildrenCollapsible(False)
+        self.body_splitter.addWidget(self._build_sidebar())
+        self.body_splitter.addWidget(self._build_center())
+        self.inspector_panel = self._build_inspector()
+        self.body_splitter.addWidget(self.inspector_panel)
+        self.inspector_panel.hide()
+        self.body_splitter.setSizes([220, 980, 300]); outer.addWidget(self.body_splitter, 1)
         outer.addWidget(self._build_composer())
 
     def _build_topbar(self):
@@ -603,12 +599,22 @@ class MainWindow(QMainWindow):
         refresh_models = QToolButton(); refresh_models.setText("↻"); refresh_models.setToolTip("Получить список моделей с локального сервера"); refresh_models.clicked.connect(lambda: self.refresh_models(show_message=True)); layout.addWidget(refresh_models)
         editor_btn = QToolButton(); editor_btn.setText("</>"); editor_btn.setToolTip("Открыть редактор кода · Ctrl+Shift+E"); editor_btn.clicked.connect(self.open_editor_tab); layout.addWidget(editor_btn)
         self.status_label = QLabel("Готов"); self.status_label.setObjectName("StatusReady"); layout.addWidget(self.status_label)
+        self.inspector_toggle = QToolButton(); self.inspector_toggle.setText("Панель"); self.inspector_toggle.setToolTip("Показать/скрыть план, изменения и диагностику"); self.inspector_toggle.setCheckable(True); self.inspector_toggle.toggled.connect(self.toggle_inspector); layout.addWidget(self.inspector_toggle)
         settings = QToolButton(); settings.setText("⚙"); settings.setToolTip("Настройки агента"); settings.clicked.connect(self.open_settings); layout.addWidget(settings)
         return bar
 
+    def toggle_inspector(self, visible):
+        if not hasattr(self, "inspector_panel"):
+            return
+        self.inspector_panel.setVisible(bool(visible))
+        if visible:
+            self.body_splitter.setSizes([210, 760, 300])
+        else:
+            self.body_splitter.setSizes([220, 980, 0])
+
     def _build_sidebar(self):
-        panel = QFrame(); panel.setObjectName("Sidebar"); panel.setMinimumWidth(220); panel.setMaximumWidth(340)
-        layout = QVBoxLayout(panel); layout.setContentsMargins(10, 12, 10, 12)
+        panel = QFrame(); panel.setObjectName("Sidebar"); panel.setMinimumWidth(185); panel.setMaximumWidth(280)
+        layout = QVBoxLayout(panel); layout.setContentsMargins(8, 10, 8, 10)
         new_btn = QPushButton("＋  Новый чат"); new_btn.setObjectName("Primary"); new_btn.clicked.connect(self.new_chat); layout.addWidget(new_btn)
         nav = QHBoxLayout()
         chat_nav = QToolButton(); chat_nav.setText("Чат"); chat_nav.setCheckable(True); chat_nav.setChecked(True); chat_nav.setToolTip("Рабочий чат")
@@ -624,10 +630,11 @@ class MainWindow(QMainWindow):
         rename = QPushButton("Переименовать"); rename.clicked.connect(self.rename_current_chat)
         delete = QPushButton("Удалить"); delete.setObjectName("Danger"); delete.clicked.connect(self.delete_current_chat)
         row.addWidget(rename); row.addWidget(delete); layout.addLayout(row)
-        project_card = QFrame(); project_card.setObjectName("Card"); p = QVBoxLayout(project_card)
-        p.addWidget(QLabel("ПРОЕКТ")); self.sidebar_project = QLabel("—"); self.sidebar_project.setWordWrap(True); self.sidebar_project.setObjectName("Muted"); p.addWidget(self.sidebar_project)
-        choose = QPushButton("Выбрать папку"); choose.clicked.connect(self.choose_project); p.addWidget(choose)
-        memory_btn = QPushButton("Память проекта…"); memory_btn.clicked.connect(self.open_project_memory); p.addWidget(memory_btn); layout.addWidget(project_card)
+        project_card = QFrame(); project_card.setObjectName("Card"); p = QVBoxLayout(project_card); p.setContentsMargins(9,8,9,8); p.setSpacing(5)
+        project_head = QHBoxLayout(); project_head.addWidget(QLabel("Проект")); project_head.addStretch(1)
+        choose = QToolButton(); choose.setText("＋"); choose.setToolTip("Выбрать папку проекта"); choose.clicked.connect(self.choose_project); project_head.addWidget(choose); p.addLayout(project_head)
+        self.sidebar_project = QLabel("Не выбран"); self.sidebar_project.setWordWrap(True); self.sidebar_project.setObjectName("Muted"); p.addWidget(self.sidebar_project)
+        memory_btn = QToolButton(); memory_btn.setText("Память проекта…"); memory_btn.clicked.connect(self.open_project_memory); p.addWidget(memory_btn); layout.addWidget(project_card)
         return panel
 
     def _build_center(self):
@@ -639,11 +646,11 @@ class MainWindow(QMainWindow):
         return self.center_tabs
 
     def _build_chat_panel(self):
-        panel = QWidget(); layout = QVBoxLayout(panel); layout.setContentsMargins(18, 14, 18, 8)
+        panel = QWidget(); layout = QVBoxLayout(panel); layout.setContentsMargins(20, 16, 20, 8)
         head = QHBoxLayout()
         self.workspace_title = QLabel("Новый чат"); self.workspace_title.setObjectName("WorkspaceTitle"); head.addWidget(self.workspace_title)
         head.addStretch(1)
-        self.context_hint = QLabel("локальный агент · sandbox"); self.context_hint.setObjectName("Hint"); head.addWidget(self.context_hint)
+        self.context_hint = QLabel("Локально · sandbox"); self.context_hint.setObjectName("Hint"); head.addWidget(self.context_hint)
         layout.addLayout(head)
         self.chat_view = QTextBrowser(); self.chat_view.setOpenExternalLinks(False); self.chat_view.setPlaceholderText("Начните диалог с агентом…"); layout.addWidget(self.chat_view, 1)
         self.log_toggle = QToolButton(); self.log_toggle.setText("⌄  Журнал инструментов"); self.log_toggle.setCheckable(True); self.log_toggle.setChecked(False); layout.addWidget(self.log_toggle)
@@ -723,14 +730,14 @@ class MainWindow(QMainWindow):
     def _build_composer(self):
         panel = QFrame(); panel.setObjectName("Composer"); outer = QVBoxLayout(panel); outer.setContentsMargins(16, 9, 16, 12); outer.setSpacing(7)
         tools = QHBoxLayout()
-        project_btn = QToolButton(); project_btn.setText("Проект"); project_btn.setToolTip("Выбрать папку проекта"); project_btn.clicked.connect(self.choose_project); tools.addWidget(project_btn)
+        project_btn = QToolButton(); project_btn.setText("＋ Проект"); project_btn.setToolTip("Выбрать папку проекта"); project_btn.clicked.connect(self.choose_project); tools.addWidget(project_btn)
         memory_btn = QToolButton(); memory_btn.setText("Память"); memory_btn.setToolTip("Память текущего проекта"); memory_btn.clicked.connect(self.open_project_memory); tools.addWidget(memory_btn)
-        editor_btn = QToolButton(); editor_btn.setText("</>"); editor_btn.setToolTip("Открыть редактор"); editor_btn.clicked.connect(self.open_editor_tab); tools.addWidget(editor_btn)
+        editor_btn = QToolButton(); editor_btn.setText("</> Редактор"); editor_btn.setToolTip("Открыть редактор"); editor_btn.clicked.connect(self.open_editor_tab); tools.addWidget(editor_btn)
         tools.addStretch(1)
         self.composer_hint = QLabel("Enter — отправить · Shift+Enter — новая строка"); self.composer_hint.setObjectName("Hint"); tools.addWidget(self.composer_hint)
         outer.addLayout(tools)
         row = QHBoxLayout()
-        self.prompt = QPlainTextEdit(); self.prompt.setPlaceholderText("Что нужно сделать? Опишите задачу для агента…"); self.prompt.setFixedHeight(78); row.addWidget(self.prompt, 1)
+        self.prompt = QPlainTextEdit(); self.prompt.setPlaceholderText("Что нужно сделать? Опишите задачу для агента…"); self.prompt.setFixedHeight(68); row.addWidget(self.prompt, 1)
         buttons = QVBoxLayout()
         self.send_btn = QPushButton("Отправить  ↵"); self.send_btn.setObjectName("Primary"); self.send_btn.clicked.connect(self.send_message); buttons.addWidget(self.send_btn)
         self.stop_btn = QPushButton("Остановить"); self.stop_btn.setObjectName("Danger"); self.stop_btn.setEnabled(False); self.stop_btn.clicked.connect(self.stop_agent); buttons.addWidget(self.stop_btn)
