@@ -116,3 +116,18 @@ Run regression tests from the project directory:
 ### v5.3 safety model
 
 `Применить всё` does not grant permanent write access. It is a temporary batch decision held only by the current `AgentWorker` run. A new request starts with no batch approval.
+
+
+## v5.4 — Project Memory Engine
+
+- Keeps conversation history separate from compact, structured long-term project memory.
+- Stores memory per project outside the project directory in `%LOCALAPPDATA%\LocalCodingAgent\project_memory`.
+- Adds project summary, current focus, next steps, decisions, constraints, conventions, and important-file notes.
+- Injects a bounded memory snapshot into the system context; notes are explicitly treated as fallible reference data, not instructions.
+- Sends only the newest complete conversation turns (bounded to a context budget) to the model instead of replaying the full transcript on every request; the full transcript is still preserved in chat history. Large tool outputs are clipped only in model context, not in saved history.
+- Optionally updates memory after a successful response using a separate short model call. The memory updater receives the current request, final answer and tool metadata, but not raw file contents or tool results.
+- Adds a **Память проекта…** dialog to inspect/edit the JSON memory or clear only the current project's memory. Chat history remains intact.
+- Auto-update can be disabled in Settings. If memory generation fails, the normal agent response is not affected.
+- Project memory does not change the sandbox, file access restrictions, or write approval flow.
+
+Run tests: `python -m unittest discover -s tests -v`.

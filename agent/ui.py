@@ -8,12 +8,13 @@ from PySide6.QtWidgets import (
     QPushButton, QFileDialog, QTextBrowser, QPlainTextEdit, QMessageBox,
     QSplitter, QSpinBox, QGroupBox, QFormLayout, QDialog, QListWidget,
     QListWidgetItem, QInputDialog, QFrame, QToolButton, QComboBox,
-    QSizePolicy, QApplication
+    QSizePolicy, QApplication, QCheckBox
 )
 from openai import OpenAI
 from .worker import AgentWorker, DEFAULT_SETTINGS
 from .tools import run_sandbox_self_test
 from .chat_store import list_chats, create_chat, load_chat, save_chat, delete_chat, rename_chat, title_from_messages
+from .project_memory import load_project_memory, save_project_memory, clear_project_memory
 
 
 APP_QSS = """
@@ -140,7 +141,10 @@ class SettingsDialog(QDialog):
             spin.setValue(parent.settings_store.value(f"limits/{key}", DEFAULT_SETTINGS[key], type=int))
             self.controls[key] = spin; form.addRow(label, spin)
         layout.addWidget(group)
-        note = QLabel("Изменения сохраняются автоматически при нажатии «Сохранить». Система разрешений и sandbox остаются без изменений.")
+        self.auto_memory = QCheckBox("Автоматически обновлять память проекта после успешного ответа")
+        self.auto_memory.setChecked(parent.settings_store.value("memory/auto_update", True, type=bool))
+        layout.addWidget(self.auto_memory)
+        note = QLabel("Память хранится отдельно для каждого проекта. Автообновление не сохраняет сырой вывод инструментов или содержимое файлов. Система разрешений и sandbox остаются без изменений.")
         note.setWordWrap(True); note.setObjectName("Muted"); layout.addWidget(note)
         buttons = QHBoxLayout(); buttons.addStretch(1)
         cancel = QPushButton("Отмена"); save = QPushButton("Сохранить"); save.setObjectName("Primary")
@@ -171,6 +175,50 @@ class SettingsDialog(QDialog):
 
     def values(self):
         return {k: v.value() for k, v in self.controls.items()}
+
+    def auto_memory_enabled(self):
+        return self.auto_memory.isChecked()
+
+
+class ProjectMemoryDialog(QDialog):
+    """Review and edit the structured memory for the selected project."""
+    def __init__(self, parent, project_root):
+        super().__init__(parent)
+        self.project_root = project_root
+        self.setWindowTitle("Память проекта")
+        self.resize(760, 680)
+        layout = QVBoxLayout(self)
+        info = QLabel("Память хранится отдельно от файлов проекта. Здесь можно проверить, исправить или полностью очистить её. Не добавляйте пароли и токены.")
+        info.setWordWrap(True); info.setObjectName("Muted"); layout.addWidget(info)
+        self.editor = QPlainTextEdit()
+        self.editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self.editor.setPlainText(__import__("json").dumps(load_project_memory(project_root), ensure_ascii=False, indent=2))
+        layout.addWidget(self.editor, 1)
+        buttons = QHBoxLayout()
+        clear = QPushButton("Очистить память")
+        save = QPushButton("Сохранить память"); save.setObjectName("Primary")
+        close = QPushButton("Закрыть")
+        clear.clicked.connect(self.clear_memory); save.clicked.connect(self.save_memory); close.clicked.connect(self.reject)
+        buttons.addWidget(clear); buttons.addStretch(1); buttons.addWidget(close); buttons.addWidget(save); layout.addLayout(buttons)
+
+    def save_memory(self):
+        import json
+        try:
+            data = json.loads(self.editor.toPlainText())
+            saved = save_project_memory(self.project_root, data)
+            self.editor.setPlainText(json.dumps(saved, ensure_ascii=False, indent=2))
+            QMessageBox.information(self, "Память", "Память проекта сохранена.")
+        except (json.JSONDecodeError, ValueError, OSError) as exc:
+            QMessageBox.warning(self, "Не удалось сохранить", str(exc))
+
+    def clear_memory(self):
+        if QMessageBox.question(self, "Очистить память", "Удалить долговременную память только для этого проекта? История чатов не будет удалена.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        clear_project_memory(self.project_root)
+        from .project_memory import empty_memory
+        import json
+        self.editor.setPlainText(json.dumps(empty_memory(self.project_root), ensure_ascii=False, indent=2))
+        QMessageBox.information(self, "Память", "Память проекта очищена. История чатов сохранена.")
 
 
 class MainWindow(QMainWindow):
@@ -242,7 +290,8 @@ class MainWindow(QMainWindow):
         row.addWidget(rename); row.addWidget(delete); layout.addLayout(row)
         project_card = QFrame(); project_card.setObjectName("Card"); p = QVBoxLayout(project_card)
         p.addWidget(QLabel("ПРОЕКТ")); self.sidebar_project = QLabel("—"); self.sidebar_project.setWordWrap(True); self.sidebar_project.setObjectName("Muted"); p.addWidget(self.sidebar_project)
-        choose = QPushButton("Выбрать папку"); choose.clicked.connect(self.choose_project); p.addWidget(choose); layout.addWidget(project_card)
+        choose = QPushButton("Выбрать папку"); choose.clicked.connect(self.choose_project); p.addWidget(choose)
+        memory_btn = QPushButton("Память проекта…"); memory_btn.clicked.connect(self.open_project_memory); p.addWidget(memory_btn); layout.addWidget(project_card)
         return panel
 
     def _build_center(self):
@@ -356,9 +405,23 @@ class MainWindow(QMainWindow):
             self.settings_store.setValue("connection/base_url", self.base_url.text())
             self.settings_store.setValue("connection/api_key", self.api_key.text())
             for key, value in dialog.values().items(): self.settings_store.setValue(f"limits/{key}", value)
+            self.settings_store.setValue("memory/auto_update", dialog.auto_memory_enabled())
             self.settings_store.sync()
             self._update_context_labels()
             self.log_view.appendPlainText("Connection and agent settings saved.")
+
+    def open_project_memory(self):
+        root = Path(self.project_path.text())
+        if not root.is_dir():
+            QMessageBox.warning(self, "Память проекта", "Сначала выберите существующую папку проекта.")
+            return
+        dialog = ProjectMemoryDialog(self, str(root.resolve()))
+        dialog.exec()
+
+    def on_memory_updated(self, memory):
+        # The worker already writes atomically; this slot updates the UI/log only.
+        summary = memory.get("project_summary", "") if isinstance(memory, dict) else ""
+        self.log_view.appendPlainText("Память проекта обновлена." + (f" Краткое описание: {summary[:180]}" if summary else ""))
 
     def choose_project(self):
         current = getattr(self, "project_path", QLineEdit(str(Path.home()))).text()
@@ -456,8 +519,8 @@ class MainWindow(QMainWindow):
                 chat = create_chat(str(root.resolve()), self.model.currentText().strip()); self.current_chat_id = chat["id"]
             self._save_current_chat(extra_message={"role": "user", "content": prompt})
         self.settings_store.setValue("connection/base_url", self.base_url.text()); self.settings_store.setValue("connection/api_key", self.api_key.text()); self.settings_store.setValue("connection/model", self.model.currentText()); self.settings_store.sync()
-        self.worker = AgentWorker(self.base_url.text().strip(), self.api_key.text().strip() or "no-key", self.model.currentText().strip(), str(root.resolve()), prompt, force_tool, settings=self.current_limits(), history=self.conversation_history if use_history else [])
-        self.worker.chat.connect(self.on_chat); self.worker.log.connect(self.log_view.appendPlainText); self.worker.failed.connect(self.on_failed); self.worker.finished_text.connect(lambda _: self.log_view.appendPlainText("Agent turn finished.")); self.worker.progress.connect(self.on_progress)
+        self.worker = AgentWorker(self.base_url.text().strip(), self.api_key.text().strip() or "no-key", self.model.currentText().strip(), str(root.resolve()), prompt, force_tool, settings=self.current_limits(), history=self.conversation_history if use_history else [], memory=load_project_memory(str(root.resolve())), auto_memory=(self.settings_store.value("memory/auto_update", True, type=bool) and use_history))
+        self.worker.chat.connect(self.on_chat); self.worker.log.connect(self.log_view.appendPlainText); self.worker.memory_updated.connect(self.on_memory_updated); self.worker.failed.connect(self.on_failed); self.worker.finished_text.connect(lambda _: self.log_view.appendPlainText("Agent turn finished.")); self.worker.progress.connect(self.on_progress)
         if use_history: self.worker.conversation_updated.connect(self.update_conversation_history)
         self.worker.write_approval_requested.connect(self.confirm_file_change, Qt.ConnectionType.BlockingQueuedConnection); self.worker.finished.connect(self.on_worker_finished)
         self.send_btn.setEnabled(False); self.stop_btn.setEnabled(True); self._set_status("Работает…", "working"); self.worker.start()

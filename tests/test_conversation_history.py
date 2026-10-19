@@ -1,6 +1,6 @@
 """Conversation history regression tests. Run: python -m unittest discover -s tests -v"""
 import unittest
-from agent.conversation import build_messages
+from agent.conversation import build_messages, select_recent_history
 
 
 class ConversationHistoryTests(unittest.TestCase):
@@ -28,6 +28,36 @@ class ConversationHistoryTests(unittest.TestCase):
 
     def test_empty_history_starts_cleanly(self):
         self.assertEqual(build_messages([], "Привет"), [{"role": "user", "content": "Привет"}])
+
+
+    def test_old_turns_are_trimmed_but_recent_confirmation_context_remains(self):
+        history = []
+        for i in range(12):
+            history.extend([
+                {"role": "user", "content": f"Задача {i}"},
+                {"role": "assistant", "content": f"Ответ {i}"},
+            ])
+        history.extend([
+            {"role": "user", "content": "Измени файл?"},
+            {"role": "assistant", "content": "Предлагаю diff. Подтвердить?"},
+        ])
+        original_count = len(history)
+        selected = select_recent_history(history, max_chars=10000, max_turns=5)
+        self.assertLess(len(selected), len(history))
+        self.assertEqual(selected[-1]["content"], "Предлагаю diff. Подтвердить?")
+        self.assertEqual(len(history), original_count)
+
+    def test_tool_results_are_bounded_without_dropping_tool_call_pair(self):
+        history = [
+            {"role": "user", "content": "Прочитай файл"},
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "read_file", "arguments": '{"path":"main.py"}'}}]},
+            {"role": "tool", "tool_call_id": "c1", "content": "x" * 12000},
+            {"role": "assistant", "content": "Файл прочитан"},
+        ]
+        selected = select_recent_history(history)
+        self.assertEqual(selected[1]["tool_calls"][0]["id"], "c1")
+        self.assertEqual(selected[2]["tool_call_id"], "c1")
+        self.assertLess(len(selected[2]["content"]), 7000)
 
 
 if __name__ == "__main__":
