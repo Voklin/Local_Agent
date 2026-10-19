@@ -90,3 +90,14 @@ Run regression tests from the project directory:
 - **Применить** continues the current agent turn.
 - **Отклонить** returns a tool result to the model so it can adapt.
 - **Отмена** stops the current operation.
+
+
+## v5 — Project workflow + persistent chat history
+
+- Persistent chat history stored in `%LOCALAPPDATA%\LocalCodingAgent\chats`.
+- Open previous chats from the GUI.
+- Rename and delete chats.
+- Each chat stores model messages/tool context, project directory and model ID.
+- Reopening a chat restores the conversation context sent to the model.
+- Chat history is stored separately from project files; the agent never copies project files into chat storage.
+- File changes still require the v4.3 GUI approval dialog.

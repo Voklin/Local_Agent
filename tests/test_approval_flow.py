@@ -1,6 +1,13 @@
 import unittest
-from agent.worker import AgentWorker
+try:
+    from agent.worker import AgentWorker
+except ModuleNotFoundError as exc:
+    if exc.name == "PySide6":
+        AgentWorker = None
+    else:
+        raise
 
+@unittest.skipIf(AgentWorker is None, "PySide6 is not installed in the test environment")
 class ApprovalFlowTest(unittest.TestCase):
     def test_approval_decisions_are_explicit(self):
         worker = AgentWorker(
