@@ -149,3 +149,10 @@ The GUI could not be launched in the build environment because PySide6 is not in
 
 ### v5.6.2
 - Diff Viewer highlights deleted lines on the original side and added lines on the proposed side.
+
+
+## v5.6.3
+- Synchronized vertical scrolling in the side-by-side Diff Viewer.
+- Previous/Next change navigation.
+- Change-group counter in the Diff Viewer.
+- Existing sandbox, approval, memory, chat history, model selector and editor behavior preserved.

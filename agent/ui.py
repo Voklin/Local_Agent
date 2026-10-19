@@ -356,6 +356,23 @@ class SideBySideDiffDialog(QDialog):
         header.addWidget(info)
         layout.addLayout(header)
 
+        toolbar = QHBoxLayout()
+        self.sync_scroll = QCheckBox("Синхронная прокрутка")
+        self.sync_scroll.setChecked(True)
+        self.sync_scroll.setToolTip("Прокручивать оригинал и новую версию одновременно")
+        toolbar.addWidget(self.sync_scroll)
+        self.change_position = QLabel("Изменения: 0")
+        self.change_position.setObjectName("Muted")
+        toolbar.addWidget(self.change_position)
+        toolbar.addStretch(1)
+        self.prev_change_btn = QPushButton("↑ Предыдущее")
+        self.next_change_btn = QPushButton("Следующее ↓")
+        self.prev_change_btn.setEnabled(False)
+        self.next_change_btn.setEnabled(False)
+        toolbar.addWidget(self.prev_change_btn)
+        toolbar.addWidget(self.next_change_btn)
+        layout.addLayout(toolbar)
+
         panes = QSplitter(Qt.Horizontal)
         self.left = QPlainTextEdit()
         self.right = QPlainTextEdit()
@@ -363,12 +380,19 @@ class SideBySideDiffDialog(QDialog):
             editor.setReadOnly(True)
             editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
             editor.setFont(QFont("Consolas", 10))
+            editor.verticalScrollBar().valueChanged.connect(self._scroll_from_editor)
         self.left.setPlaceholderText("Оригинал")
         self.right.setPlaceholderText("Предложенная версия")
         panes.addWidget(self.left)
         panes.addWidget(self.right)
         panes.setSizes([1, 1])
         layout.addWidget(panes, 1)
+
+        self._syncing_scroll = False
+        self._changed_groups = []
+        self._current_change = -1
+        self.prev_change_btn.clicked.connect(lambda: self._go_to_change(-1))
+        self.next_change_btn.clicked.connect(lambda: self._go_to_change(1))
 
         self._populate(diff)
         close_btn = QPushButton("Закрыть")
@@ -419,20 +443,60 @@ class SideBySideDiffDialog(QDialog):
         return selection
 
     def _highlight_changed_lines(self, left_lines, right_lines):
-        """Highlight deleted/added lines in the corresponding diff pane."""
+        """Highlight deleted/added lines and build navigation groups."""
         left_selections = []
         right_selections = []
+        changed = []
 
-        for index, value in enumerate(left_lines):
-            if value and index < len(right_lines) and not right_lines[index]:
+        for index in range(max(len(left_lines), len(right_lines))):
+            left_value = left_lines[index] if index < len(left_lines) else ""
+            right_value = right_lines[index] if index < len(right_lines) else ""
+            if left_value and not right_value:
                 left_selections.append(self._line_selection(self.left, index, "#4a2529"))
-
-        for index, value in enumerate(right_lines):
-            if value and index < len(left_lines) and not left_lines[index]:
+                changed.append(index)
+            elif right_value and not left_value:
                 right_selections.append(self._line_selection(self.right, index, "#1f4030"))
+                changed.append(index)
 
         self.left.setExtraSelections(left_selections)
         self.right.setExtraSelections(right_selections)
+
+        # Collapse consecutive changed rows into navigation groups.
+        groups = []
+        for line in sorted(set(changed)):
+            if not groups or line > groups[-1][-1] + 1:
+                groups.append([line])
+            else:
+                groups[-1].append(line)
+        self._changed_groups = groups
+        self._current_change = -1
+        count = len(groups)
+        self.change_position.setText(f"Изменения: {count}")
+        self.prev_change_btn.setEnabled(count > 0)
+        self.next_change_btn.setEnabled(count > 0)
+
+    def _scroll_from_editor(self, value):
+        """Keep both panes vertically aligned without recursive signal loops."""
+        if self._syncing_scroll or not self.sync_scroll.isChecked():
+            return
+        sender = self.sender()
+        target = self.right if sender is self.left else self.left
+        self._syncing_scroll = True
+        try:
+            target.verticalScrollBar().setValue(value)
+        finally:
+            self._syncing_scroll = False
+
+    def _go_to_change(self, direction):
+        if not self._changed_groups:
+            return
+        self._current_change = (self._current_change + direction) % len(self._changed_groups)
+        line = self._changed_groups[self._current_change][0]
+        self.left.verticalScrollBar().setValue(line)
+        self.right.verticalScrollBar().setValue(line)
+        self.change_position.setText(
+            f"Изменение {self._current_change + 1}/{len(self._changed_groups)}"
+        )
 
 
 class MainWindow(QMainWindow):
