@@ -1,145 +1,132 @@
-from __future__ import annotations
-
 from pathlib import Path
-from typing import Any
-
+import os
+from .security import AccessDenied, resolve_allowed_path
 
 MAX_READ_BYTES = 120_000
-MAX_SEARCH_RESULTS = 100
 IGNORED_DIRS = {".git", ".venv", "venv", "__pycache__", "node_modules", ".idea", ".vscode"}
 
 
-def _safe_path(root: Path, relative_path: str) -> Path:
-    root = root.resolve()
-    candidate = (root / relative_path).resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError:
-        raise ValueError("Access denied: path is outside the selected project directory.")
-    return candidate
-
-
-def list_files(root: Path, path: str = ".", recursive: bool = False) -> dict[str, Any]:
-    target = _safe_path(root, path)
-    if not target.exists():
-        return {"error": f"Path does not exist: {path}"}
+def list_files(root, path=".", recursive=False):
+    target = resolve_allowed_path(root, path, must_exist=True)
     if not target.is_dir():
-        return {"error": f"Not a directory: {path}"}
-
-    results: list[dict[str, str]] = []
+        return {"ok": False, "error": "Path is not a directory"}
+    results = []
     iterator = target.rglob("*") if recursive else target.iterdir()
     for item in iterator:
         try:
-            rel = item.relative_to(root).as_posix()
-            if any(part in IGNORED_DIRS for part in Path(rel).parts):
-                continue
-            results.append({"path": rel, "type": "directory" if item.is_dir() else "file"})
-            if len(results) >= 300:
-                break
-        except (OSError, PermissionError):
+            safe = resolve_allowed_path(root, item, must_exist=True)
+        except (AccessDenied, OSError):
+            continue  # do not follow symlinks/junctions that escape the root
+        if any(part in IGNORED_DIRS for part in safe.relative_to(resolve_allowed_path(root)).parts):
             continue
-    return {"root": str(root), "path": path, "items": results, "truncated": len(results) >= 300}
+        rel = safe.relative_to(resolve_allowed_path(root)).as_posix()
+        results.append({"path": rel, "type": "directory" if safe.is_dir() else "file"})
+        if len(results) >= 2000:
+            break
+    return {"ok": True, "root": str(resolve_allowed_path(root)), "path": str(target.relative_to(resolve_allowed_path(root)) or "."), "entries": results}
 
 
-def read_file(root: Path, path: str) -> dict[str, Any]:
-    target = _safe_path(root, path)
-    if not target.exists():
-        return {"error": f"File does not exist: {path}"}
+def read_file(root, path):
+    target = resolve_allowed_path(root, path, must_exist=True)
     if not target.is_file():
-        return {"error": f"Not a file: {path}"}
+        return {"ok": False, "error": "Path is not a file"}
     size = target.stat().st_size
     if size > MAX_READ_BYTES:
-        return {"error": f"File is {size} bytes; limit is {MAX_READ_BYTES} bytes. Search or inspect a smaller file."}
+        return {"ok": False, "error": f"File is too large ({size} bytes; limit {MAX_READ_BYTES})"}
     try:
-        content = target.read_text(encoding="utf-8", errors="replace")
-    except OSError as exc:
-        return {"error": str(exc)}
-    return {"path": target.relative_to(root.resolve()).as_posix(), "bytes": size, "content": content}
+        content = target.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return {"ok": False, "error": "File is not UTF-8 text"}
+    return {"ok": True, "path": target.relative_to(resolve_allowed_path(root)).as_posix(), "content": content}
 
 
-def search_text(root: Path, query: str, path: str = ".", case_sensitive: bool = False) -> dict[str, Any]:
-    target = _safe_path(root, path)
-    if not target.exists():
-        return {"error": f"Path does not exist: {path}"}
-    candidates = target.rglob("*") if target.is_dir() else [target]
-    matches: list[dict[str, Any]] = []
+def search_text(root, query, path=".", case_sensitive=False):
+    if not query:
+        return {"ok": False, "error": "query must not be empty"}
+    target = resolve_allowed_path(root, path, must_exist=True)
+    if not target.is_dir() and not target.is_file():
+        return {"ok": False, "error": "Path is not a file or directory"}
+    files = [target] if target.is_file() else target.rglob("*")
     needle = query if case_sensitive else query.casefold()
-    for file in candidates:
+    matches = []
+    for file in files:
         if not file.is_file():
             continue
         try:
-            rel_parts = file.relative_to(root.resolve()).parts
-            if any(part in IGNORED_DIRS for part in rel_parts):
-                continue
-            if file.stat().st_size > MAX_READ_BYTES:
-                continue
-            content = file.read_text(encoding="utf-8", errors="replace")
-        except (OSError, PermissionError, ValueError):
+            safe = resolve_allowed_path(root, file, must_exist=True)
+        except (AccessDenied, OSError):
             continue
-        for line_no, line in enumerate(content.splitlines(), start=1):
+        if any(part in IGNORED_DIRS for part in safe.relative_to(resolve_allowed_path(root)).parts):
+            continue
+        try:
+            if safe.stat().st_size > MAX_READ_BYTES:
+                continue
+            lines = safe.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        for number, line in enumerate(lines, 1):
             haystack = line if case_sensitive else line.casefold()
             if needle in haystack:
-                matches.append({"path": file.relative_to(root.resolve()).as_posix(), "line": line_no, "text": line[:400]})
-                if len(matches) >= MAX_SEARCH_RESULTS:
-                    return {"query": query, "matches": matches, "truncated": True}
-    return {"query": query, "matches": matches, "truncated": False}
+                matches.append({"path": safe.relative_to(resolve_allowed_path(root)).as_posix(), "line": number, "text": line[:500]})
+                if len(matches) >= 200:
+                    return {"ok": True, "matches": matches, "truncated": True}
+    return {"ok": True, "matches": matches, "truncated": False}
 
 
 TOOL_DEFINITIONS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "list_files",
-            "description": "List files and directories inside the selected project. Use path='.' for project root. recursive=true searches subdirectories.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Relative path inside the project, default '.'"},
-                    "recursive": {"type": "boolean", "description": "Whether to include descendants"}
-                },
-                "required": ["path", "recursive"],
-                "additionalProperties": False
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "Read a UTF-8 text file inside the selected project. Only use a relative path.",
-            "parameters": {
-                "type": "object",
-                "properties": {"path": {"type": "string"}},
-                "required": ["path"],
-                "additionalProperties": False
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_text",
-            "description": "Search for a text string in files inside the selected project.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string"},
-                    "path": {"type": "string", "description": "Relative file or directory path, default '.'"},
-                    "case_sensitive": {"type": "boolean"}
-                },
-                "required": ["query", "path", "case_sensitive"],
-                "additionalProperties": False
-            }
-        }
-    }
+    {"type": "function", "function": {"name": "list_files", "description": "List files/directories inside the selected project only.", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Relative project path; default ."}, "recursive": {"type": "boolean"}}, "required": []}}},
+    {"type": "function", "function": {"name": "read_file", "description": "Read a UTF-8 text file inside the selected project only.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}},
+    {"type": "function", "function": {"name": "search_text", "description": "Search text in files inside the selected project only.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "path": {"type": "string"}, "case_sensitive": {"type": "boolean"}}, "required": ["query"]}}},
 ]
 
 
-def execute_tool(root: Path, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    if name == "list_files":
-        return list_files(root, **arguments)
-    if name == "read_file":
-        return read_file(root, **arguments)
-    if name == "search_text":
-        return search_text(root, **arguments)
-    return {"error": f"Unknown tool: {name}"}
+def execute_tool(name, arguments, project_root):
+    """Single dispatch point: every file tool must enforce the selected root."""
+    try:
+        if name == "list_files":
+            return list_files(project_root, arguments.get("path", "."), bool(arguments.get("recursive", False)))
+        if name == "read_file":
+            return read_file(project_root, arguments["path"])
+        if name == "search_text":
+            return search_text(project_root, arguments["query"], arguments.get("path", "."), bool(arguments.get("case_sensitive", False)))
+        return {"ok": False, "error": f"Unknown tool: {name}"}
+    except AccessDenied as exc:
+        return {"ok": False, "error": str(exc), "code": "ACCESS_DENIED"}
+    except (FileNotFoundError, NotADirectoryError, IsADirectoryError, PermissionError, OSError, KeyError, ValueError) as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+
+def run_sandbox_self_test():
+    """Run isolated security checks using temporary folders; never touches user files."""
+    import tempfile
+    import unittest
+
+    class SandboxTests(unittest.TestCase):
+        def setUp(self):
+            self.temp = tempfile.TemporaryDirectory(prefix="local_agent_sandbox_test_")
+            self.base = Path(self.temp.name) / "project"
+            self.outside = Path(self.temp.name) / "outside"
+            self.base.mkdir(); self.outside.mkdir()
+            (self.base / "inside.txt").write_text("sandbox test marker", encoding="utf-8")
+            (self.outside / "outside.txt").write_text("must not be read", encoding="utf-8")
+        def tearDown(self): self.temp.cleanup()
+        def test_read_inside_allowed(self): self.assertTrue(read_file(self.base, "inside.txt")["ok"])
+        def test_parent_traversal_denied(self):
+            with self.assertRaises(AccessDenied): resolve_allowed_path(self.base, "../outside/outside.txt", must_exist=True)
+        def test_absolute_outside_denied(self):
+            with self.assertRaises(AccessDenied): resolve_allowed_path(self.base, self.outside / "outside.txt", must_exist=True)
+        def test_list_outside_denied(self):
+            result = execute_tool("list_files", {"path": str(self.outside)}, self.base)
+            self.assertFalse(result["ok"]); self.assertEqual(result.get("code"), "ACCESS_DENIED")
+        def test_search_outside_denied(self):
+            result = execute_tool("search_text", {"query": "must not", "path": str(self.outside)}, self.base)
+            self.assertFalse(result["ok"]); self.assertEqual(result.get("code"), "ACCESS_DENIED")
+        def test_symlink_escape_denied(self):
+            link = self.base / "escape_link"
+            try: link.symlink_to(self.outside, target_is_directory=True)
+            except (OSError, NotImplementedError): self.skipTest("Symlink creation not permitted on this Windows setup")
+            with self.assertRaises(AccessDenied): resolve_allowed_path(self.base, "escape_link/outside.txt", must_exist=True)
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(SandboxTests)
+    stream = __import__("io").StringIO()
+    result = unittest.TextTestRunner(stream=stream, verbosity=2).run(suite)
+    return {"ok": result.wasSuccessful(), "passed": result.testsRun - len(result.failures) - len(result.errors), "failed": len(result.failures) + len(result.errors), "skipped": len(result.skipped), "details": stream.getvalue()}

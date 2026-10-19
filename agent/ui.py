@@ -1,193 +1,85 @@
-from __future__ import annotations
-
-import json
 from pathlib import Path
-
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+    QPushButton, QFileDialog, QTextEdit, QPlainTextEdit, QMessageBox, QSplitter)
 from openai import OpenAI
-from PySide6.QtCore import QThread, Signal
-from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
-    QLineEdit, QPushButton, QTextEdit, QFileDialog, QGroupBox, QMessageBox,
-    QSplitter, QPlainTextEdit
-)
-
 from .worker import AgentWorker
-
-
-class ConnectionWorker(QThread):
-    done = Signal(str)
-    failed = Signal(str)
-
-    def __init__(self, base_url: str, api_key: str, parent=None):
-        super().__init__(parent)
-        self.base_url = base_url
-        self.api_key = api_key
-
-    def run(self):
-        try:
-            client = OpenAI(base_url=self.base_url, api_key=self.api_key or "no-key", timeout=12.0, max_retries=0)
-            models = client.models.list()
-            ids = [item.id for item in models.data]
-            self.done.emit("Соединение успешно. Модели API: " + (", ".join(ids[:10]) if ids else "(сервер не перечислил модели)"))
-        except Exception as exc:
-            self.failed.emit(f"{type(exc).__name__}: {exc}")
-
+from .tools import run_sandbox_self_test
 
 class MainWindow(QMainWindow):
     def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Local Coding Agent — v1")
-        self.resize(1100, 760)
-        self.project_root = Path.home()
+        super().__init__(); self.setWindowTitle("Local Coding Agent — Sandbox Edition"); self.resize(1050, 760)
         self.worker = None
-        self.connection_worker = None
-
-        central = QWidget()
-        self.setCentralWidget(central)
-        root_layout = QVBoxLayout(central)
-
-        settings = QGroupBox("Подключение к модели")
-        form = QFormLayout(settings)
-        self.base_url = QLineEdit("http://127.0.0.1:8080/v1")
-        self.api_key = QLineEdit("no-key")
-        self.api_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.model = QLineEdit("local-model")
-        form.addRow("Base URL:", self.base_url)
-        form.addRow("API key:", self.api_key)
-        form.addRow("Model ID:", self.model)
-
-        connection_row = QHBoxLayout()
-        self.test_connection_btn = QPushButton("Test connection")
-        self.test_connection_btn.clicked.connect(self.test_connection)
-        connection_row.addWidget(self.test_connection_btn)
-        self.connection_status = QLabel("Не подключено")
-        connection_row.addWidget(self.connection_status, 1)
-        form.addRow(connection_row)
-        root_layout.addWidget(settings)
-
-        project_row = QHBoxLayout()
-        self.project_label = QLabel(f"Рабочая папка: {self.project_root}")
-        self.project_label.setTextInteractionFlags(self.project_label.textInteractionFlags())
-        self.choose_project_btn = QPushButton("Выбрать папку проекта…")
-        self.choose_project_btn.clicked.connect(self.choose_project)
-        project_row.addWidget(self.project_label, 1)
-        project_row.addWidget(self.choose_project_btn)
-        root_layout.addLayout(project_row)
-
-        splitter = QSplitter()
-        self.chat = QTextEdit()
-        self.chat.setReadOnly(True)
-        self.chat.setPlaceholderText("Здесь появятся сообщения и ответы агента.")
-        self.log = QPlainTextEdit()
-        self.log.setReadOnly(True)
-        self.log.setPlaceholderText("Журнал вызовов инструментов.")
-        splitter.addWidget(self.chat)
-        splitter.addWidget(self.log)
-        splitter.setSizes([650, 450])
-        root_layout.addWidget(splitter, 1)
-
-        self.prompt = QTextEdit()
-        self.prompt.setMaximumHeight(100)
-        self.prompt.setPlaceholderText("Например: изучи структуру проекта и найди, где реализован инвентарь…")
-        root_layout.addWidget(self.prompt)
-
-        actions = QHBoxLayout()
-        self.send_btn = QPushButton("Отправить")
-        self.send_btn.clicked.connect(self.send_message)
-        self.test_tools_btn = QPushButton("Test tool calling")
-        self.test_tools_btn.clicked.connect(self.test_tool_calling)
-        self.clear_btn = QPushButton("Очистить журнал")
-        self.clear_btn.clicked.connect(self.clear_log)
-        actions.addWidget(self.send_btn)
-        actions.addWidget(self.test_tools_btn)
-        actions.addWidget(self.clear_btn)
-        root_layout.addLayout(actions)
-
-        self.append_chat("Система", "Выбери папку проекта, проверь подключение и нажми «Test tool calling».\nВ первой версии инструменты только читают файлы; запись и запуск команд добавим позже.")
-        self.statusBar().showMessage("Готово")
+        central = QWidget(); self.setCentralWidget(central); layout = QVBoxLayout(central)
+        row = QHBoxLayout(); layout.addLayout(row)
+        self.base_url = QLineEdit("http://127.0.0.1:8080/v1"); self.api_key = QLineEdit("no-key"); self.model = QLineEdit("local-model")
+        for label, widget in [("Base URL", self.base_url), ("API key", self.api_key), ("Model ID", self.model)]:
+            row.addWidget(QLabel(label)); row.addWidget(widget)
+        project_row = QHBoxLayout(); layout.addLayout(project_row)
+        self.project_path = QLineEdit(str(Path.home())); self.project_path.setReadOnly(True)
+        project_row.addWidget(QLabel("Project directory")); project_row.addWidget(self.project_path, 1)
+        self.browse_btn = QPushButton("Browse…"); self.browse_btn.clicked.connect(self.choose_project); project_row.addWidget(self.browse_btn)
+        self.sandbox_status = QLabel("🔒 File tools are restricted to the selected project directory.")
+        layout.addWidget(self.sandbox_status)
+        buttons = QHBoxLayout(); layout.addLayout(buttons)
+        self.connect_btn = QPushButton("Test connection"); self.connect_btn.clicked.connect(self.test_connection); buttons.addWidget(self.connect_btn)
+        self.tool_btn = QPushButton("Test tool calling"); self.tool_btn.clicked.connect(self.test_tool_calling); buttons.addWidget(self.tool_btn)
+        self.sandbox_btn = QPushButton("🔒 Test sandbox"); self.sandbox_btn.clicked.connect(self.test_sandbox); buttons.addWidget(self.sandbox_btn)
+        split = QSplitter(Qt.Orientation.Vertical); layout.addWidget(split, 1)
+        self.chat_view = QTextEdit(); self.chat_view.setReadOnly(True); self.chat_view.setPlaceholderText("Диалог с агентом")
+        self.log_view = QPlainTextEdit(); self.log_view.setReadOnly(True); self.log_view.setPlaceholderText("Журнал вызовов инструментов и проверок безопасности")
+        split.addWidget(self.chat_view); split.addWidget(self.log_view); split.setSizes([450, 250])
+        input_row = QHBoxLayout(); layout.addLayout(input_row)
+        self.prompt = QLineEdit(); self.prompt.setPlaceholderText("Например: изучи структуру проекта и кратко опиши его")
+        self.prompt.returnPressed.connect(self.send_message); input_row.addWidget(self.prompt, 1)
+        self.send_btn = QPushButton("Send"); self.send_btn.clicked.connect(self.send_message); input_row.addWidget(self.send_btn)
+        self.clear_btn = QPushButton("Clear log"); self.clear_btn.clicked.connect(self.log_view.clear); input_row.addWidget(self.clear_btn)
 
     def choose_project(self):
-        folder = QFileDialog.getExistingDirectory(self, "Выбрать папку проекта", str(self.project_root))
-        if folder:
-            self.project_root = Path(folder).resolve()
-            self.project_label.setText(f"Рабочая папка: {self.project_root}")
-            self.append_log(f"Рабочая папка: {self.project_root}")
-
-    def append_chat(self, who: str, text: str):
-        self.chat.append(f"<b>{who}</b><br>{text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(chr(10), '<br>')}<br>")
-
-    def append_log(self, text: str):
-        self.log.appendPlainText(text)
-
-    def config(self):
-        return self.base_url.text().strip(), self.api_key.text().strip() or "no-key", self.model.text().strip()
+        selected = QFileDialog.getExistingDirectory(self, "Select project directory", self.project_path.text())
+        if selected:
+            self.project_path.setText(str(Path(selected).resolve()))
+            self.sandbox_status.setText(f"🔒 Sandbox root: {self.project_path.text()}")
 
     def test_connection(self):
-        base_url, api_key, model = self.config()
-        if not base_url or not model:
-            QMessageBox.warning(self, "Не хватает настроек", "Укажи Base URL и Model ID.")
-            return
-        self.test_connection_btn.setEnabled(False)
-        self.connection_status.setText("Проверка…")
-        self.connection_worker = ConnectionWorker(base_url, api_key, self)
-        self.connection_worker.done.connect(self.connection_ok)
-        self.connection_worker.failed.connect(self.connection_failed)
-        self.connection_worker.finished.connect(lambda: self.test_connection_btn.setEnabled(True))
-        self.connection_worker.start()
+        try:
+            client = OpenAI(base_url=self.base_url.text().strip(), api_key=self.api_key.text().strip() or "no-key", timeout=15, max_retries=0)
+            models = client.models.list()
+            ids = [m.id for m in models.data]
+            self.log_view.appendPlainText("Connection OK. Models: " + (", ".join(ids) if ids else "(server returned no models)"))
+            if ids and self.model.text().strip() in ("", "local-model"):
+                self.model.setText(ids[0])
+            QMessageBox.information(self, "Connection", "Подключение успешно. Сверь Model ID с журналом.")
+        except Exception as exc:
+            QMessageBox.critical(self, "Connection failed", f"{type(exc).__name__}: {exc}")
 
-    def connection_ok(self, text: str):
-        self.connection_status.setText("Подключено")
-        self.append_log(text)
-        self.statusBar().showMessage("Соединение успешно")
-
-    def connection_failed(self, text: str):
-        self.connection_status.setText("Ошибка соединения")
-        self.append_log(text)
-        QMessageBox.critical(self, "Не удалось подключиться", text)
+    def test_sandbox(self):
+        result = run_sandbox_self_test()
+        self.log_view.appendPlainText("\n=== SANDBOX SELF-TEST ===\n" + result["details"])
+        summary = f"Passed: {result['passed']} | Failed: {result['failed']} | Skipped: {result['skipped']}"
+        self.sandbox_status.setText(("✅ " if result["ok"] else "❌ ") + summary)
+        (QMessageBox.information if result["ok"] else QMessageBox.warning)(self, "Sandbox test", summary + "\nПодробности записаны в журнал.")
 
     def test_tool_calling(self):
-        if self.worker and self.worker.isRunning():
-            return
-        prompt = "Используй инструмент list_files ровно один раз для корня проекта (path='.', recursive=false). Затем кратко опиши, что найдено. Не угадывай содержимое папки."
-        self.start_agent(prompt, force_tool="list_files")
+        self.start_agent("Вызови list_files ровно один раз для корня проекта: path='.', recursive=false. Затем кратко опиши результат, не угадывай содержимое.", force_tool="list_files")
 
     def send_message(self):
-        if self.worker and self.worker.isRunning():
-            return
-        text = self.prompt.toPlainText().strip()
-        if not text:
-            return
-        self.prompt.clear()
-        self.append_chat("Ты", text)
-        self.start_agent(text)
+        prompt = self.prompt.text().strip()
+        if prompt:
+            self.prompt.clear(); self.chat_view.append(f"<b>Вы:</b> {prompt}")
+            self.start_agent(prompt)
 
-    def start_agent(self, text: str, force_tool: str | None = None):
-        base_url, api_key, model = self.config()
-        if not base_url or not model:
-            QMessageBox.warning(self, "Не хватает настроек", "Укажи Base URL и Model ID.")
-            return
-        self.send_btn.setEnabled(False)
-        self.test_tools_btn.setEnabled(False)
-        self.statusBar().showMessage("Агент работает…")
-        self.worker = AgentWorker(base_url, api_key, model, self.project_root, text, force_tool, self)
-        self.worker.log.connect(self.append_log)
-        self.worker.answer.connect(self.agent_answer)
-        self.worker.error.connect(self.agent_error)
-        self.worker.finished.connect(self.agent_finished)
+    def start_agent(self, prompt, force_tool=None):
+        if self.worker and self.worker.isRunning():
+            QMessageBox.warning(self, "Agent busy", "Дождись завершения текущего запроса."); return
+        root = Path(self.project_path.text())
+        if not root.is_dir():
+            QMessageBox.warning(self, "Project directory", "Выбери существующую папку проекта."); return
+        self.worker = AgentWorker(self.base_url.text().strip(), self.api_key.text().strip() or "no-key", self.model.text().strip(), str(root.resolve()), prompt, force_tool)
+        self.worker.chat.connect(self.on_chat); self.worker.log.connect(self.log_view.appendPlainText)
+        self.worker.failed.connect(lambda err: QMessageBox.critical(self, "Agent error", err))
+        self.worker.finished_text.connect(lambda _: self.log_view.appendPlainText("Agent turn finished."))
         self.worker.start()
 
-    def agent_answer(self, text: str):
-        self.append_chat("Агент", text)
-        self.statusBar().showMessage("Ответ получен")
-
-    def agent_error(self, text: str):
-        self.append_log("ERROR: " + text)
-        self.append_chat("Ошибка", text)
-        self.statusBar().showMessage("Ошибка")
-
-    def agent_finished(self):
-        self.send_btn.setEnabled(True)
-        self.test_tools_btn.setEnabled(True)
-
-    def clear_log(self):
-        self.log.clear()
+    def on_chat(self, role, content):
+        self.chat_view.append(f"<b>{role.title()}:</b> {content.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace(chr(10), '<br>')}")

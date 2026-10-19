@@ -1,40 +1,35 @@
-# Local Coding Agent — v1
+# Local Coding Agent — Sandbox Edition
 
-Первая рабочая версия локального coding agent для Windows.
+Windows GUI prototype: PySide6 + OpenAI-compatible local API (for example `llama-server`).
 
-## Что уже умеет
-- Подключаться к любому OpenAI-compatible API (llama-server, LM Studio, Ollama через совместимый endpoint и другие).
-- Выбирать модель и рабочую папку в GUI.
-- Отправлять сообщения модели.
-- Выполнять tool calling через инструменты `list_files`, `read_file`, `search_text`.
-- Показывать журнал вызовов инструментов.
-- Ограничивать доступ файловыми операциями выбранной рабочей папкой.
-- Отдельно проверять tool calling кнопкой **Test tool calling**.
+## Start
 
-## Пока намеренно отсутствует
-Запись/удаление файлов и выполнение shell-команд. Добавим их после проверки соединения и tool calling, с подтверждениями и защитой от опасных команд.
+1. Keep `llama-server` running at `http://127.0.0.1:8080`.
+2. Extract this folder somewhere writable.
+3. Run `run.bat`.
+4. In the GUI set Base URL to `http://127.0.0.1:8080/v1`, API key to `no-key`, and Model ID to the exact ID returned by `/v1/models`.
+5. Select the project directory with **Browse…**.
+6. Click **Test sandbox**, then **Test connection** and **Test tool calling**.
 
-## Запуск
-1. Установите Python 3.11 или 3.12 с опцией **Add python.exe to PATH**.
-2. Запустите `run.bat`.
-3. В настройках укажите:
-   - Base URL, например `http://127.0.0.1:8080/v1`
-   - API key (для локального llama-server часто подойдёт `no-key`)
-   - точный ID модели, который принимает ваш сервер.
-4. Нажмите **Test connection**.
-5. Выберите папку проекта.
-6. Нажмите **Test tool calling**. Агент должен вызвать `list_files`, а в журнале появится результат инструмента.
+## Sandbox guarantees in this prototype
 
-## llama-server
-Tool calling в llama.cpp обычно требует `--jinja` и подходящего chat template. Например, для GGUF-модели:
+- All current file tools (`list_files`, `read_file`, `search_text`) resolve requested paths and reject paths that escape the selected project root.
+- `..` traversal, outside absolute paths, and symlink/junction paths that resolve outside the root are rejected.
+- The sandbox self-test uses temporary folders and does not create files in the user's project.
+- The model does not get arbitrary filesystem access directly; tools enforce the boundary in Python.
+- The GUI's selected root is the root passed to the tool dispatcher.
+
+## Run tests
 
 ```powershell
-llama-server.exe -m "D:\Models\model.gguf" --host 127.0.0.1 --port 8080 -c 32768 --n-gpu-layers 99 --jinja
+py -3 -m venv .venv
+.venv\Scripts\activate
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
 ```
 
-Это пример, а не универсальная команда: параметры GPU и шаблон зависят от сборки, модели и доступной VRAM. Если модельная карточка даёт отдельный `--chat-template-file`, используйте его. Не запускайте одновременно несколько серверов на одном порту.
+Or use **🔒 Test sandbox** inside the GUI.
 
-## Проверка через приложение
-- **Test connection** проверяет `/models`.
-- **Test tool calling** принудительно просит модель вызвать `list_files`.
-- Если соединение работает, но tool calling нет, проверьте серверный chat template, `--jinja`, модель ID и логи llama-server.
+## Important security limit
+
+This is an application-level path sandbox for the current file tools, not a complete OS sandbox. No shell, write, delete, or Git tools are enabled in this version. Before adding any such tool, enforce the same root policy and add explicit confirmation/allowlists for commands and destructive actions. A future shell tool cannot be secured by checking only `cwd`; commands may access absolute paths or launch other programs. For stronger isolation, run the agent in a restricted Windows account/container/VM.
