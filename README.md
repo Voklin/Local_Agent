@@ -1,43 +1,35 @@
-# Local Coding Agent v5.6.8 — Task Checkpoints + UI/UX
+# Local Coding Agent v5.8
 
-Windows GUI local coding agent for OpenAI-compatible local servers such as LM Studio.
+Windows local coding agent with a Cursor-inspired IDE shell, persistent task runtime, Skills/MCP architecture, OpenAI-compatible providers and an optional embedded llama.cpp/ GGUF runtime.
 
-## What's new in v5.6.8
+## v5.8 highlights
 
-### Task planner and checkpoints
-- Every chat task gets a persistent five-stage plan:
-  **Анализ → Исследование → Реализация → Проверка → Завершение**.
-- The current stage, model cycle, tool-call count and last event are saved outside the project.
-- If the agent is stopped, hits a limit, or fails unexpectedly, the task becomes **Приостановлена** instead of being lost.
-- **Продолжить** resumes the task from the same chat and asks the agent to inspect the current project state before continuing.
-- **Сбросить** removes only the task checkpoint; chat history remains intact.
-- No project source code or raw tool output is stored in the checkpoint.
+- Cursor-inspired workspace: activity bar, project explorer, editor, agent chat, inspector and bottom Output/Terminal/Problems panel.
+- Local Model Manager for GGUF models.
+- llama.cpp `llama-server` can be launched by the application itself; the Agent Core still talks through the same OpenAI-compatible interface.
+- CUDA GPU layers and CPU offload are exposed through `GPU layers` (`-1` means all available layers).
+- Remote/LM Studio providers remain supported.
+- Existing sandbox, file permissions and explicit write approval are unchanged.
+- Existing persistent chats, project memory, task checkpoints, diff viewer, editor and Skills/MCP architecture are retained.
 
-### UI/UX
-- Redesigned workspace hierarchy with clearer chat/project context.
-- New persistent task card in the right inspector.
-- Stage progress, live status and last checkpoint event are visible while the agent works.
-- Resume/reset actions are available without typing confirmation into the chat.
-- Existing editor, Diff Viewer, change center, project memory, model selector and diagnostics are preserved.
-- Approval workflow remains unchanged: file writes still require explicit GUI approval.
-- Sandbox/security rules are unchanged.
+## Local models
 
-## Existing capabilities retained
-- Persistent chat history.
-- Separate project memory outside project folders.
-- Adaptive limits for large/long-running projects.
-- Bounded live model context with preserved tool-call pairs.
-- File tree, syntax-highlighted editor, line numbers, search, Ctrl+S, go-to-line and reload.
-- Side-by-side Diff Viewer with synchronized scrolling and change navigation.
-- Automatic model discovery through the OpenAI-compatible models endpoint.
-- Sandbox self-tests.
+1. Obtain a compatible `llama-server` build and place it on PATH or select `llama-server.exe` in **Model → Model Manager**.
+2. Import a `.gguf` model.
+3. Select it and press **Запустить выбранную модель**.
+4. The application switches its OpenAI-compatible endpoint to the local runtime and refreshes `/v1/models`.
+5. Stop the runtime from Model Manager when finished.
 
-## Run
-1. Extract the ZIP.
-2. `python -m pip install -r requirements.txt`
-3. Run `run.bat`.
-4. Configure LM Studio / OpenAI-compatible URL and select a model in Settings.
+The runtime is intentionally separated from Agent Core. The next backend can therefore be added without changing planner, tools, sandbox or permissions.
+
+## Install
+
+```text
+python -m pip install -r requirements.txt
+```
+
+Run `run.bat` on Windows.
 
 ## Validation
-- Python bytecode compilation and unit tests are included in the release validation.
-- GUI should be smoke-tested on Windows with PySide6 and a running LM Studio server.
+
+The release includes unit tests for sandbox/security, chat history, task checkpoints, editor IO, runtime architecture and the v5.8 model manager. GUI/runtime integration requires a Windows environment with PySide6 and a llama.cpp build.

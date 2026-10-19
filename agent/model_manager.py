@@ -1,0 +1,189 @@
+"""Local GGUF model discovery and llama.cpp runtime management for v5.8.
+
+The agent core talks to every model through an OpenAI-compatible endpoint.  This
+module owns only local-model lifecycle; it does not know anything about tools,
+sandbox permissions or task execution.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+
+APP_DIR = Path(os.getenv("LOCALAPPDATA", Path.home() / ".local")) / "LocalCodingAgent"
+DEFAULT_MODELS_DIR = APP_DIR / "models"
+DEFAULT_RUNTIME_DIR = APP_DIR / "runtime"
+
+
+@dataclass
+class LocalModel:
+    path: str
+    name: str
+    size_bytes: int
+    quantization: str = "unknown"
+    architecture: str = "unknown"
+
+    @property
+    def size_gb(self) -> float:
+        return self.size_bytes / (1024 ** 3)
+
+    def to_dict(self):
+        data = asdict(self)
+        data["size_gb"] = round(self.size_gb, 2)
+        return data
+
+
+class ModelManager:
+    def __init__(self, models_dir: str | Path | None = None):
+        self.models_dir = Path(models_dir or DEFAULT_MODELS_DIR).expanduser()
+        self.models_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _quantization(name: str) -> str:
+        match = re.search(r"(?:^|[-_.])(Q[0-9](?:_[A-Z0-9]+)?(?:_[A-Z0-9]+)?)(?:[-_.]|$)", name.upper())
+        return match.group(1) if match else "unknown"
+
+    def scan(self) -> list[LocalModel]:
+        result: list[LocalModel] = []
+        for path in sorted(self.models_dir.rglob("*.gguf"), key=lambda p: p.name.lower()):
+            try:
+                result.append(LocalModel(str(path), path.stem, path.stat().st_size, self._quantization(path.name)))
+            except OSError:
+                continue
+        return result
+
+    def import_model(self, source: str | Path, *, copy=True) -> LocalModel:
+        source = Path(source).expanduser().resolve()
+        if source.suffix.lower() != ".gguf" or not source.is_file():
+            raise ValueError("Выберите существующий файл GGUF.")
+        destination = self.models_dir / source.name
+        if source != destination:
+            if copy:
+                shutil.copy2(source, destination)
+            else:
+                destination = source
+        return LocalModel(str(destination), destination.stem, destination.stat().st_size, self._quantization(destination.name))
+
+
+class LocalRuntime:
+    """Starts llama-server and exposes its OpenAI-compatible endpoint."""
+    def __init__(self, *, runtime_path: str | Path | None = None):
+        self.runtime_path = str(runtime_path or "")
+        self.process: subprocess.Popen | None = None
+        self.port: int | None = None
+        self.model: LocalModel | None = None
+        self.logs: list[str] = []
+
+    @staticmethod
+    def find_executable(explicit: str = "") -> str | None:
+        candidates = []
+        if explicit:
+            candidates.append(Path(explicit))
+        candidates.extend([
+            DEFAULT_RUNTIME_DIR / "llama-server.exe",
+            DEFAULT_RUNTIME_DIR / "llama-server",
+            Path("llama-server.exe"),
+            Path("llama-server"),
+        ])
+        for candidate in candidates:
+            if candidate.is_file():
+                return str(candidate)
+        return shutil.which("llama-server") or shutil.which("llama-server.exe")
+
+    @staticmethod
+    def free_port(host="127.0.0.1") -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind((host, 0))
+            return int(sock.getsockname()[1])
+
+    @property
+    def running(self) -> bool:
+        return self.process is not None and self.process.poll() is None
+
+    @property
+    def base_url(self) -> str:
+        return f"http://127.0.0.1:{self.port}/v1" if self.port else ""
+
+    def start(self, model: LocalModel, *, ctx_size=32768, gpu_layers=-1, port=None, extra_args=None):
+        if self.running:
+            self.stop()
+        executable = self.find_executable(self.runtime_path)
+        if not executable:
+            raise FileNotFoundError(
+                "llama-server не найден. Укажите путь к llama-server.exe в Model Manager "
+                "или добавьте его в PATH."
+            )
+        self.port = int(port or self.free_port())
+        args = [
+            executable, "--model", model.path, "--host", "127.0.0.1", "--port", str(self.port),
+            "--ctx-size", str(int(ctx_size)), "--n-gpu-layers", str(int(gpu_layers)),
+            "--jinja",
+        ]
+        if extra_args:
+            args.extend(extra_args)
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+        self.process = subprocess.Popen(
+            args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            encoding="utf-8", errors="replace", creationflags=creationflags,
+        )
+        self.model = model
+        self.logs.clear()
+        deadline = time.time() + 45
+        while time.time() < deadline:
+            if self.process.poll() is not None:
+                output = self.process.stdout.read() if self.process.stdout else ""
+                raise RuntimeError(f"llama-server завершился с кодом {self.process.returncode}.\n{output[-4000:]}")
+            if self._healthy():
+                return self.base_url
+            time.sleep(0.25)
+        self.stop()
+        raise TimeoutError("llama-server запустился, но OpenAI API не стал доступен за 45 секунд.")
+
+    def _healthy(self) -> bool:
+        if not self.base_url:
+            return False
+        try:
+            with urllib.request.urlopen(self.base_url + "/models", timeout=1.5) as response:
+                return 200 <= response.status < 300
+        except (OSError, urllib.error.URLError):
+            return False
+
+    def stop(self):
+        process, self.process = self.process, None
+        if process is None:
+            return
+        try:
+            process.terminate()
+            process.wait(timeout=5)
+        except Exception:
+            try:
+                process.kill()
+            except Exception:
+                pass
+        self.port = None
+        self.model = None
+
+    def status(self) -> dict:
+        return {
+            "running": self.running,
+            "pid": self.process.pid if self.running else None,
+            "port": self.port,
+            "base_url": self.base_url,
+            "model": self.model.to_dict() if self.model else None,
+        }
+
+    def __del__(self):
+        try:
+            self.stop()
+        except Exception:
+            pass

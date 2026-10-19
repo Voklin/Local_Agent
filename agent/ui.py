@@ -18,11 +18,16 @@ from .project_memory import load_project_memory, save_project_memory, clear_proj
 from .task_store import load_task, clear_task
 from .security import resolve_allowed_path, AccessDenied
 from .editor_io import read_project_text, save_project_text, MAX_EDITOR_FILE_BYTES
+from .model_manager import ModelManager, LocalRuntime
 
 
 APP_QSS = """
 QMainWindow, QWidget { background: #0b0d0f; color: #e8e9ea; font-family: "Segoe UI"; font-size: 13px; }
 QFrame#Sidebar { background: #101214; border-right: 1px solid #24272b; }
+QFrame#ActivityBar { background: #0a0c0e; border-right: 1px solid #202328; }
+QToolButton#ActivityButton { min-width: 36px; max-width: 36px; min-height: 36px; max-height: 36px; padding: 0; border: 0; border-radius: 7px; color: #7f8792; font-size: 16px; }
+QToolButton#ActivityButton:hover { background: #191d22; color: #e6e8eb; }
+QFrame#BottomPanel { background: #0d1013; border-top: 1px solid #24272b; }
 QFrame#TopBar { background: #0d0f11; border-bottom: 1px solid #24272b; min-height: 48px; }
 QFrame#Composer { background: #0b0d0f; border-top: 1px solid #24272b; }
 QTabWidget::pane { border: 0; background: #0b0d0f; top: 0; }
@@ -546,6 +551,137 @@ class SideBySideDiffDialog(QDialog):
         )
 
 
+class LocalModelManagerDialog(QDialog):
+    """Cursor-style local model manager: import GGUF and control llama.cpp runtime."""
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent_window = parent
+        self.manager = ModelManager()
+        self.runtime = parent.local_runtime
+        self.setWindowTitle("Model Manager · Local Coding Agent")
+        self.resize(820, 620)
+        layout = QVBoxLayout(self)
+
+        head = QHBoxLayout()
+        title = QLabel("Локальные модели")
+        title.setObjectName("WorkspaceTitle")
+        head.addWidget(title)
+        head.addStretch(1)
+        self.status = QLabel("Runtime остановлен")
+        self.status.setObjectName("Status")
+        head.addWidget(self.status)
+        layout.addLayout(head)
+
+        self.models = QListWidget()
+        self.models.itemDoubleClicked.connect(self._start_selected)
+        layout.addWidget(self.models, 1)
+
+        controls = QHBoxLayout()
+        add = QPushButton("＋ Импорт GGUF")
+        add.clicked.connect(self.import_model)
+        scan = QPushButton("↻ Обновить")
+        scan.clicked.connect(self.refresh)
+        controls.addWidget(add); controls.addWidget(scan)
+        controls.addStretch(1)
+        layout.addLayout(controls)
+
+        runtime_box = QGroupBox("llama.cpp runtime")
+        form = QFormLayout(runtime_box)
+        self.runtime_path = QLineEdit(parent.settings_store.value("local/runtime_path", ""))
+        browse = QPushButton("Обзор…")
+        browse.clicked.connect(self.choose_runtime)
+        rr = QHBoxLayout(); rr.addWidget(self.runtime_path, 1); rr.addWidget(browse)
+        form.addRow("llama-server:", rr)
+        self.ctx = QSpinBox(); self.ctx.setRange(2048, 1048576); self.ctx.setSingleStep(4096); self.ctx.setValue(parent.settings_store.value("local/context", 32768, type=int))
+        form.addRow("Контекст:", self.ctx)
+        self.gpu = QSpinBox(); self.gpu.setRange(-1, 999); self.gpu.setValue(parent.settings_store.value("local/gpu_layers", -1, type=int)); self.gpu.setToolTip("-1 = все доступные слои на GPU")
+        form.addRow("GPU layers:", self.gpu)
+        layout.addWidget(runtime_box)
+
+        buttons = QHBoxLayout(); buttons.addStretch(1)
+        self.stop_btn = QPushButton("Остановить runtime")
+        self.stop_btn.setObjectName("Danger"); self.stop_btn.clicked.connect(self.stop_runtime)
+        self.start_btn = QPushButton("Запустить выбранную модель")
+        self.start_btn.setObjectName("Primary"); self.start_btn.clicked.connect(self._start_selected)
+        close = QPushButton("Закрыть"); close.clicked.connect(self.accept)
+        buttons.addWidget(self.stop_btn); buttons.addWidget(self.start_btn); buttons.addWidget(close)
+        layout.addLayout(buttons)
+        self.refresh()
+        self._update_status()
+
+    def choose_runtime(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Выберите llama-server", "", "llama-server (llama-server.exe);;Все файлы (*.*)")
+        if path:
+            self.runtime_path.setText(path)
+            self.parent_window.settings_store.setValue("local/runtime_path", path)
+
+    def refresh(self):
+        self.models.clear()
+        for model in self.manager.scan():
+            item = QListWidgetItem(f"{model.name}   ·   {model.size_gb:.1f} GB   ·   {model.quantization}")
+            item.setData(Qt.ItemDataRole.UserRole, model.to_dict())
+            item.setToolTip(model.path)
+            self.models.addItem(item)
+        if not self.models.count():
+            item = QListWidgetItem("Нет GGUF-моделей. Импортируйте модель, чтобы начать.")
+            item.setEnabled(False); self.models.addItem(item)
+
+    def import_model(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Импорт GGUF", "", "GGUF (*.gguf)")
+        if not path:
+            return
+        try:
+            model = self.manager.import_model(path)
+            self.parent_window.log_view.appendPlainText(f"MODEL IMPORTED: {model.name} → {model.path}")
+            self.refresh()
+        except Exception as exc:
+            QMessageBox.critical(self, "Импорт модели", f"Не удалось импортировать модель.\n\n{type(exc).__name__}: {exc}")
+
+    def _start_selected(self):
+        item = self.models.currentItem()
+        if not item or not item.data(Qt.ItemDataRole.UserRole):
+            QMessageBox.information(self, "Model Manager", "Выберите GGUF-модель.")
+            return
+        data = item.data(Qt.ItemDataRole.UserRole)
+        model = next((m for m in self.manager.scan() if m.path == data.get("path")), None)
+        if not model:
+            QMessageBox.warning(self, "Model Manager", "Файл модели больше не найден.")
+            self.refresh(); return
+        self.start_btn.setEnabled(False)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            self.runtime.runtime_path = self.runtime_path.text().strip()
+            base_url = self.runtime.start(model, ctx_size=self.ctx.value(), gpu_layers=self.gpu.value(), port=None)
+            self.parent_window.settings_store.setValue("local/context", self.ctx.value())
+            self.parent_window.settings_store.setValue("local/gpu_layers", self.gpu.value())
+            self.parent_window.settings_store.setValue("local/runtime_path", self.runtime.runtime_path or self.runtime_path.text())
+            self.parent_window.base_url.setText(base_url)
+            self.parent_window.api_key.setText("no-key")
+            self.parent_window.refresh_models(show_message=False)
+            self.parent_window._set_status("Локальная модель запущена", "ready")
+            self.parent_window.log_view.appendPlainText(f"LOCAL RUNTIME: {model.name} → {base_url}")
+            self._update_status()
+        except Exception as exc:
+            QMessageBox.critical(self, "Запуск local runtime", f"Не удалось запустить llama.cpp.\n\n{type(exc).__name__}: {exc}")
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.start_btn.setEnabled(True)
+
+    def stop_runtime(self):
+        self.runtime.stop()
+        self.parent_window.log_view.appendPlainText("LOCAL RUNTIME: stopped")
+        self.parent_window._set_status("Готов", "ready")
+        self._update_status()
+
+    def _update_status(self):
+        status = self.runtime.status()
+        if status["running"]:
+            model = status.get("model") or {}
+            self.status.setText(f"● {model.get('name', 'local model')} · :{status.get('port')}")
+        else:
+            self.status.setText("○ Runtime остановлен")
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -559,6 +695,7 @@ class MainWindow(QMainWindow):
         self.current_chat_id = None
         self.current_chat_title = "Новый чат"
         self.change_records = []
+        self.local_runtime = LocalRuntime(runtime_path=self.settings_store.value("local/runtime_path", ""))
         self._create_hidden_connection_fields()
         self._build_ui()
         self._sync_workspace_title()
@@ -580,11 +717,46 @@ class MainWindow(QMainWindow):
         outer = QVBoxLayout(root); outer.setContentsMargins(0, 0, 0, 0); outer.setSpacing(0)
         outer.addWidget(self._build_topbar())
         body = QSplitter(Qt.Horizontal); body.setChildrenCollapsible(False)
+        body.addWidget(self._build_activity_bar())
         body.addWidget(self._build_sidebar())
         body.addWidget(self._build_center())
         body.addWidget(self._build_inspector())
-        body.setSizes([250, 850, 280]); outer.addWidget(body, 1)
+        body.setSizes([48, 235, 820, 300]); outer.addWidget(body, 1)
+        outer.addWidget(self._build_bottom_panel())
         outer.addWidget(self._build_composer())
+
+    def _build_activity_bar(self):
+        bar = QFrame(); bar.setObjectName("ActivityBar"); bar.setFixedWidth(48)
+        layout = QVBoxLayout(bar); layout.setContentsMargins(5, 8, 5, 8); layout.setSpacing(6)
+        for text, tip, callback in [
+            ("▤", "Explorer", lambda: self.center_tabs.setCurrentWidget(self.editor_workspace)),
+            ("⌕", "Поиск по проекту", self.focus_editor_search),
+            ("◉", "Agent", lambda: self.center_tabs.setCurrentWidget(self.chat_panel)),
+            ("⚙", "Model Manager", self.open_model_manager),
+        ]:
+            button = QToolButton(); button.setObjectName("ActivityButton"); button.setText(text); button.setToolTip(tip); button.clicked.connect(callback); layout.addWidget(button)
+        layout.addStretch(1)
+        settings = QToolButton(); settings.setObjectName("ActivityButton"); settings.setText("⚙"); settings.setToolTip("Настройки"); settings.clicked.connect(self.open_settings); layout.addWidget(settings)
+        return bar
+
+    def _build_bottom_panel(self):
+        panel = QFrame(); panel.setObjectName("BottomPanel"); panel.setMinimumHeight(34); panel.setMaximumHeight(210)
+        layout = QVBoxLayout(panel); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(0)
+        tabs = QTabWidget(); tabs.setDocumentMode(True)
+        self.bottom_output = QPlainTextEdit(); self.bottom_output.setReadOnly(True); tabs.addTab(self.bottom_output, "Output")
+        self.bottom_terminal = QPlainTextEdit(); self.bottom_terminal.setReadOnly(True); self.bottom_terminal.setPlaceholderText("Terminal output будет отображаться здесь"); tabs.addTab(self.bottom_terminal, "Terminal")
+        self.bottom_problems = QListWidget(); tabs.addTab(self.bottom_problems, "Problems")
+        layout.addWidget(tabs)
+        self.bottom_panel_tabs = tabs
+        panel.setFixedHeight(36)
+        self._bottom_panel_widget = panel
+        return panel
+
+    def toggle_bottom_panel(self):
+        if self._bottom_panel_widget.height() <= 40:
+            self._bottom_panel_widget.setMaximumHeight(210); self._bottom_panel_widget.setMinimumHeight(120)
+        else:
+            self._bottom_panel_widget.setMaximumHeight(36); self._bottom_panel_widget.setMinimumHeight(36)
 
     def _build_topbar(self):
         bar = QFrame(); bar.setObjectName("TopBar"); layout = QHBoxLayout(bar); layout.setContentsMargins(16, 10, 16, 10)
@@ -601,6 +773,8 @@ class MainWindow(QMainWindow):
         self.model_selector.currentTextChanged.connect(self._on_model_selected)
         model_badge = QLabel("MODEL"); model_badge.setObjectName("ModelBadge"); layout.addWidget(model_badge); layout.addWidget(self.model_selector)
         refresh_models = QToolButton(); refresh_models.setText("↻"); refresh_models.setToolTip("Получить список моделей с локального сервера"); refresh_models.clicked.connect(lambda: self.refresh_models(show_message=True)); layout.addWidget(refresh_models)
+        model_manager = QToolButton(); model_manager.setText("Model"); model_manager.setToolTip("Локальные GGUF-модели и llama.cpp runtime"); model_manager.clicked.connect(self.open_model_manager); layout.addWidget(model_manager)
+        panel_btn = QToolButton(); panel_btn.setText("Panel"); panel_btn.setToolTip("Показать/скрыть нижнюю панель"); panel_btn.clicked.connect(self.toggle_bottom_panel); layout.addWidget(panel_btn)
         editor_btn = QToolButton(); editor_btn.setText("</>"); editor_btn.setToolTip("Открыть редактор кода · Ctrl+Shift+E"); editor_btn.clicked.connect(self.open_editor_tab); layout.addWidget(editor_btn)
         self.status_label = QLabel("Готов"); self.status_label.setObjectName("StatusReady"); layout.addWidget(self.status_label)
         settings = QToolButton(); settings.setText("⚙"); settings.setToolTip("Настройки агента"); settings.clicked.connect(self.open_settings); layout.addWidget(settings)
@@ -1044,6 +1218,11 @@ class MainWindow(QMainWindow):
     def save_limits(self):
         self.settings_store.sync()
 
+    def open_model_manager(self):
+        dialog = LocalModelManagerDialog(self)
+        dialog.exec()
+        self.refresh_models(show_message=False)
+
     def open_settings(self):
         dialog = SettingsDialog(self)
         if dialog.exec():
@@ -1394,7 +1573,8 @@ class MainWindow(QMainWindow):
         if self.worker: self.worker.resolve_write_approval(decision)
         self.log_view.appendPlainText(f"WRITE {decision.upper()}: {path}")
 
-    def on_progress(self, count, maximum): self.stop_btn.setText(f"Остановить ({count}/{maximum})")
+    def on_progress(self, count, maximum):
+        self.stop_btn.setText(f"Остановить ({count}/{maximum})")
 
     def on_failed(self, err): self._set_status("Ошибка", "error"); QMessageBox.critical(self, "Ошибка агента", err)
 
