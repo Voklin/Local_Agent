@@ -164,3 +164,12 @@ The GUI could not be launched in the build environment because PySide6 is not in
 - Compact chat/editor navigation in the sidebar.
 - Richer composer with quick Project, Memory and Editor actions.
 - Existing sandbox, approvals, history, memory, model selection, editor and diff functionality are unchanged.
+
+
+## v5.6.6 — Agent turn reliability
+
+- Added configurable maximum model cycles per user request (default 20, maximum 50).
+- Action-oriented requests get a bounded completion check when the model returns text without tool calls. If the model judges the task incomplete, the worker gets up to two continuation attempts instead of treating a project summary as final.
+- Completion-check failures fail open and do not trap the user in a retry loop.
+- Reaching the model-cycle limit is now reported explicitly in the chat and log.
+- The existing file approval flow and sandbox are unchanged.

@@ -256,6 +256,7 @@ class SettingsDialog(QDialog):
             ("max_tokens", "Максимум токенов ответа", 64, 16384, 64),
             ("max_entries", "Записей в списке файлов", 10, 5000, 10),
             ("max_search_depth", "Глубина поиска", 1, 30, 1),
+            ("max_agent_turns", "Максимум циклов модели за запрос", 1, 50, 1),
         ]:
             spin = QSpinBox(); spin.setRange(minimum, maximum); spin.setSingleStep(step)
             spin.setValue(parent.settings_store.value(f"limits/{key}", DEFAULT_SETTINGS[key], type=int))

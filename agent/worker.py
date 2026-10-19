@@ -1,4 +1,5 @@
 import json
+import re
 import threading
 from .tools import preview_file_change
 from .conversation import build_messages
@@ -19,6 +20,7 @@ DEFAULT_SETTINGS = {
     "max_tokens": 2048,
     "max_entries": 200,
     "max_search_depth": 5,
+    "max_agent_turns": 20,
 }
 
 
@@ -91,6 +93,53 @@ class AgentWorker(QThread):
             "error": error,
         })
 
+    @staticmethod
+    def _looks_like_action_request(prompt):
+        """Avoid completion-check overhead for ordinary informational questions."""
+        text = (prompt or "").lower()
+        patterns = (
+            r"\b(сделай|добавь|исправь|измени|переделай|реализуй|создай|напиши|разработай|проверь|запусти|прочитай|открой|удали|обнови|перенеси|интегрируй|рефактор|внеси|доработай|перепиши)\b",
+            r"\b(implement|create|write|fix|change|modify|update|refactor|test|run|inspect|edit|add|build)\b",
+            r"(нужно|надо|необходимо).{0,40}(добавить|исправить|изменить|создать|проверить|реализовать|запустить)",
+        )
+        return any(re.search(pattern, text) for pattern in patterns)
+
+    def _verify_task_completion(self, client, messages, max_tokens):
+        """Return (complete, reason); fail open to avoid trapping the user in a loop."""
+        try:
+            compact = []
+            for item in self._memory_tool_events[-20:]:
+                compact.append({k: item.get(k) for k in ("tool", "path", "query", "ok", "error") if k in item})
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": (
+                        "Ты проверяешь завершённость задачи coding-агента. Верни только JSON: "
+                        '{"complete": true|false, "reason": "краткая причина"}. '
+                        "complete=false только если исходный запрос явно требует действия, а ответ является лишь "
+                        "описанием проекта, планом или промежуточным сообщением без выполнения задачи. "
+                        "Не требуй лишних действий, если ответ полноценно отвечает на запрос. Не выдумывай факты."
+                    )},
+                    {"role": "user", "content": json.dumps({
+                        "original_request": self.prompt[:1800],
+                        "latest_answer": next((m.get("content", "") for m in reversed(messages) if m.get("role") == "assistant" and isinstance(m.get("content"), str)), "")[:1800],
+                        "tool_events": compact,
+                    }, ensure_ascii=False)},
+                ],
+                temperature=0,
+                max_tokens=min(300, max(100, max_tokens)),
+                stream=False,
+            )
+            raw = (response.choices[0].message.content or "").strip()
+            start, end = raw.find("{"), raw.rfind("}")
+            if start < 0 or end <= start:
+                return True, "Проверка не вернула JSON; завершаю безопасно."
+            parsed = json.loads(raw[start:end + 1])
+            return bool(parsed.get("complete", True)), str(parsed.get("reason", ""))[:500]
+        except Exception as exc:
+            self.log.emit(f"Проверка завершения пропущена: {type(exc).__name__}: {exc}")
+            return True, "Проверка недоступна; завершаю без дополнительного цикла."
+
     def run(self):
         try:
             client = OpenAI(base_url=self.base_url, api_key=self.api_key or "no-key", timeout=180, max_retries=0)
@@ -107,8 +156,11 @@ class AgentWorker(QThread):
             max_tool_calls = max(1, int(self.settings["max_tool_calls"]))
             max_errors = max(1, int(self.settings["max_consecutive_errors"]))
             max_tokens = max(64, int(self.settings["max_tokens"]))
+            max_agent_turns = max(1, min(50, int(self.settings.get("max_agent_turns", 20))))
+            continuation_attempts = 0
+            action_request = self._looks_like_action_request(self.prompt)
 
-            for turn in range(8):
+            for turn in range(max_agent_turns):
                 if self.isInterruptionRequested():
                     stop_reason = "Остановлено пользователем."
                     break
@@ -162,6 +214,25 @@ class AgentWorker(QThread):
                 if not tool_calls:
                     if content:
                         messages.append({"role": "assistant", "content": content})
+                    # Local models sometimes return a project summary or a progress note as if it
+                    # were the final answer. For actionable requests, ask for a bounded completion
+                    # check before ending the turn. This does not grant any additional tool access.
+                    if action_request and continuation_attempts < 2 and not self.isInterruptionRequested():
+                        complete, reason = self._verify_task_completion(client, messages, max_tokens)
+                        if not complete:
+                            continuation_attempts += 1
+                            self.log.emit(f"Проверка завершения: задача выглядит незавершённой; продолжаю ({continuation_attempts}/2). {reason}")
+                            messages.append({
+                                "role": "user",
+                                "content": (
+                                    "Внутренняя проверка агента показывает, что исходная задача может быть не завершена. "
+                                    "Продолжи именно выполнение исходного запроса, опираясь на историю и результаты инструментов. "
+                                    "Не повторяй общее описание проекта и не объявляй завершение без выполнения необходимых шагов. "
+                                    "Если требуется изучить или изменить файлы, используй доступные инструменты; изменения файлов всё равно требуют подтверждения. "
+                                    f"Замечание проверки: {reason[:500]}"
+                                ),
+                            })
+                            continue
                     break
 
                 messages.append({"role": "assistant", "content": content or None, "tool_calls": tool_calls})
@@ -236,6 +307,8 @@ class AgentWorker(QThread):
                             break
                 if hit_limit:
                     break
+            else:
+                stop_reason = f"Остановлено: достигнут лимит циклов модели ({max_agent_turns})."
             if self.isInterruptionRequested():
                 stop_reason = "Остановлено пользователем."
             if stop_reason:
