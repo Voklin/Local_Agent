@@ -1,4 +1,4 @@
-# Local Coding Agent — Sandbox Edition
+# Local Coding Agent — File Editing Edition
 
 Windows GUI prototype: PySide6 + OpenAI-compatible local API (for example `llama-server`).
 
@@ -48,6 +48,22 @@ The GUI now exposes these limits in **Agent limits (saved automatically)**. Valu
 The worker also retains a hard cap of 8 model rounds. The token limit applies to each model response, not as a single cumulative token budget for the entire conversation turn. Streaming/cancellation support depends on the local OpenAI-compatible server implementation.
 
 Run all automated tests:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+## File editing (v4 prototype)
+
+- Added `write_file` tool for UTF-8 text files inside the selected project.
+- Before any write, the GUI shows the proposed path and a unified diff and requires explicit Yes/No approval. No is the default.
+- Replacing an existing file also requires the model to set `overwrite=true`, followed by the same GUI approval.
+- The dispatcher rejects writes unless its caller explicitly marks the operation as approved.
+- Parent directories must already exist. Creating directories, shell execution, deleting files, and Git actions remain disabled.
+- Writes are limited to 1 MB and use a temporary file plus atomic replacement. Existing files over the read/preview limit or non-UTF-8 files are refused.
+- These protections are application-level controls, not a complete Windows OS sandbox. Review the diff before approving any change.
+
+Run all tests after updating:
 
 ```powershell
 python -m unittest discover -s tests -v

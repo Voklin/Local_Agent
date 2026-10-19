@@ -1,12 +1,14 @@
 import json
+import threading
+from .tools import preview_file_change
 from PySide6.QtCore import QThread, Signal
 from openai import OpenAI
 from .tools import TOOL_DEFINITIONS, execute_tool
 
 SYSTEM_PROMPT = """Ты локальный помощник по программированию. Отвечай по-русски, если пользователь пишет по-русски.
 Для фактов о проекте используй инструменты, а не угадывай. Доступны только файлы внутри выбранной пользователем корневой директории.
-Не пытайся читать файлы вне проекта и не утверждай, что изменил файлы: доступных инструментов записи пока нет.
-Инструменты чтения: list_files, read_file, search_text. Не раскрывай содержимое секретов, если пользователь не просил его анализировать.
+Не пытайся читать или изменять файлы вне проекта. Для изменения файлов используй write_file: приложение покажет diff и запросит подтверждение пользователя до записи. Не утверждай, что файл изменён, пока инструмент не вернул ok=true.
+Инструменты: list_files, read_file, search_text, write_file. Не раскрывай содержимое секретов, если пользователь не просил его анализировать.
 При запросе просмотра папок Users, Windows, профиля пользователя или других каталогов вне проекта объясни, что доступ ограничен выбранной директорией. Не повторяй отклонённый вызов инструмента."""
 
 DEFAULT_SETTINGS = {
@@ -24,12 +26,37 @@ class AgentWorker(QThread):
     finished_text = Signal(str)
     failed = Signal(str)
     progress = Signal(int, int)
+    write_approval_requested = Signal(str, str, bool)
 
     def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None):
         super().__init__()
         self.base_url, self.api_key, self.model = base_url, api_key, model
         self.project_root, self.prompt, self.force_tool = project_root, prompt, force_tool
         self.settings = {**DEFAULT_SETTINGS, **(settings or {})}
+        self._approval_lock = threading.Lock()
+        self._approval_event = None
+        self._approval_result = False
+
+    def resolve_write_approval(self, approved):
+        with self._approval_lock:
+            self._approval_result = bool(approved)
+            event = self._approval_event
+        if event:
+            event.set()
+
+    def _ask_write_approval(self, path, diff, exists):
+        event = threading.Event()
+        with self._approval_lock:
+            self._approval_event = event
+            self._approval_result = False
+        self.write_approval_requested.emit(path, diff, exists)
+        while not event.wait(0.1):
+            if self.isInterruptionRequested():
+                break
+        with self._approval_lock:
+            approved = self._approval_result and not self.isInterruptionRequested()
+            self._approval_event = None
+        return approved
 
     def run(self):
         try:
@@ -122,7 +149,18 @@ class AgentWorker(QThread):
                         result = {"ok": False, "error": f"Invalid tool arguments: {exc}"}
                     else:
                         self.log.emit(f"TOOL CALL [{tool_calls_count + 1}/{max_tool_calls}]: {name}({json.dumps(args, ensure_ascii=False)})")
-                        result = execute_tool(name, args, self.project_root, self.settings)
+                        if name == "write_file":
+                            preview = preview_file_change(self.project_root, args.get("path", ""), args.get("content", ""))
+                            if not preview.get("ok"):
+                                result = preview
+                            elif preview.get("exists") and not bool(args.get("overwrite", False)):
+                                result = {"ok": False, "error": "Target exists but overwrite=false; no changes made"}
+                            elif self._ask_write_approval(preview["path"], preview["diff"], preview["exists"]):
+                                result = execute_tool(name, args, self.project_root, self.settings, approved=True)
+                            else:
+                                result = {"ok": False, "error": "User denied or cancelled the proposed file change; no changes made", "code": "USER_DENIED"}
+                        else:
+                            result = execute_tool(name, args, self.project_root, self.settings)
                     tool_calls_count += 1
                     self.progress.emit(tool_calls_count, max_tool_calls)
                     pretty = json.dumps(result, ensure_ascii=False, indent=2)

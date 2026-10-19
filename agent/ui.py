@@ -3,7 +3,7 @@ from PySide6.QtCore import Qt, QSettings
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QFileDialog, QTextEdit, QPlainTextEdit, QMessageBox,
-    QSplitter, QSpinBox, QGroupBox, QFormLayout
+    QSplitter, QSpinBox, QGroupBox, QFormLayout, QDialog, QDialogButtonBox
 )
 from openai import OpenAI
 from .worker import AgentWorker, DEFAULT_SETTINGS
@@ -13,7 +13,7 @@ from .tools import run_sandbox_self_test
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Local Coding Agent — Sandbox Edition")
+        self.setWindowTitle("Local Coding Agent — File Editing Edition")
         self.resize(1100, 850)
         self.worker = None
         self.settings_store = QSettings("LocalCodingAgent", "LocalCodingAgent")
@@ -89,7 +89,7 @@ class MainWindow(QMainWindow):
         input_row = QHBoxLayout()
         layout.addLayout(input_row)
         self.prompt = QLineEdit()
-        self.prompt.setPlaceholderText("Например: изучи структуру проекта и кратко опиши его")
+        self.prompt.setPlaceholderText("Например: изучи проект и предложи исправление; запись потребует подтверждения")
         self.prompt.returnPressed.connect(self.send_message)
         input_row.addWidget(self.prompt, 1)
         self.send_btn = QPushButton("Send")
@@ -175,6 +175,7 @@ class MainWindow(QMainWindow):
         self.worker.failed.connect(lambda err: QMessageBox.critical(self, "Agent error", err))
         self.worker.finished_text.connect(lambda _: self.log_view.appendPlainText("Agent turn finished."))
         self.worker.progress.connect(self.on_progress)
+        self.worker.write_approval_requested.connect(self.confirm_file_change)
         self.worker.finished.connect(self.on_worker_finished)
         self.send_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
@@ -185,6 +186,22 @@ class MainWindow(QMainWindow):
             self.worker.requestInterruption()
             self.stop_btn.setEnabled(False)
             self.log_view.appendPlainText("Stop requested: waiting for the current streaming response to close…")
+
+    def confirm_file_change(self, path, diff, exists):
+        title = "Подтверждение изменения файла"
+        action = "Перезаписать существующий файл" if exists else "Создать новый файл"
+        box = QMessageBox(self)
+        box.setWindowTitle(title)
+        box.setIcon(QMessageBox.Icon.Warning if exists else QMessageBox.Icon.Question)
+        box.setText(f"{action}?\n\nФайл: {path}\n\nЗапись произойдёт только после подтверждения.")
+        box.setInformativeText("Проверь diff в раскрываемых подробностях перед подтверждением.")
+        box.setDetailedText(diff[:16000] + ("\n… diff обрезан …" if len(diff) > 16000 else ""))
+        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        approved = box.exec() == QMessageBox.StandardButton.Yes
+        if self.worker:
+            self.worker.resolve_write_approval(approved)
+        self.log_view.appendPlainText(("WRITE APPROVED: " if approved else "WRITE DENIED: ") + path)
 
     def on_progress(self, count, maximum):
         self.stop_btn.setText(f"Stop ({count}/{maximum} tool calls)")

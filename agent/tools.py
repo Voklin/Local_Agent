@@ -1,5 +1,7 @@
 from pathlib import Path
 import os
+import difflib
+import tempfile
 from .security import AccessDenied, resolve_allowed_path
 
 MAX_READ_BYTES = 120_000
@@ -117,14 +119,84 @@ def search_text(root, query, path=".", case_sensitive=False, max_depth=5):
     return {"ok": True, "matches": matches, "truncated": False}
 
 
+def preview_file_change(root, path, content):
+    """Validate a proposed text edit and return a unified diff without writing anything."""
+    if not isinstance(content, str):
+        return {"ok": False, "error": "content must be a string"}
+    if len(content.encode("utf-8")) > 1_000_000:
+        return {"ok": False, "error": "Proposed file exceeds 1 MB limit"}
+    base = resolve_allowed_path(root)
+    target = resolve_allowed_path(root, path, must_exist=False)
+    if target == base:
+        return {"ok": False, "error": "Cannot write to the project root itself"}
+    if not target.parent.exists() or not target.parent.is_dir():
+        return {"ok": False, "error": "Parent directory must already exist; directory creation is disabled"}
+    # Resolve the parent separately to block links/junctions that lead outside the root.
+    safe_parent = resolve_allowed_path(root, target.parent, must_exist=True)
+    target = safe_parent / target.name
+    exists = target.exists()
+    if exists and not target.is_file():
+        return {"ok": False, "error": "Target exists but is not a regular file"}
+    old = ""
+    if exists:
+        if target.stat().st_size > MAX_READ_BYTES:
+            return {"ok": False, "error": f"Existing file is too large to safely preview (limit {MAX_READ_BYTES} bytes)"}
+        try:
+            old = target.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return {"ok": False, "error": "Existing file is not UTF-8 text; refusing to replace it"}
+    diff = "".join(difflib.unified_diff(
+        old.splitlines(keepends=True), content.splitlines(keepends=True),
+        fromfile=f"a/{target.relative_to(base).as_posix()}" if exists else "/dev/null",
+        tofile=f"b/{target.relative_to(base).as_posix()}",
+    ))
+    return {"ok": True, "path": target.relative_to(base).as_posix(), "exists": exists, "diff": diff or "(No textual changes)"}
+
+
+def write_file(root, path, content, overwrite=False):
+    """Write UTF-8 text atomically. Caller must obtain user approval before calling."""
+    preview = preview_file_change(root, path, content)
+    if not preview.get("ok"):
+        return preview
+    if preview["exists"] and not overwrite:
+        return {"ok": False, "error": "File already exists; set overwrite=true and obtain user approval before replacing it"}
+    base = resolve_allowed_path(root)
+    target = resolve_allowed_path(root, path, must_exist=False)
+    parent = resolve_allowed_path(root, target.parent, must_exist=True)
+    target = parent / target.name
+    # Re-check destination just before writing.
+    if target.exists() and not overwrite:
+        return {"ok": False, "error": "File already exists; overwrite was not authorized"}
+    data = content.encode("utf-8")
+    temp_name = None
+    try:
+        with tempfile.NamedTemporaryFile("wb", dir=str(parent), prefix=".local-agent-tmp-", delete=False) as temp:
+            temp_name = temp.name
+            temp.write(data)
+            temp.flush()
+            os.fsync(temp.fileno())
+        # Resolve once more immediately before replace, guarding against path redirection.
+        resolve_allowed_path(root, target, must_exist=False)
+        if target.exists() and not overwrite:
+            return {"ok": False, "error": "File appeared during write; refusing to overwrite"}
+        os.replace(temp_name, target)
+        temp_name = None
+    finally:
+        if temp_name and os.path.exists(temp_name):
+            try: os.unlink(temp_name)
+            except OSError: pass
+    return {"ok": True, "path": target.relative_to(base).as_posix(), "bytes_written": len(data), "overwrote_existing_file": preview["exists"]}
+
+
 TOOL_DEFINITIONS = [
     {"type": "function", "function": {"name": "list_files", "description": "List files/directories inside the selected project only.", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Relative project path; default ."}, "recursive": {"type": "boolean"}}, "required": []}}},
     {"type": "function", "function": {"name": "read_file", "description": "Read a UTF-8 text file inside the selected project only.", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}},
     {"type": "function", "function": {"name": "search_text", "description": "Search text in files inside the selected project only.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "path": {"type": "string"}, "case_sensitive": {"type": "boolean"}}, "required": ["query"]}}},
+    {"type": "function", "function": {"name": "write_file", "description": "Propose writing UTF-8 text to a file inside the selected project. The application will show a diff and ask the user for approval before writing. Parent directories must already exist.", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "Path relative to the project root"}, "content": {"type": "string"}, "overwrite": {"type": "boolean", "description": "Set true only when replacing an existing file is intended"}}, "required": ["path", "content", "overwrite"]}}},
 ]
 
 
-def execute_tool(name, arguments, project_root, settings=None):
+def execute_tool(name, arguments, project_root, settings=None, *, approved=False):
     """Single dispatch point: every file tool must enforce the selected root."""
     settings = settings or {}
     max_entries = int(settings.get("max_entries", 200))
@@ -136,6 +208,10 @@ def execute_tool(name, arguments, project_root, settings=None):
             return read_file(project_root, arguments["path"])
         if name == "search_text":
             return search_text(project_root, arguments["query"], arguments.get("path", "."), bool(arguments.get("case_sensitive", False)), max_search_depth)
+        if name == "write_file":
+            if not approved:
+                return {"ok": False, "error": "User approval is required before writing a file", "code": "APPROVAL_REQUIRED"}
+            return write_file(project_root, arguments["path"], arguments["content"], bool(arguments.get("overwrite", False)))
         return {"ok": False, "error": f"Unknown tool: {name}"}
     except AccessDenied as exc:
         return {"ok": False, "error": str(exc), "code": "ACCESS_DENIED"}
