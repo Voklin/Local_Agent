@@ -33,3 +33,22 @@ Or use **🔒 Test sandbox** inside the GUI.
 ## Important security limit
 
 This is an application-level path sandbox for the current file tools, not a complete OS sandbox. No shell, write, delete, or Git tools are enabled in this version. Before adding any such tool, enforce the same root policy and add explicit confirmation/allowlists for commands and destructive actions. A future shell tool cannot be secured by checking only `cwd`; commands may access absolute paths or launch other programs. For stronger isolation, run the agent in a restricted Windows account/container/VM.
+
+## Configurable limits (v3 prototype changes)
+
+The GUI now exposes these limits in **Agent limits (saved automatically)**. Values are persisted in Windows user settings via Qt `QSettings`:
+
+- Maximum tool calls per request (default 10).
+- Maximum consecutive tool errors (default 3).
+- Maximum tokens per model response (default 2048; sent as `max_tokens`).
+- Maximum entries in one file listing (default 200).
+- Maximum recursive search/listing depth (default 5).
+- **Stop** requests cancellation of the streaming model response and prevents further tool execution when the stream can be closed.
+
+The worker also retains a hard cap of 8 model rounds. The token limit applies to each model response, not as a single cumulative token budget for the entire conversation turn. Streaming/cancellation support depends on the local OpenAI-compatible server implementation.
+
+Run all automated tests:
+
+```powershell
+python -m unittest discover -s tests -v
+```

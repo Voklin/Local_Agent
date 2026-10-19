@@ -6,24 +6,53 @@ MAX_READ_BYTES = 120_000
 IGNORED_DIRS = {".git", ".venv", "venv", "__pycache__", "node_modules", ".idea", ".vscode"}
 
 
-def list_files(root, path=".", recursive=False):
+def list_files(root, path=".", recursive=False, max_entries=200, max_depth=5):
     target = resolve_allowed_path(root, path, must_exist=True)
     if not target.is_dir():
         return {"ok": False, "error": "Path is not a directory"}
     results = []
-    iterator = target.rglob("*") if recursive else target.iterdir()
-    for item in iterator:
-        try:
-            safe = resolve_allowed_path(root, item, must_exist=True)
-        except (AccessDenied, OSError):
-            continue  # do not follow symlinks/junctions that escape the root
-        if any(part in IGNORED_DIRS for part in safe.relative_to(resolve_allowed_path(root)).parts):
-            continue
-        rel = safe.relative_to(resolve_allowed_path(root)).as_posix()
-        results.append({"path": rel, "type": "directory" if safe.is_dir() else "file"})
-        if len(results) >= 2000:
-            break
-    return {"ok": True, "root": str(resolve_allowed_path(root)), "path": str(target.relative_to(resolve_allowed_path(root)) or "."), "entries": results}
+    base = resolve_allowed_path(root)
+    # Walk one level at a time so recursive listings can enforce a depth cap.
+    if recursive:
+        for current, dirs, files in os.walk(target, topdown=True, followlinks=False):
+            current_path = Path(current)
+            try:
+                safe_current = resolve_allowed_path(root, current_path, must_exist=True)
+            except (AccessDenied, OSError):
+                dirs[:] = []
+                continue
+            depth = len(safe_current.relative_to(base).parts) - len(target.relative_to(base).parts)
+            dirs[:] = [name for name in dirs if name not in IGNORED_DIRS and depth < max_depth]
+            names = list(dirs) + list(files)
+            for name in names:
+                item = current_path / name
+                try:
+                    safe = resolve_allowed_path(root, item, must_exist=True)
+                except (AccessDenied, OSError):
+                    continue  # do not follow symlinks/junctions that escape the root
+                if any(part in IGNORED_DIRS for part in safe.relative_to(base).parts):
+                    continue
+                rel = safe.relative_to(base).as_posix()
+                results.append({"path": rel, "type": "directory" if safe.is_dir() else "file"})
+                if len(results) >= max_entries:
+                    return {"ok": True, "root": str(base), "path": safe_relative(target, base), "entries": results, "truncated": True, "limit": max_entries}
+    else:
+        for item in target.iterdir():
+            try:
+                safe = resolve_allowed_path(root, item, must_exist=True)
+            except (AccessDenied, OSError):
+                continue
+            if any(part in IGNORED_DIRS for part in safe.relative_to(base).parts):
+                continue
+            results.append({"path": safe.relative_to(base).as_posix(), "type": "directory" if safe.is_dir() else "file"})
+            if len(results) >= max_entries:
+                return {"ok": True, "root": str(base), "path": safe_relative(target, base), "entries": results, "truncated": True, "limit": max_entries}
+    return {"ok": True, "root": str(base), "path": safe_relative(target, base), "entries": results, "truncated": False, "limit": max_entries}
+
+
+def safe_relative(target, base):
+    rel = target.relative_to(base).as_posix()
+    return rel if rel != "." else "."
 
 
 def read_file(root, path):
@@ -40,13 +69,28 @@ def read_file(root, path):
     return {"ok": True, "path": target.relative_to(resolve_allowed_path(root)).as_posix(), "content": content}
 
 
-def search_text(root, query, path=".", case_sensitive=False):
+def search_text(root, query, path=".", case_sensitive=False, max_depth=5):
     if not query:
         return {"ok": False, "error": "query must not be empty"}
     target = resolve_allowed_path(root, path, must_exist=True)
     if not target.is_dir() and not target.is_file():
         return {"ok": False, "error": "Path is not a file or directory"}
-    files = [target] if target.is_file() else target.rglob("*")
+    base = resolve_allowed_path(root)
+    if target.is_file():
+        files = [target]
+    else:
+        collected = []
+        for current, dirs, names in os.walk(target, topdown=True, followlinks=False):
+            current_path = Path(current)
+            try:
+                safe_current = resolve_allowed_path(root, current_path, must_exist=True)
+            except (AccessDenied, OSError):
+                dirs[:] = []
+                continue
+            depth = len(safe_current.relative_to(base).parts) - len(target.relative_to(base).parts)
+            dirs[:] = [name for name in dirs if name not in IGNORED_DIRS and depth < max_depth]
+            collected.extend(current_path / name for name in names)
+        files = collected
     needle = query if case_sensitive else query.casefold()
     matches = []
     for file in files:
@@ -80,15 +124,18 @@ TOOL_DEFINITIONS = [
 ]
 
 
-def execute_tool(name, arguments, project_root):
+def execute_tool(name, arguments, project_root, settings=None):
     """Single dispatch point: every file tool must enforce the selected root."""
+    settings = settings or {}
+    max_entries = int(settings.get("max_entries", 200))
+    max_search_depth = int(settings.get("max_search_depth", 5))
     try:
         if name == "list_files":
-            return list_files(project_root, arguments.get("path", "."), bool(arguments.get("recursive", False)))
+            return list_files(project_root, arguments.get("path", "."), bool(arguments.get("recursive", False)), max_entries, max_search_depth)
         if name == "read_file":
             return read_file(project_root, arguments["path"])
         if name == "search_text":
-            return search_text(project_root, arguments["query"], arguments.get("path", "."), bool(arguments.get("case_sensitive", False)))
+            return search_text(project_root, arguments["query"], arguments.get("path", "."), bool(arguments.get("case_sensitive", False)), max_search_depth)
         return {"ok": False, "error": f"Unknown tool: {name}"}
     except AccessDenied as exc:
         return {"ok": False, "error": str(exc), "code": "ACCESS_DENIED"}
