@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QFileDialog, QTextBrowser, QPlainTextEdit, QMessageBox,
     QSplitter, QSpinBox, QGroupBox, QFormLayout, QDialog, QListWidget,
-    QListWidgetItem, QInputDialog, QFrame, QToolButton, QComboBox,
+    QListWidgetItem, QInputDialog, QFrame, QToolButton, QComboBox, QTextEdit,
     QSizePolicy, QApplication, QCheckBox, QTabWidget, QTreeWidget, QTreeWidgetItem
 )
 from openai import OpenAI
@@ -161,8 +161,7 @@ class CodeEditor(QPlainTextEdit):
     def highlight_current_line(self):
         selections = []
         if not self.isReadOnly():
-            from PySide6.QtWidgets import QPlainTextEdit as _QPlainTextEdit
-            selection = _QPlainTextEdit.ExtraSelection()
+            selection = QTextEdit.ExtraSelection()
             selection.format.setBackground(QColor("#1a2230"))
             selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             selection.cursor = self.textCursor(); selection.cursor.clearSelection()
@@ -335,6 +334,107 @@ class ProjectMemoryDialog(QDialog):
         QMessageBox.information(self, "Память", "Память проекта очищена. История чатов сохранена.")
 
 
+class SideBySideDiffDialog(QDialog):
+    """Safe read-only side-by-side view of a unified diff.
+
+    This dialog intentionally works only with the diff already produced by the
+    existing change pipeline. It never writes files and does not touch sandbox
+    or approval state.
+    """
+    def __init__(self, parent, path, diff):
+        super().__init__(parent)
+        self.setWindowTitle(f"Сравнение изменений — {Path(path).name}")
+        self.resize(1200, 760)
+        layout = QVBoxLayout(self)
+
+        header = QHBoxLayout()
+        title = QLabel(str(path))
+        title.setObjectName("EditorPath")
+        header.addWidget(title, 1)
+        info = QLabel("Только просмотр · файл не изменяется")
+        info.setObjectName("Muted")
+        header.addWidget(info)
+        layout.addLayout(header)
+
+        panes = QSplitter(Qt.Horizontal)
+        self.left = QPlainTextEdit()
+        self.right = QPlainTextEdit()
+        for editor in (self.left, self.right):
+            editor.setReadOnly(True)
+            editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+            editor.setFont(QFont("Consolas", 10))
+        self.left.setPlaceholderText("Оригинал")
+        self.right.setPlaceholderText("Предложенная версия")
+        panes.addWidget(self.left)
+        panes.addWidget(self.right)
+        panes.setSizes([1, 1])
+        layout.addWidget(panes, 1)
+
+        self._populate(diff)
+        close_btn = QPushButton("Закрыть")
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn, 0, Qt.AlignmentFlag.AlignRight)
+
+    def _populate(self, diff):
+        left_lines, right_lines = [], []
+        for raw in (diff or "").splitlines():
+            if raw.startswith("diff ") or raw.startswith("index ") or raw.startswith("--- ") or raw.startswith("+++ "):
+                continue
+            if raw.startswith("@@"):
+                marker = raw
+                left_lines.append(marker)
+                right_lines.append(marker)
+            elif raw.startswith("-"):
+                left_lines.append(raw[1:])
+                right_lines.append("")
+            elif raw.startswith("+"):
+                left_lines.append("")
+                right_lines.append(raw[1:])
+            elif raw.startswith(" "):
+                value = raw[1:]
+                left_lines.append(value)
+                right_lines.append(value)
+            elif raw.startswith("\\ No newline"):
+                # Metadata line; show it on both sides without trying to patch.
+                left_lines.append(raw)
+                right_lines.append(raw)
+            elif raw:
+                left_lines.append(raw)
+                right_lines.append(raw)
+
+        self.left.setPlainText("\n".join(left_lines))
+        self.right.setPlainText("\n".join(right_lines))
+        self._highlight_changed_lines(left_lines, right_lines)
+
+    @staticmethod
+    def _line_selection(editor, line_number, background):
+        """Create a read-only line highlight using the supported Qt API."""
+        selection = QTextEdit.ExtraSelection()
+        selection.format.setBackground(QColor(background))
+        selection.format.setProperty(QTextFormat.FullWidthSelection, True)
+        cursor = editor.textCursor()
+        cursor.movePosition(cursor.MoveOperation.Start)
+        cursor.movePosition(cursor.MoveOperation.Down, cursor.MoveMode.MoveAnchor, line_number)
+        selection.cursor = cursor
+        return selection
+
+    def _highlight_changed_lines(self, left_lines, right_lines):
+        """Highlight deleted/added lines in the corresponding diff pane."""
+        left_selections = []
+        right_selections = []
+
+        for index, value in enumerate(left_lines):
+            if value and index < len(right_lines) and not right_lines[index]:
+                left_selections.append(self._line_selection(self.left, index, "#4a2529"))
+
+        for index, value in enumerate(right_lines):
+            if value and index < len(left_lines) and not left_lines[index]:
+                right_selections.append(self._line_selection(self.right, index, "#1f4030"))
+
+        self.left.setExtraSelections(left_selections)
+        self.right.setExtraSelections(right_selections)
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -440,7 +540,7 @@ class MainWindow(QMainWindow):
         file_panel = QFrame(); file_panel.setObjectName("Card"); file_layout = QVBoxLayout(file_panel); file_layout.setContentsMargins(8, 8, 8, 8)
         file_head = QHBoxLayout(); file_head.addWidget(QLabel("ФАЙЛЫ ПРОЕКТА")); file_head.addStretch(1)
         self.file_count_label = QLabel("0"); self.file_count_label.setObjectName("Status"); file_head.addWidget(self.file_count_label); file_layout.addLayout(file_head)
-        self.project_tree = QTreeWidget(); self.project_tree.setHeaderHidden(True); self.project_tree.setIndentation(15); self.project_tree.setAnimated(True); self.project_tree.setUniformRowHeights(True); self.project_tree.itemDoubleClicked.connect(self.on_project_tree_double_click); file_layout.addWidget(self.project_tree, 1)
+        self.project_tree = QTreeWidget(); self.project_tree.setHeaderHidden(True); self.project_tree.setIndentation(15); self.project_tree.setAnimated(True); self.project_tree.setUniformRowHeights(True); self.project_tree.itemActivated.connect(self.on_project_tree_double_click); file_layout.addWidget(self.project_tree, 1)
         tree_buttons = QHBoxLayout(); open_btn = QPushButton("Открыть файл…"); open_btn.clicked.connect(self.open_file_dialog); tree_buttons.addWidget(open_btn); file_layout.addLayout(tree_buttons)
         splitter.addWidget(file_panel)
         editor_panel = QFrame(); editor_panel.setObjectName("Card"); editor_layout = QVBoxLayout(editor_panel); editor_layout.setContentsMargins(6, 6, 6, 6)
@@ -469,9 +569,10 @@ class MainWindow(QMainWindow):
         self.change_diff_view = QTextBrowser(); self.change_diff_view.setPlaceholderText("Выберите файл, чтобы посмотреть diff"); self.change_diff_view.setMinimumHeight(220); ch.addWidget(self.change_diff_view, 1)
         row = QHBoxLayout()
         open_diff_file = QPushButton("Открыть файл"); open_diff_file.clicked.connect(self.open_selected_change_in_editor)
+        compare = QPushButton("Сравнить"); compare.clicked.connect(self.open_selected_diff_viewer)
         clear = QPushButton("Очистить"); clear.clicked.connect(self.clear_changes)
         copy_btn = QPushButton("Копировать diff"); copy_btn.clicked.connect(self.copy_selected_diff)
-        row.addWidget(open_diff_file); row.addWidget(clear); row.addWidget(copy_btn); ch.addLayout(row)
+        row.addWidget(open_diff_file); row.addWidget(compare); row.addWidget(clear); row.addWidget(copy_btn); ch.addLayout(row)
         layout.addWidget(changes, 1)
 
         tools = QFrame(); tools.setObjectName("InspectorCard"); t = QVBoxLayout(tools); t.addWidget(QLabel("ДИАГНОСТИКА"))
@@ -567,19 +668,37 @@ class MainWindow(QMainWindow):
             widget = self.editor_tabs.widget(i)
             if getattr(widget, "file_path", None) == path:
                 self.editor_tabs.setCurrentIndex(i); self.center_tabs.setCurrentWidget(self.editor_workspace); return
-        try: path, text = read_project_text(root, path)
+        try:
+            path, text = read_project_text(root, path)
+            if self.editor_tabs.count() == 1 and self.editor_tabs.widget(0) is self.editor_empty:
+                self.editor_tabs.removeTab(0)
+                self.editor_empty.setParent(None)
+            editor = CodeEditor()
+            editor.file_path = path
+            editor.saved_text = text
+            editor.setPlainText(text)
+            editor.document().setModified(False)
+            editor.highlighter = CodeHighlighter(editor.document(), path.suffix)
+            editor.document().modificationChanged.connect(
+                lambda modified, e=editor: self.update_editor_tab_title(e, modified)
+            )
+            index = self.editor_tabs.addTab(editor, path.name)
+            self.editor_tabs.setTabToolTip(index, str(path))
+            self.editor_tabs.setCurrentIndex(index)
+            self.center_tabs.setCurrentWidget(self.editor_workspace)
+            self.update_editor_tab_title(editor, False)
+            self.on_editor_tab_changed(index)
+            self.editor_status.setText(f"Открыт {path.relative_to(root)} · UTF-8")
         except UnicodeDecodeError:
-            QMessageBox.warning(self, "Не текстовый файл", "Файл не удалось прочитать как UTF-8. Бинарные файлы редактор не открывает."); return
-        except OSError as exc:
-            QMessageBox.warning(self, "Ошибка чтения", str(exc)); return
-        if self.editor_tabs.count() == 1 and self.editor_tabs.widget(0) is self.editor_empty:
-            self.editor_tabs.removeTab(0); self.editor_empty.setParent(None)
-        editor = CodeEditor(); editor.file_path = path; editor.saved_text = text; editor.setPlainText(text); editor.document().setModified(False)
-        editor.highlighter = CodeHighlighter(editor.document(), path.suffix)
-        editor.document().modificationChanged.connect(lambda modified, e=editor: self.update_editor_tab_title(e, modified))
-        index = self.editor_tabs.addTab(editor, path.name); self.editor_tabs.setTabToolTip(index, str(path)); self.editor_tabs.setCurrentIndex(index)
-        self.center_tabs.setCurrentWidget(self.editor_workspace); self.update_editor_tab_title(editor, False); self.on_editor_tab_changed(index)
-        self.editor_status.setText(f"Открыт {path.relative_to(root)} · UTF-8")
+            QMessageBox.warning(self, "Не текстовый файл", "Файл не удалось прочитать как UTF-8. Бинарные файлы редактор не открывает.")
+            self.editor_status.setText(f"Не удалось открыть {path.name}: файл не в UTF-8")
+        except (OSError, RuntimeError, AccessDenied, ValueError) as exc:
+            QMessageBox.warning(self, "Ошибка открытия файла", str(exc))
+            self.editor_status.setText(f"Не удалось открыть {path.name}: {exc}")
+        except Exception as exc:
+            # Keep editor failures visible instead of silently leaving the previous tab selected.
+            QMessageBox.critical(self, "Ошибка редактора", f"Не удалось открыть файл:\n{path}\n\n{type(exc).__name__}: {exc}")
+            self.editor_status.setText(f"Ошибка редактора при открытии {path.name}: {type(exc).__name__}")
 
     def current_code_editor(self):
         widget = self.editor_tabs.currentWidget() if hasattr(self, "editor_tabs") else None
@@ -1004,6 +1123,19 @@ class MainWindow(QMainWindow):
         if self.worker and self.worker.isRunning():
             QMessageBox.information(self, "Центр изменений", "Очистка доступна после завершения текущего запроса."); return
         self.change_records.clear(); self.refresh_change_center(); self.change_diff_view.clear()
+
+    def open_selected_diff_viewer(self):
+        item = self.changes_list.currentItem()
+        if not item:
+            QMessageBox.information(self, "Центр изменений", "Сначала выберите изменение.")
+            return
+        record = item.data(Qt.ItemDataRole.UserRole) or {}
+        diff = record.get("diff", "")
+        if not diff:
+            QMessageBox.information(self, "Центр изменений", "Для выбранного изменения нет diff.")
+            return
+        dialog = SideBySideDiffDialog(self, record.get("path", ""), diff)
+        dialog.exec()
 
     def copy_selected_diff(self):
         item = self.changes_list.currentItem()

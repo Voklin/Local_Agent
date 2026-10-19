@@ -145,3 +145,7 @@ Run tests: `python -m unittest discover -s tests -v`.
 - Added sandboxed editor I/O tests for in-project read/save, outside-path denial, oversized files and refusal to create a new file through the editor.
 
 The GUI could not be launched in the build environment because PySide6 is not installed there. Python syntax checks and the non-GUI regression suite were run; install dependencies with `python -m pip install -r requirements.txt` before launching on Windows.
+
+
+### v5.6.2
+- Diff Viewer highlights deleted lines on the original side and added lines on the proposed side.
