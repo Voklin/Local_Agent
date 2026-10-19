@@ -156,3 +156,11 @@ The GUI could not be launched in the build environment because PySide6 is not in
 - Previous/Next change navigation.
 - Change-group counter in the Diff Viewer.
 - Existing sandbox, approval, memory, chat history, model selector and editor behavior preserved.
+
+
+## v5.6.5 — Hermes-inspired UI
+- Refreshed dark graphite UI with warm amber accent.
+- Cleaner chat workspace header and model badge.
+- Compact chat/editor navigation in the sidebar.
+- Richer composer with quick Project, Memory and Editor actions.
+- Existing sandbox, approvals, history, memory, model selection, editor and diff functionality are unchanged.
