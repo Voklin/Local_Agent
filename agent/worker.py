@@ -40,9 +40,12 @@ class AgentWorker(QThread):
         self._approval_event = None
         self._approval_result = False
 
-    def resolve_write_approval(self, approved):
+    def resolve_write_approval(self, decision):
+        """Receive Apply/Reject/Cancel from the GUI without a chat message."""
+        if decision not in ("apply", "reject", "cancel"):
+            decision = "reject"
         with self._approval_lock:
-            self._approval_result = bool(approved)
+            self._approval_result = decision
             event = self._approval_event
         if event:
             event.set()
@@ -51,15 +54,17 @@ class AgentWorker(QThread):
         event = threading.Event()
         with self._approval_lock:
             self._approval_event = event
-            self._approval_result = False
+            self._approval_result = "reject"
         self.write_approval_requested.emit(path, diff, exists)
         while not event.wait(0.1):
             if self.isInterruptionRequested():
                 break
         with self._approval_lock:
-            approved = self._approval_result and not self.isInterruptionRequested()
+            decision = self._approval_result
             self._approval_event = None
-        return approved
+        if self.isInterruptionRequested():
+            return "cancel"
+        return decision
 
     def run(self):
         try:
@@ -161,10 +166,28 @@ class AgentWorker(QThread):
                                 result = preview
                             elif preview.get("exists") and not bool(args.get("overwrite", False)):
                                 result = {"ok": False, "error": "Target exists but overwrite=false; no changes made"}
-                            elif self._ask_write_approval(preview["path"], preview["diff"], preview["exists"]):
-                                result = execute_tool(name, args, self.project_root, self.settings, approved=True)
                             else:
-                                result = {"ok": False, "error": "User denied or cancelled the proposed file change; no changes made", "code": "USER_DENIED"}
+                                decision = self._ask_write_approval(
+                                    preview["path"], preview["diff"], preview["exists"]
+                                )
+                                if decision == "apply":
+                                    result = execute_tool(
+                                        name, args, self.project_root, self.settings, approved=True
+                                    )
+                                elif decision == "cancel":
+                                    result = {
+                                        "ok": False,
+                                        "error": "User cancelled the proposed file change; no changes made",
+                                        "code": "USER_CANCELLED",
+                                    }
+                                    stop_reason = "Остановлено пользователем: изменение файла отменено."
+                                    hit_limit = True
+                                else:
+                                    result = {
+                                        "ok": False,
+                                        "error": "User denied the proposed file change; no changes made",
+                                        "code": "USER_DENIED",
+                                    }
                         else:
                             result = execute_tool(name, args, self.project_root, self.settings)
                     tool_calls_count += 1
@@ -172,7 +195,10 @@ class AgentWorker(QThread):
                     pretty = json.dumps(result, ensure_ascii=False, indent=2)
                     self.log.emit(f"TOOL RESULT: {pretty[:12000]}")
                     messages.append({"role": "tool", "tool_call_id": call["id"], "content": pretty[:20000]})
-                    if result.get("ok") is True:
+                    if result.get("code") == "USER_CANCELLED":
+                        hit_limit = True
+                        consecutive_errors = 0
+                    elif result.get("ok") is True:
                         consecutive_errors = 0
                     else:
                         consecutive_errors += 1

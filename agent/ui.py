@@ -10,6 +10,55 @@ from .worker import AgentWorker, DEFAULT_SETTINGS
 from .tools import run_sandbox_self_test
 
 
+
+class FileChangeDialog(QDialog):
+    """GUI approval dialog for one proposed file change."""
+    def __init__(self, parent, path, diff, exists):
+        super().__init__(parent)
+        self.setWindowTitle("Подтверждение изменения файла")
+        self.setModal(True)
+        self.resize(900, 650)
+
+        from PySide6.QtWidgets import QLabel, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
+
+        layout = QVBoxLayout(self)
+        action = "Перезаписать существующий файл" if exists else "Создать новый файл"
+        label = QLabel(
+            f"<b>{action}</b><br>"
+            f"Файл: <code>{path}</code><br><br>"
+            "Проверь diff перед записью."
+        )
+        label.setWordWrap(True)
+        layout.addWidget(label)
+
+        self.diff_view = QTextEdit()
+        self.diff_view.setReadOnly(True)
+        self.diff_view.setPlainText(diff)
+        layout.addWidget(self.diff_view, 1)
+
+        buttons = QHBoxLayout()
+        apply_btn = QPushButton("Применить")
+        reject_btn = QPushButton("Отклонить")
+        cancel_btn = QPushButton("Отмена")
+
+        apply_btn.setDefault(True)
+        apply_btn.clicked.connect(lambda: self.done(1))
+        reject_btn.clicked.connect(lambda: self.done(2))
+        cancel_btn.clicked.connect(lambda: self.done(3))
+
+        buttons.addStretch(1)
+        buttons.addWidget(cancel_btn)
+        buttons.addWidget(reject_btn)
+        buttons.addWidget(apply_btn)
+        layout.addLayout(buttons)
+
+    @staticmethod
+    def ask(parent, path, diff, exists):
+        dialog = FileChangeDialog(parent, path, diff, exists)
+        result = dialog.exec()
+        return {1: "apply", 2: "reject", 3: "cancel"}.get(result, "cancel")
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -211,20 +260,16 @@ class MainWindow(QMainWindow):
             self.log_view.appendPlainText("Stop requested: waiting for the current streaming response to close…")
 
     def confirm_file_change(self, path, diff, exists):
-        title = "Подтверждение изменения файла"
-        action = "Перезаписать существующий файл" if exists else "Создать новый файл"
-        box = QMessageBox(self)
-        box.setWindowTitle(title)
-        box.setIcon(QMessageBox.Icon.Warning if exists else QMessageBox.Icon.Question)
-        box.setText(f"{action}?\n\nФайл: {path}\n\nЗапись произойдёт только после подтверждения.")
-        box.setInformativeText("Проверь diff в раскрываемых подробностях перед подтверждением.")
-        box.setDetailedText(diff[:16000] + ("\n… diff обрезан …" if len(diff) > 16000 else ""))
-        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        box.setDefaultButton(QMessageBox.StandardButton.No)
-        approved = box.exec() == QMessageBox.StandardButton.Yes
+        # The worker waits here for the GUI decision. No chat reply is needed.
+        decision = FileChangeDialog.ask(self, path, diff, exists)
         if self.worker:
-            self.worker.resolve_write_approval(approved)
-        self.log_view.appendPlainText(("WRITE APPROVED: " if approved else "WRITE DENIED: ") + path)
+            self.worker.resolve_write_approval(decision)
+        if decision == "apply":
+            self.log_view.appendPlainText("WRITE APPROVED: " + path)
+        elif decision == "reject":
+            self.log_view.appendPlainText("WRITE DENIED: " + path)
+        else:
+            self.log_view.appendPlainText("WRITE CANCELLED: " + path)
 
     def on_progress(self, count, maximum):
         self.stop_btn.setText(f"Stop ({count}/{maximum} tool calls)")

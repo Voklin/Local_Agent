@@ -82,3 +82,11 @@ Run regression tests from the project directory:
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
+
+
+## v4.3 — GUI approval buttons
+- File changes are approved with **Применить / Отклонить / Отмена**.
+- No confirmation message needs to be typed in chat.
+- **Применить** continues the current agent turn.
+- **Отклонить** returns a tool result to the model so it can adapt.
+- **Отмена** stops the current operation.
