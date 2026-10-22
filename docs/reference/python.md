@@ -25,6 +25,7 @@
 - [agent/runtime.py](#module-agent-runtime-py)
 - [agent/security.py](#module-agent-security-py)
 - [agent/skills.py](#module-agent-skills-py)
+- [agent/task_activity.py](#module-agent-task-activity-py)
 - [agent/task_store.py](#module-agent-task-store-py)
 - [agent/tools.py](#module-agent-tools-py)
 - [agent/ui.py](#module-agent-ui-py)
@@ -348,7 +349,7 @@ def save_project_text(project_root: str | Path, requested: str | Path, text: str
 
 ### `EventHook`
 
-[Исходник](../../agent/engine.py#L32)
+[Исходник](../../agent/engine.py#L33)
 
 ```python
 class EventHook
@@ -358,7 +359,7 @@ class EventHook
 
 ### `EventHook.__init__`
 
-[Исходник](../../agent/engine.py#L34)
+[Исходник](../../agent/engine.py#L35)
 
 ```python
 def __init__(self)
@@ -368,7 +369,7 @@ def __init__(self)
 
 ### `EventHook.connect`
 
-[Исходник](../../agent/engine.py#L37)
+[Исходник](../../agent/engine.py#L38)
 
 ```python
 def connect(self, callback)
@@ -378,7 +379,7 @@ def connect(self, callback)
 
 ### `EventHook.emit`
 
-[Исходник](../../agent/engine.py#L40)
+[Исходник](../../agent/engine.py#L41)
 
 ```python
 def emit(self, *args)
@@ -388,7 +389,7 @@ def emit(self, *args)
 
 ### `AgentEngine`
 
-[Исходник](../../agent/engine.py#L45)
+[Исходник](../../agent/engine.py#L46)
 
 ```python
 class AgentEngine
@@ -398,7 +399,7 @@ class AgentEngine
 
 ### `AgentEngine.requestInterruption`
 
-[Исходник](../../agent/engine.py#L50)
+[Исходник](../../agent/engine.py#L51)
 
 ```python
 def requestInterruption(self)
@@ -408,7 +409,7 @@ def requestInterruption(self)
 
 ### `AgentEngine.isInterruptionRequested`
 
-[Исходник](../../agent/engine.py#L55)
+[Исходник](../../agent/engine.py#L56)
 
 ```python
 def isInterruptionRequested(self)
@@ -418,7 +419,7 @@ def isInterruptionRequested(self)
 
 ### `AgentEngine.__init__`
 
-[Исходник](../../agent/engine.py#L58)
+[Исходник](../../agent/engine.py#L59)
 
 ```python
 def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None)
@@ -428,7 +429,7 @@ def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=No
 
 ### `AgentEngine._checkpoint`
 
-[Исходник](../../agent/engine.py#L88)
+[Исходник](../../agent/engine.py#L89)
 
 ```python
 def _checkpoint(self, stage=None, event='')
@@ -438,7 +439,7 @@ def _checkpoint(self, stage=None, event='')
 
 ### `AgentEngine.task_snapshot`
 
-[Исходник](../../agent/engine.py#L98)
+[Исходник](../../agent/engine.py#L99)
 
 ```python
 def task_snapshot(self)
@@ -448,7 +449,7 @@ def task_snapshot(self)
 
 ### `AgentEngine.resolve_write_approval`
 
-[Исходник](../../agent/engine.py#L101)
+[Исходник](../../agent/engine.py#L102)
 
 ```python
 def resolve_write_approval(self, decision)
@@ -458,7 +459,7 @@ def resolve_write_approval(self, decision)
 
 ### `AgentEngine._ask_write_approval`
 
-[Исходник](../../agent/engine.py#L112)
+[Исходник](../../agent/engine.py#L113)
 
 ```python
 def _ask_write_approval(self, path, diff, exists)
@@ -468,7 +469,7 @@ def _ask_write_approval(self, path, diff, exists)
 
 ### `AgentEngine._emit_change`
 
-[Исходник](../../agent/engine.py#L134)
+[Исходник](../../agent/engine.py#L135)
 
 ```python
 def _emit_change(self, path, diff, exists, status, error='')
@@ -478,7 +479,7 @@ def _emit_change(self, path, diff, exists, status, error='')
 
 ### `AgentEngine._looks_like_action_request`
 
-[Исходник](../../agent/engine.py#L144)
+[Исходник](../../agent/engine.py#L145)
 
 ```python
 @staticmethod
@@ -489,7 +490,7 @@ def _looks_like_action_request(prompt)
 
 ### `AgentEngine._verify_task_completion`
 
-[Исходник](../../agent/engine.py#L154)
+[Исходник](../../agent/engine.py#L155)
 
 ```python
 def _verify_task_completion(self, client, messages, max_tokens)
@@ -499,7 +500,7 @@ def _verify_task_completion(self, client, messages, max_tokens)
 
 ### `AgentEngine.run`
 
-[Исходник](../../agent/engine.py#L190)
+[Исходник](../../agent/engine.py#L191)
 
 ```python
 def run(self)
@@ -1545,6 +1546,52 @@ def select(self, prompt, limit=3)
 
 Ранжирует метаданные по словам prompt и возвращает не больше limit совпадений.
 
+<a id="module-agent-task-activity-py"></a>
+
+## `agent/task_activity.py`
+
+Ограниченный журнал метаданных tools и восстановление незавершённых операций из канонической истории.
+
+### `begin_tool`
+
+[Исходник](../../agent/task_activity.py#L11)
+
+```python
+def begin_tool(task, tool, args, call_id, message_index)
+```
+
+Создаёт запись метаданных и активирует research/implementation, добавляя отсутствующий этап записи и ограничивая журнал 100 элементами.
+
+### `update_tool`
+
+[Исходник](../../agent/task_activity.py#L32)
+
+```python
+def update_tool(task, activity_id, status, summary)
+```
+
+Обновляет статус/краткую сводку по внутреннему ID и время завершения терминального состояния.
+
+### `finish_tool`
+
+[Исходник](../../agent/task_activity.py#L44)
+
+```python
+def finish_tool(task, activity_id, tool, result)
+```
+
+Преобразует фактический result в безопасную сводку/статус без копирования содержимого файла или результатов поиска.
+
+### `recover_tools`
+
+[Исходник](../../agent/task_activity.py#L63)
+
+```python
+def recover_tools(task, messages)
+```
+
+Восстанавливает in-flight запись из соответствующего блока tool-call/result; неопределённый Apply отмечает unknown, остальные прерванные — interrupted.
+
 <a id="module-agent-task-store-py"></a>
 
 ## `agent/task_store.py`
@@ -1603,7 +1650,7 @@ def new_task(chat_id, project_root, prompt)
 
 ### `save_task`
 
-[Исходник](../../agent/task_store.py#L40)
+[Исходник](../../agent/task_store.py#L41)
 
 ```python
 def save_task(task)
@@ -1613,7 +1660,7 @@ def save_task(task)
 
 ### `load_task`
 
-[Исходник](../../agent/task_store.py#L55)
+[Исходник](../../agent/task_store.py#L56)
 
 ```python
 def load_task(chat_id)
@@ -1623,7 +1670,7 @@ def load_task(chat_id)
 
 ### `clear_task`
 
-[Исходник](../../agent/task_store.py#L62)
+[Исходник](../../agent/task_store.py#L63)
 
 ```python
 def clear_task(chat_id)
@@ -1633,23 +1680,23 @@ def clear_task(chat_id)
 
 ### `set_stage`
 
-[Исходник](../../agent/task_store.py#L66)
+[Исходник](../../agent/task_store.py#L67)
 
 ```python
 def set_stage(task, stage_id, status='active', event='')
 ```
 
-Обновляет активный этап и помечает более ранние этапы завершёнными.
+Закрывает посещённый активный этап, помечает непосещённые предыдущие skipped и активирует целевой.
 
 ### `finish_task`
 
-[Исходник](../../agent/task_store.py#L77)
+[Исходник](../../agent/task_store.py#L79)
 
 ```python
 def finish_task(task, status='completed', reason='')
 ```
 
-Завершает этапы, задаёт итоговый статус/причину и сохраняет checkpoint.
+Завершает посещённые этапы, пропускает pending и сохраняет итоговый статус/причину.
 
 <a id="module-agent-tools-py"></a>
 
@@ -2350,7 +2397,7 @@ def main() -> None
 
 ### `TaskService`
 
-[Исходник](../../core/python/task_service.py#L18)
+[Исходник](../../core/python/task_service.py#L19)
 
 ```python
 class TaskService
@@ -2360,7 +2407,7 @@ class TaskService
 
 ### `TaskService.__init__`
 
-[Исходник](../../core/python/task_service.py#L19)
+[Исходник](../../core/python/task_service.py#L20)
 
 ```python
 def __init__(self, emit, engine_factory=AgentEngine)
@@ -2370,7 +2417,7 @@ def __init__(self, emit, engine_factory=AgentEngine)
 
 ### `TaskService.idle`
 
-[Исходник](../../core/python/task_service.py#L39)
+[Исходник](../../core/python/task_service.py#L40)
 
 ```python
 def idle(self)
@@ -2380,7 +2427,7 @@ def idle(self)
 
 ### `TaskService.configure`
 
-[Исходник](../../core/python/task_service.py#L43)
+[Исходник](../../core/python/task_service.py#L44)
 
 ```python
 def configure(self, params)
@@ -2390,7 +2437,7 @@ def configure(self, params)
 
 ### `TaskService.preferences`
 
-[Исходник](../../core/python/task_service.py#L51)
+[Исходник](../../core/python/task_service.py#L52)
 
 ```python
 def preferences(self)
@@ -2400,7 +2447,7 @@ def preferences(self)
 
 ### `TaskService.models`
 
-[Исходник](../../core/python/task_service.py#L54)
+[Исходник](../../core/python/task_service.py#L55)
 
 ```python
 def models(self, config=None, cancelled=None)
@@ -2410,7 +2457,7 @@ def models(self, config=None, cancelled=None)
 
 ### `TaskService.start_model_discovery`
 
-[Исходник](../../core/python/task_service.py#L57)
+[Исходник](../../core/python/task_service.py#L58)
 
 ```python
 def start_model_discovery(self, respond)
@@ -2420,7 +2467,7 @@ def start_model_discovery(self, respond)
 
 ### `TaskService.start_model_discovery.run_discovery`
 
-[Исходник](../../core/python/task_service.py#L64)
+[Исходник](../../core/python/task_service.py#L65)
 
 ```python
 def run_discovery()
@@ -2430,7 +2477,7 @@ def run_discovery()
 
 ### `TaskService.chats`
 
-[Исходник](../../core/python/task_service.py#L74)
+[Исходник](../../core/python/task_service.py#L75)
 
 ```python
 def chats(self, root)
@@ -2440,7 +2487,7 @@ def chats(self, root)
 
 ### `TaskService.select_chat`
 
-[Исходник](../../core/python/task_service.py#L79)
+[Исходник](../../core/python/task_service.py#L80)
 
 ```python
 def select_chat(self, root, chat_id=None)
@@ -2450,7 +2497,7 @@ def select_chat(self, root, chat_id=None)
 
 ### `TaskService._recover_chat`
 
-[Исходник](../../core/python/task_service.py#L94)
+[Исходник](../../core/python/task_service.py#L95)
 
 ```python
 def _recover_chat(self)
@@ -2460,7 +2507,7 @@ def _recover_chat(self)
 
 ### `TaskService._persist_chat`
 
-[Исходник](../../core/python/task_service.py#L161)
+[Исходник](../../core/python/task_service.py#L164)
 
 ```python
 def _persist_chat(self)
@@ -2470,7 +2517,7 @@ def _persist_chat(self)
 
 ### `TaskService._task_event`
 
-[Исходник](../../core/python/task_service.py#L166)
+[Исходник](../../core/python/task_service.py#L169)
 
 ```python
 def _task_event(self, task)
@@ -2480,7 +2527,7 @@ def _task_event(self, task)
 
 ### `TaskService._event`
 
-[Исходник](../../core/python/task_service.py#L172)
+[Исходник](../../core/python/task_service.py#L175)
 
 ```python
 def _event(self, kind, **data)
@@ -2490,7 +2537,7 @@ def _event(self, kind, **data)
 
 ### `TaskService._flush_text`
 
-[Исходник](../../core/python/task_service.py#L175)
+[Исходник](../../core/python/task_service.py#L178)
 
 ```python
 def _flush_text(self)
@@ -2500,7 +2547,7 @@ def _flush_text(self)
 
 ### `TaskService._flush_scheduled`
 
-[Исходник](../../core/python/task_service.py#L184)
+[Исходник](../../core/python/task_service.py#L187)
 
 ```python
 def _flush_scheduled(self, run_id)
@@ -2510,7 +2557,7 @@ def _flush_scheduled(self, run_id)
 
 ### `TaskService._persist_draft`
 
-[Исходник](../../core/python/task_service.py#L189)
+[Исходник](../../core/python/task_service.py#L192)
 
 ```python
 def _persist_draft(self)
@@ -2520,7 +2567,7 @@ def _persist_draft(self)
 
 ### `TaskService._persist_draft_scheduled`
 
-[Исходник](../../core/python/task_service.py#L194)
+[Исходник](../../core/python/task_service.py#L197)
 
 ```python
 def _persist_draft_scheduled(self, run_id, turn)
@@ -2530,7 +2577,7 @@ def _persist_draft_scheduled(self, run_id, turn)
 
 ### `TaskService._text_delta`
 
-[Исходник](../../core/python/task_service.py#L205)
+[Исходник](../../core/python/task_service.py#L208)
 
 ```python
 def _text_delta(self, turn, text)
@@ -2540,7 +2587,7 @@ def _text_delta(self, turn, text)
 
 ### `TaskService._chat_event`
 
-[Исходник](../../core/python/task_service.py#L235)
+[Исходник](../../core/python/task_service.py#L238)
 
 ```python
 def _chat_event(self, role, text)
@@ -2550,7 +2597,7 @@ def _chat_event(self, role, text)
 
 ### `TaskService._request_approval`
 
-[Исходник](../../core/python/task_service.py#L243)
+[Исходник](../../core/python/task_service.py#L246)
 
 ```python
 def _request_approval(self, path, diff, exists)
@@ -2560,7 +2607,7 @@ def _request_approval(self, path, diff, exists)
 
 ### `TaskService.resolve_approval`
 
-[Исходник](../../core/python/task_service.py#L251)
+[Исходник](../../core/python/task_service.py#L254)
 
 ```python
 def resolve_approval(self, params)
@@ -2570,7 +2617,7 @@ def resolve_approval(self, params)
 
 ### `TaskService.cancel`
 
-[Исходник](../../core/python/task_service.py#L262)
+[Исходник](../../core/python/task_service.py#L265)
 
 ```python
 def cancel(self)
@@ -2580,7 +2627,7 @@ def cancel(self)
 
 ### `TaskService.start`
 
-[Исходник](../../core/python/task_service.py#L271)
+[Исходник](../../core/python/task_service.py#L274)
 
 ```python
 def start(self, root: Path, params)
@@ -2590,7 +2637,7 @@ def start(self, root: Path, params)
 
 ### `TaskService._save_messages`
 
-[Исходник](../../core/python/task_service.py#L324)
+[Исходник](../../core/python/task_service.py#L327)
 
 ```python
 def _save_messages(self, messages)
@@ -2600,7 +2647,7 @@ def _save_messages(self, messages)
 
 ### `TaskService._run`
 
-[Исходник](../../core/python/task_service.py#L336)
+[Исходник](../../core/python/task_service.py#L339)
 
 ```python
 def _run(self)
@@ -2610,7 +2657,7 @@ def _run(self)
 
 ### `TaskService.shutdown`
 
-[Исходник](../../core/python/task_service.py#L361)
+[Исходник](../../core/python/task_service.py#L365)
 
 ```python
 def shutdown(self)
@@ -2676,7 +2723,7 @@ def main()
 
 ### `register`
 
-[Исходник](../../tools/doc_notes.py#L104)
+[Исходник](../../tools/doc_notes.py#L107)
 
 ```python
 def register(module, text)

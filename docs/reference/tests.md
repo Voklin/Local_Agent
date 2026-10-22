@@ -25,6 +25,7 @@
 - [tests/test_project_memory.py](#module-tests-test-project-memory-py)
 - [tests/test_runtime_architecture.py](#module-tests-test-runtime-architecture-py)
 - [tests/test_sandbox.py](#module-tests-test-sandbox-py)
+- [tests/test_task_activity.py](#module-tests-test-task-activity-py)
 - [tests/test_task_store.py](#module-tests-test-task-store-py)
 
 <a id="module-tests-migration-test-bridge-py"></a>
@@ -231,7 +232,7 @@ def test_process_kill_during_approval_never_replays_permission(self)
 
 ### `BridgeProcessTests.start_discovery_server`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L163)
+[Исходник](../../tests/migration/test_bridge_process.py#L164)
 
 ```python
 def start_discovery_server(self, mode)
@@ -241,7 +242,7 @@ def start_discovery_server(self, mode)
 
 ### `BridgeProcessTests.test_bridge_models_discovery_keeps_commands_responsive_and_pins_config`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L178)
+[Исходник](../../tests/migration/test_bridge_process.py#L179)
 
 ```python
 def test_bridge_models_discovery_keeps_commands_responsive_and_pins_config(self)
@@ -251,7 +252,7 @@ def test_bridge_models_discovery_keeps_commands_responsive_and_pins_config(self)
 
 ### `BridgeProcessTests.test_bridge_cancel_closes_discovery_socket`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L188)
+[Исходник](../../tests/migration/test_bridge_process.py#L189)
 
 ```python
 def test_bridge_cancel_closes_discovery_socket(self)
@@ -261,7 +262,7 @@ def test_bridge_cancel_closes_discovery_socket(self)
 
 ### `BridgeProcessTests.until`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L196)
+[Исходник](../../tests/migration/test_bridge_process.py#L197)
 
 ```python
 def until(self, predicate)
@@ -271,7 +272,7 @@ def until(self, predicate)
 
 ### `BridgeProcessTests.call`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L207)
+[Исходник](../../tests/migration/test_bridge_process.py#L208)
 
 ```python
 def call(self, method, **params)
@@ -281,7 +282,7 @@ def call(self, method, **params)
 
 ### `BridgeProcessTests.test_malformed_input_does_not_reuse_previous_request_id`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L214)
+[Исходник](../../tests/migration/test_bridge_process.py#L215)
 
 ```python
 def test_malformed_input_does_not_reuse_previous_request_id(self)
@@ -291,7 +292,7 @@ def test_malformed_input_does_not_reuse_previous_request_id(self)
 
 ### `BridgeProcessTests.test_bridge_remains_responsive_during_write_approval`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L223)
+[Исходник](../../tests/migration/test_bridge_process.py#L224)
 
 ```python
 def test_bridge_remains_responsive_during_write_approval(self)
@@ -629,7 +630,7 @@ def do_POST(self)
 
 ### `TaskServiceTests`
 
-[Исходник](../../tests/migration/test_task_service.py#L50)
+[Исходник](../../tests/migration/test_task_service.py#L54)
 
 ```python
 class TaskServiceTests(unittest.TestCase)
@@ -639,7 +640,7 @@ class TaskServiceTests(unittest.TestCase)
 
 ### `TaskServiceTests.setUpClass`
 
-[Исходник](../../tests/migration/test_task_service.py#L52)
+[Исходник](../../tests/migration/test_task_service.py#L56)
 
 ```python
 @classmethod
@@ -650,7 +651,7 @@ def setUpClass(cls)
 
 ### `TaskServiceTests.tearDownClass`
 
-[Исходник](../../tests/migration/test_task_service.py#L59)
+[Исходник](../../tests/migration/test_task_service.py#L63)
 
 ```python
 @classmethod
@@ -661,7 +662,7 @@ def tearDownClass(cls)
 
 ### `TaskServiceTests.setUp`
 
-[Исходник](../../tests/migration/test_task_service.py#L64)
+[Исходник](../../tests/migration/test_task_service.py#L68)
 
 ```python
 def setUp(self)
@@ -671,7 +672,7 @@ def setUp(self)
 
 ### `TaskServiceTests.tearDown`
 
-[Исходник](../../tests/migration/test_task_service.py#L80)
+[Исходник](../../tests/migration/test_task_service.py#L84)
 
 ```python
 def tearDown(self)
@@ -681,7 +682,7 @@ def tearDown(self)
 
 ### `TaskServiceTests.event`
 
-[Исходник](../../tests/migration/test_task_service.py#L86)
+[Исходник](../../tests/migration/test_task_service.py#L90)
 
 ```python
 def event(self, name)
@@ -691,7 +692,7 @@ def event(self, name)
 
 ### `TaskServiceTests.start`
 
-[Исходник](../../tests/migration/test_task_service.py#L94)
+[Исходник](../../tests/migration/test_task_service.py#L98)
 
 ```python
 def start(self)
@@ -701,7 +702,7 @@ def start(self)
 
 ### `TaskServiceTests.resolve`
 
-[Исходник](../../tests/migration/test_task_service.py#L102)
+[Исходник](../../tests/migration/test_task_service.py#L106)
 
 ```python
 def resolve(self, approval, decision)
@@ -711,7 +712,7 @@ def resolve(self, approval, decision)
 
 ### `TaskServiceTests.test_apply_only_after_matching_approval_and_persist_history`
 
-[Исходник](../../tests/migration/test_task_service.py#L105)
+[Исходник](../../tests/migration/test_task_service.py#L109)
 
 ```python
 def test_apply_only_after_matching_approval_and_persist_history(self)
@@ -721,7 +722,7 @@ def test_apply_only_after_matching_approval_and_persist_history(self)
 
 ### `TaskServiceTests.test_long_archive_survives_model_compaction_and_service_restart`
 
-[Исходник](../../tests/migration/test_task_service.py#L122)
+[Исходник](../../tests/migration/test_task_service.py#L131)
 
 ```python
 def test_long_archive_survives_model_compaction_and_service_restart(self)
@@ -731,7 +732,7 @@ def test_long_archive_survives_model_compaction_and_service_restart(self)
 
 ### `TaskServiceTests.test_forced_tool_uses_single_definition_then_restores_auto`
 
-[Исходник](../../tests/migration/test_task_service.py#L149)
+[Исходник](../../tests/migration/test_task_service.py#L158)
 
 ```python
 def test_forced_tool_uses_single_definition_then_restores_auto(self)
@@ -739,9 +740,19 @@ def test_forced_tool_uses_single_definition_then_restores_auto(self)
 
 Проверка: Первый запрос ограничен одним required-инструментом, следующие используют auto и полный набор.
 
+### `TaskServiceTests.test_multiple_tools_keep_same_archive_anchor_for_write_recovery`
+
+[Исходник](../../tests/migration/test_task_service.py#L171)
+
+```python
+def test_multiple_tools_keep_same_archive_anchor_for_write_recovery(self)
+```
+
+Проверка: Несколько tools одного ответа сохраняют общий assistant anchor; восстановление учитывает точный результат записи.
+
 ### `TaskServiceTests.test_reject_does_not_write`
 
-[Исходник](../../tests/migration/test_task_service.py#L162)
+[Исходник](../../tests/migration/test_task_service.py#L191)
 
 ```python
 def test_reject_does_not_write(self)
@@ -751,7 +762,7 @@ def test_reject_does_not_write(self)
 
 ### `TaskServiceTests.test_matching_approval_refuses_new_external_file`
 
-[Исходник](../../tests/migration/test_task_service.py#L170)
+[Исходник](../../tests/migration/test_task_service.py#L200)
 
 ```python
 def test_matching_approval_refuses_new_external_file(self)
@@ -761,7 +772,7 @@ def test_matching_approval_refuses_new_external_file(self)
 
 ### `TaskServiceTests.test_embedded_checkpoint_restores_missing_task_file`
 
-[Исходник](../../tests/migration/test_task_service.py#L184)
+[Исходник](../../tests/migration/test_task_service.py#L215)
 
 ```python
 def test_embedded_checkpoint_restores_missing_task_file(self)
@@ -771,7 +782,7 @@ def test_embedded_checkpoint_restores_missing_task_file(self)
 
 ### `TaskServiceTests.test_recovery_does_not_confuse_reused_tool_ids_with_old_success`
 
-[Исходник](../../tests/migration/test_task_service.py#L197)
+[Исходник](../../tests/migration/test_task_service.py#L228)
 
 ```python
 def test_recovery_does_not_confuse_reused_tool_ids_with_old_success(self)
@@ -781,7 +792,7 @@ def test_recovery_does_not_confuse_reused_tool_ids_with_old_success(self)
 
 ### `TaskServiceTests.test_recovery_recognizes_saved_tool_result_before_task_checkpoint`
 
-[Исходник](../../tests/migration/test_task_service.py#L222)
+[Исходник](../../tests/migration/test_task_service.py#L253)
 
 ```python
 def test_recovery_recognizes_saved_tool_result_before_task_checkpoint(self)
@@ -791,7 +802,7 @@ def test_recovery_recognizes_saved_tool_result_before_task_checkpoint(self)
 
 ### `TaskServiceTests.test_stream_draft_is_recovered_once_and_other_run_is_preserved_separately`
 
-[Исходник](../../tests/migration/test_task_service.py#L235)
+[Исходник](../../tests/migration/test_task_service.py#L266)
 
 ```python
 def test_stream_draft_is_recovered_once_and_other_run_is_preserved_separately(self)
@@ -801,7 +812,7 @@ def test_stream_draft_is_recovered_once_and_other_run_is_preserved_separately(se
 
 ### `TaskServiceTests.test_unexpected_engine_exception_still_persists_pause_and_task_end`
 
-[Исходник](../../tests/migration/test_task_service.py#L253)
+[Исходник](../../tests/migration/test_task_service.py#L284)
 
 ```python
 def test_unexpected_engine_exception_still_persists_pause_and_task_end(self)
@@ -811,7 +822,7 @@ def test_unexpected_engine_exception_still_persists_pause_and_task_end(self)
 
 ### `TaskServiceTests.test_index_cache_failure_warns_without_aborting_agent`
 
-[Исходник](../../tests/migration/test_task_service.py#L263)
+[Исходник](../../tests/migration/test_task_service.py#L294)
 
 ```python
 def test_index_cache_failure_warns_without_aborting_agent(self)
@@ -821,7 +832,7 @@ def test_index_cache_failure_warns_without_aborting_agent(self)
 
 ### `TaskServiceTests.test_index_cache_failure_warns_without_aborting_agent.fail_index_only`
 
-[Исходник](../../tests/migration/test_task_service.py#L265)
+[Исходник](../../tests/migration/test_task_service.py#L296)
 
 ```python
 def fail_index_only(path, data)
@@ -831,7 +842,7 @@ def fail_index_only(path, data)
 
 ### `TaskServiceTests.test_persistence_failure_before_apply_never_writes_and_still_ends_task`
 
-[Исходник](../../tests/migration/test_task_service.py#L281)
+[Исходник](../../tests/migration/test_task_service.py#L312)
 
 ```python
 def test_persistence_failure_before_apply_never_writes_and_still_ends_task(self)
@@ -841,7 +852,7 @@ def test_persistence_failure_before_apply_never_writes_and_still_ends_task(self)
 
 ### `TaskServiceTests.test_resume_preserves_task_and_recovery_marks_interrupted_task_paused`
 
-[Исходник](../../tests/migration/test_task_service.py#L294)
+[Исходник](../../tests/migration/test_task_service.py#L325)
 
 ```python
 def test_resume_preserves_task_and_recovery_marks_interrupted_task_paused(self)
@@ -851,7 +862,7 @@ def test_resume_preserves_task_and_recovery_marks_interrupted_task_paused(self)
 
 ### `TaskServiceTests.test_new_prompt_after_pause_creates_new_task`
 
-[Исходник](../../tests/migration/test_task_service.py#L311)
+[Исходник](../../tests/migration/test_task_service.py#L342)
 
 ```python
 def test_new_prompt_after_pause_creates_new_task(self)
@@ -861,7 +872,7 @@ def test_new_prompt_after_pause_creates_new_task(self)
 
 ### `TaskServiceTests.test_cancel_while_waiting_pauses_task_and_unblocks_worker`
 
-[Исходник](../../tests/migration/test_task_service.py#L323)
+[Исходник](../../tests/migration/test_task_service.py#L354)
 
 ```python
 def test_cancel_while_waiting_pauses_task_and_unblocks_worker(self)
@@ -871,7 +882,7 @@ def test_cancel_while_waiting_pauses_task_and_unblocks_worker(self)
 
 ### `TaskServiceTests.test_busy_task_rejects_chat_and_configuration_changes`
 
-[Исходник](../../tests/migration/test_task_service.py#L332)
+[Исходник](../../tests/migration/test_task_service.py#L363)
 
 ```python
 def test_busy_task_rejects_chat_and_configuration_changes(self)
@@ -881,7 +892,7 @@ def test_busy_task_rejects_chat_and_configuration_changes(self)
 
 ### `TaskServiceTests.test_chats_are_scoped_to_project_and_ids_cannot_escape_store`
 
-[Исходник](../../tests/migration/test_task_service.py#L341)
+[Исходник](../../tests/migration/test_task_service.py#L372)
 
 ```python
 def test_chats_are_scoped_to_project_and_ids_cannot_escape_store(self)
@@ -891,7 +902,7 @@ def test_chats_are_scoped_to_project_and_ids_cannot_escape_store(self)
 
 ### `TaskServiceTests.test_models_and_configuration_do_not_return_key`
 
-[Исходник](../../tests/migration/test_task_service.py#L349)
+[Исходник](../../tests/migration/test_task_service.py#L380)
 
 ```python
 def test_models_and_configuration_do_not_return_key(self)
@@ -901,7 +912,7 @@ def test_models_and_configuration_do_not_return_key(self)
 
 ### `TaskServiceTests.test_missing_model_and_bad_url_are_rejected`
 
-[Исходник](../../tests/migration/test_task_service.py#L354)
+[Исходник](../../tests/migration/test_task_service.py#L385)
 
 ```python
 def test_missing_model_and_bad_url_are_rejected(self)
@@ -1791,6 +1802,72 @@ def test_sandbox_self_test_suite(self)
 ```
 
 Проверка: Внутренний набор проверок sandbox возвращает успешный итог.
+
+<a id="module-tests-test-task-activity-py"></a>
+
+## `tests/test_task_activity.py`
+
+Контракты журнала: лимиты, статусы, отсутствие содержимого файлов, этапы и anchored recovery.
+
+### `TaskActivityTests`
+
+[Исходник](../../tests/test_task_activity.py#L7)
+
+```python
+class TaskActivityTests(unittest.TestCase)
+```
+
+Тестовый класс/фикстура: Контракты журнала: лимиты, статусы, отсутствие содержимого файлов, этапы и anchored recovery.
+
+### `TaskActivityTests.test_activity_is_bounded_metadata_with_monotonic_ids`
+
+[Исходник](../../tests/test_task_activity.py#L8)
+
+```python
+def test_activity_is_bounded_metadata_with_monotonic_ids(self)
+```
+
+Проверка: Журнал содержит максимум 100 записей, устойчивые ID и метаданные без содержимого файлов.
+
+### `TaskActivityTests.test_tool_outcomes_distinguish_denial_cancel_failure_and_truncation`
+
+[Исходник](../../tests/test_task_activity.py#L20)
+
+```python
+def test_tool_outcomes_distinguish_denial_cancel_failure_and_truncation(self)
+```
+
+Проверка: Различаются отказ, отмена, ошибка и успех с ограниченной выдачей.
+
+### `TaskActivityTests.test_activity_recovery_uses_anchored_result_and_is_idempotent`
+
+[Исходник](../../tests/test_task_activity.py#L33)
+
+```python
+def test_activity_recovery_uses_anchored_result_and_is_idempotent(self)
+```
+
+Проверка: Повторённый tool ID не даёт ложного успеха; восстановление использует точный блок и не повторяется.
+
+### `TaskActivityTests.test_recovery_interrupts_waiting_without_replaying_approval`
+
+[Исходник](../../tests/test_task_activity.py#L50)
+
+```python
+def test_recovery_interrupts_waiting_without_replaying_approval(self)
+```
+
+Проверка: Ожидание approval после сбоя становится interrupted без повторного согласия.
+
+### `TaskActivityTests.test_stage_transitions_skip_unvisited_and_keep_only_one_active`
+
+[Исходник](../../tests/test_task_activity.py#L58)
+
+```python
+def test_stage_transitions_skip_unvisited_and_keep_only_one_active(self)
+```
+
+Проверка: Непосещённые этапы пропускаются, при возврате остаётся ровно один active.
 
 <a id="module-tests-test-task-store-py"></a>
 

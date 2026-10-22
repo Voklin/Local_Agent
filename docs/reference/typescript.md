@@ -12,6 +12,7 @@
 - [apps/desktop/electron/main.ts](#module-apps-desktop-electron-main-ts)
 - [apps/desktop/electron/preload.ts](#module-apps-desktop-electron-preload-ts)
 - [apps/desktop/src/App.tsx](#module-apps-desktop-src-app-tsx)
+- [apps/desktop/src/TaskProgress.tsx](#module-apps-desktop-src-taskprogress-tsx)
 - [apps/desktop/src/main.tsx](#module-apps-desktop-src-main-tsx)
 - [apps/desktop/src/vite-env.d.ts](#module-apps-desktop-src-vite-env-d-ts)
 - [apps/desktop/vite.config.ts](#module-apps-desktop-vite-config-ts)
@@ -295,7 +296,7 @@ React-состояние и представление проекта, наст�
 
 ### `FileItem`
 
-[Исходник](../../apps/desktop/src/App.tsx#L4)
+[Исходник](../../apps/desktop/src/App.tsx#L5)
 
 ```typescript
 type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
@@ -305,7 +306,7 @@ type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
 
 ### `Message`
 
-[Исходник](../../apps/desktop/src/App.tsx#L5)
+[Исходник](../../apps/desktop/src/App.tsx#L6)
 
 ```typescript
 type Message = { role: string; text: string; id?: string; streaming?: boolean };
@@ -315,7 +316,7 @@ type Message = { role: string; text: string; id?: string; streaming?: boolean };
 
 ### `ChatSummary`
 
-[Исходник](../../apps/desktop/src/App.tsx#L6)
+[Исходник](../../apps/desktop/src/App.tsx#L7)
 
 ```typescript
 type ChatSummary = { id: string; title: string };
@@ -325,7 +326,7 @@ type ChatSummary = { id: string; title: string };
 
 ### `App`
 
-[Исходник](../../apps/desktop/src/App.tsx#L9)
+[Исходник](../../apps/desktop/src/App.tsx#L10)
 
 ```typescript
 function App()
@@ -335,7 +336,7 @@ function App()
 
 ### `App.report`
 
-[Исходник](../../apps/desktop/src/App.tsx#L39)
+[Исходник](../../apps/desktop/src/App.tsx#L40)
 
 ```typescript
 function report(text: string)
@@ -345,7 +346,7 @@ function report(text: string)
 
 ### `App.showWarning`
 
-[Исходник](../../apps/desktop/src/App.tsx#L40)
+[Исходник](../../apps/desktop/src/App.tsx#L41)
 
 ```typescript
 function showWarning(text: string)
@@ -355,7 +356,7 @@ function showWarning(text: string)
 
 ### `App.refreshChats`
 
-[Исходник](../../apps/desktop/src/App.tsx#L44)
+[Исходник](../../apps/desktop/src/App.tsx#L45)
 
 ```typescript
 async function refreshChats()
@@ -365,7 +366,7 @@ async function refreshChats()
 
 ### `App.refreshFiles`
 
-[Исходник](../../apps/desktop/src/App.tsx#L95)
+[Исходник](../../apps/desktop/src/App.tsx#L96)
 
 ```typescript
 async function refreshFiles(path = '.')
@@ -375,7 +376,7 @@ async function refreshFiles(path = '.')
 
 ### `App.chooseProject`
 
-[Исходник](../../apps/desktop/src/App.tsx#L99)
+[Исходник](../../apps/desktop/src/App.tsx#L100)
 
 ```typescript
 async function chooseProject()
@@ -385,7 +386,7 @@ async function chooseProject()
 
 ### `App.openFile`
 
-[Исходник](../../apps/desktop/src/App.tsx#L108)
+[Исходник](../../apps/desktop/src/App.tsx#L109)
 
 ```typescript
 async function openFile(item: FileItem)
@@ -395,7 +396,7 @@ async function openFile(item: FileItem)
 
 ### `App.selectChat`
 
-[Исходник](../../apps/desktop/src/App.tsx#L114)
+[Исходник](../../apps/desktop/src/App.tsx#L115)
 
 ```typescript
 async function selectChat(id?: string)
@@ -405,7 +406,7 @@ async function selectChat(id?: string)
 
 ### `App.configure`
 
-[Исходник](../../apps/desktop/src/App.tsx#L124)
+[Исходник](../../apps/desktop/src/App.tsx#L125)
 
 ```typescript
 async function configure()
@@ -415,7 +416,7 @@ async function configure()
 
 ### `App.saveSettings`
 
-[Исходник](../../apps/desktop/src/App.tsx#L128)
+[Исходник](../../apps/desktop/src/App.tsx#L129)
 
 ```typescript
 async function saveSettings()
@@ -425,7 +426,7 @@ async function saveSettings()
 
 ### `App.discoverModels`
 
-[Исходник](../../apps/desktop/src/App.tsx#L134)
+[Исходник](../../apps/desktop/src/App.tsx#L135)
 
 ```typescript
 async function discoverModels()
@@ -435,7 +436,7 @@ async function discoverModels()
 
 ### `App.sendPrompt`
 
-[Исходник](../../apps/desktop/src/App.tsx#L149)
+[Исходник](../../apps/desktop/src/App.tsx#L150)
 
 ```typescript
 async function sendPrompt(resume = false)
@@ -445,7 +446,7 @@ async function sendPrompt(resume = false)
 
 ### `App.decide`
 
-[Исходник](../../apps/desktop/src/App.tsx#L174)
+[Исходник](../../apps/desktop/src/App.tsx#L175)
 
 ```typescript
 async function decide(decision: string)
@@ -455,13 +456,63 @@ async function decide(decision: string)
 
 ### `App.cancel`
 
-[Исходник](../../apps/desktop/src/App.tsx#L183)
+[Исходник](../../apps/desktop/src/App.tsx#L184)
 
 ```typescript
 async function cancel()
 ```
 
 Показывает состояние остановки и вызывает cancelTask.
+
+<a id="module-apps-desktop-src-taskprogress-tsx"></a>
+
+## `apps/desktop/src/TaskProgress.tsx`
+
+Типизированная панель этапов, инструментов, результатов и продолжения задачи.
+
+### `TaskStage`
+
+[Исходник](../../apps/desktop/src/TaskProgress.tsx#L3)
+
+```typescript
+export type TaskStage = { id: string; title: string; objective?: string; status: string };
+```
+
+UI-представление этапа: идентификатор, название, цель и статус исполнения.
+
+### `ToolActivity`
+
+[Исходник](../../apps/desktop/src/TaskProgress.tsx#L4)
+
+```typescript
+export type ToolActivity = { id: number; tool: string; path: string; status: string; summary: string; stage: string };
+```
+
+UI-проекция метаданных tool: устойчивый ID, путь, этап, статус и сводка без raw content.
+
+### `TaskSnapshot`
+
+[Исходник](../../apps/desktop/src/TaskProgress.tsx#L5)
+
+```typescript
+export type TaskSnapshot = {
+  status: string; last_event: string; stage: string; turn: number; tool_calls: number;
+  stages: TaskStage[]; tool_activity?: ToolActivity[]; activity_omitted?: number;
+  modified_files?: string[]; stop_reason?: string;
+};
+```
+
+Тип полей checkpoint, используемых панелью плана и результатов.
+
+### `TaskProgress`
+
+[Исходник](../../apps/desktop/src/TaskProgress.tsx#L18)
+
+```typescript
+function TaskProgress({ task, busy, onResume }: { task: TaskSnapshot; busy: boolean; onResume: () => void })
+```
+
+Показывает посещённые/пропущенные этапы, последние операции, изменённые файлы, остановку и кнопку resume.
 
 <a id="module-apps-desktop-src-main-tsx"></a>
 

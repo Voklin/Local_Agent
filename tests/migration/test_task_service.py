@@ -41,6 +41,10 @@ class ModelHandler(BaseHTTPRequestHandler):
         else:
             delta = {'tool_calls':[{'index':0, 'id':'call-1', 'type':'function', 'function':{
                 'name':'write_file', 'arguments':json.dumps({'path':'new.txt','content':'approved content','overwrite':False})}}]}
+            if getattr(self.server, 'multiple_tools', False):
+                delta['tool_calls'][0]['index'] = 1
+                delta['tool_calls'].insert(0, {'index': 0, 'id': 'read-first', 'type': 'function',
+                    'function': {'name': 'read_file', 'arguments': '{"path":"source.txt"}'}})
         chunk = {'id':'test', 'object':'chat.completion.chunk', 'created':0, 'model':'test-model',
                  'choices':[{'index':0,'delta':delta,'finish_reason':None}]}
         self.wfile.write(('data: ' + json.dumps(chunk) + '\n\ndata: [DONE]\n\n').encode())
@@ -104,6 +108,9 @@ class TaskServiceTests(unittest.TestCase):
 
     def test_apply_only_after_matching_approval_and_persist_history(self):
         approval = self.start()
+        pending = chat_store.load_chat(self.service.chat['id'])['task_checkpoint']
+        self.assertEqual(pending['stage'], 'implementation')
+        self.assertEqual(pending['tool_activity'][-1]['status'], 'awaiting_approval')
         with self.assertRaises(ValueError):
             self.service.resolve_approval({**approval, 'approval_id':'stale', 'decision':'apply'})
         with self.assertRaises(ValueError):
@@ -117,6 +124,8 @@ class TaskServiceTests(unittest.TestCase):
         self.assertTrue(any(m.get('role') == 'tool' for m in saved['messages']))
         self.assertEqual(task_store.load_task(saved['id'])['status'], 'completed')
         self.assertEqual(task_store.load_task(saved['id'])['modified_files'], ['new.txt'])
+        self.assertEqual(saved['task_checkpoint']['tool_activity'][-1]['status'], 'succeeded')
+        self.assertEqual(self.service.select_chat(self.root, saved['id'])['task']['tool_activity'], saved['task_checkpoint']['tool_activity'])
         self.assertEqual(self.service.select_chat(self.root, saved['id'])['chat']['messages'], saved['messages'])
 
     def test_long_archive_survives_model_compaction_and_service_restart(self):
@@ -159,6 +168,26 @@ class TaskServiceTests(unittest.TestCase):
         self.assertEqual(requests[1]['tool_choice'], 'auto')
         self.assertGreater(len(requests[1]['tools']), 1)
 
+    def test_multiple_tools_keep_same_archive_anchor_for_write_recovery(self):
+        (self.root / 'source.txt').write_text('source', encoding='utf-8')
+        with patch.object(self.server, 'multiple_tools', True, create=True):
+            approval = self.start()
+            pending = json.loads(json.dumps(self.service.chat['task_checkpoint']))
+            self.assertEqual(pending['pending_write']['message_index'], 1)
+            self.assertEqual([entry['message_index'] for entry in pending['tool_activity']], [1, 1])
+            self.resolve(approval, 'apply')
+            self.event('task_end')
+            self.service.thread.join(2)
+        # Simulate a crash after both canonical results, before the final journal checkpoint.
+        pending['pending_write']['status'] = 'applying'
+        pending['tool_activity'][-1]['status'] = 'applying'
+        self.service.chat['task_checkpoint'] = pending
+        chat_store.save_chat(self.service.chat)
+        recovered = self.service.select_chat(self.root, self.service.chat['id'])['task']
+        self.assertEqual([entry['status'] for entry in recovered['tool_activity']], ['succeeded', 'succeeded'])
+        self.assertEqual(recovered['modified_files'], ['new.txt'])
+        self.assertNotIn('recovery_warning', recovered)
+
     def test_reject_does_not_write(self):
         approval = self.start()
         self.resolve(approval, 'reject')
@@ -166,6 +195,7 @@ class TaskServiceTests(unittest.TestCase):
         self.service.thread.join(2)
         self.assertFalse((self.root / 'new.txt').exists())
         self.assertEqual(task_store.load_task(self.service.chat['id'])['modified_files'], [])
+        self.assertEqual(self.service.chat['task_checkpoint']['tool_activity'][-1]['status'], 'rejected')
 
     def test_matching_approval_refuses_new_external_file(self):
         approval = self.start()
@@ -177,6 +207,7 @@ class TaskServiceTests(unittest.TestCase):
         saved = chat_store.load_chat(self.service.chat['id'])
         results = [json.loads(m['content']) for m in saved['messages'] if m.get('role') == 'tool']
         self.assertEqual(results[-1]['code'], 'FILE_CHANGED')
+        self.assertEqual(saved['task_checkpoint']['tool_activity'][-1]['status'], 'failed')
         self.assertEqual(task_store.load_task(saved['id'])['modified_files'], [])
         with self.assertRaises(ValueError):
             self.resolve(approval, 'apply')

@@ -17,7 +17,9 @@ class TaskStoreTests(unittest.TestCase):
             finish_task(loaded, "completed")
             loaded = load_task("chat-1")
             self.assertEqual(loaded["status"], "completed")
-            self.assertTrue(all(x["status"] == "done" for x in loaded["stages"]))
+            self.assertEqual(next(s['status'] for s in loaded['stages'] if s['id'] == 'research'), 'done')
+            self.assertEqual(next(s['status'] for s in loaded['stages'] if s['id'] == 'verification'), 'skipped')
+            self.assertTrue(all(x["status"] in ('done', 'skipped') for x in loaded["stages"]))
             clear_task("chat-1")
             self.assertIsNone(load_task("chat-1"))
 

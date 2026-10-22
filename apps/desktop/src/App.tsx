@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, ChevronDown, Code2, FileCode2, Folder, FolderOpen, GitBranch, History, Play, Plus, Settings2, ShieldCheck, Square, SquareTerminal } from 'lucide-react';
+import { TaskProgress, type TaskSnapshot } from './TaskProgress';
 
 type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
 type Message = { role: string; text: string; id?: string; streaming?: boolean };
@@ -21,7 +22,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [approval, setApproval] = useState<CoreEvent | null>(null);
   const [deciding, setDeciding] = useState(false);
-  const [task, setTask] = useState<any>(null);
+  const [task, setTask] = useState<TaskSnapshot | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [baseUrl, setBaseUrl] = useState('http://127.0.0.1:1234/v1');
   const [model, setModel] = useState('');
@@ -207,7 +208,7 @@ export default function App() {
       <main className="main-panel"><div className="editor-tabs"><div className="tab active"><FileCode2 size={14}/>{selectedFile.split(/[\\/]/).pop()||'Welcome'}</div></div><div className="editor-area">{selectedFile?<><div className="breadcrumbs">{selectedFile}</div><pre className="code-view">{fileText}</pre></>:<div className="welcome"><div className="welcome-logo"><Code2 size={28}/></div><h1>Agent Studio</h1><p>Рабочее пространство Local Coding Agent</p><div className="welcome-actions"><button onClick={chooseProject} disabled={busy}><FolderOpen size={16}/>Открыть проект</button><button onClick={()=>setNav('Models')}><Settings2 size={16}/>Настроить модель</button></div><div className="migration-note"><ShieldCheck size={17}/><span><b>Контроль изменений</b><br/>Агент покажет diff и запросит разрешение перед записью каждого файла.</span></div></div>}</div>
         <div className="bottom-panel"><div className="bottom-tabs"><span className="bottom-tab active"><SquareTerminal size={14}/>ВЫВОД</span></div><div className="output-log">{logs.length?logs.map((l,i)=><pre key={i}>{l}</pre>):<div className="output-line dim">События агента появятся здесь.</div>}</div></div>
       </main>
-      <aside className="agent-panel"><div className="agent-heading"><div><Bot size={17}/><b>AI Agent</b></div><button className="icon-button" title="Новый чат" disabled={!root||busy} onClick={()=>selectChat()}><Plus size={16}/></button></div><div className="agent-context"><span className="context-chip"><Folder size={13}/>{project}</span><span className="context-chip">Модель: {model||'не выбрана'}</span>{task&&<div className="task-card"><b>{task.status==='paused'?'Приостановлена':task.status==='completed'?'Завершена':'Выполняется'}</b><span>{task.last_event}</span>{task.status==='paused'&&!busy&&<button onClick={()=>sendPrompt(true)}>Продолжить задачу</button>}</div>}</div>
+      <aside className="agent-panel"><div className="agent-heading"><div><Bot size={17}/><b>AI Agent</b></div><button className="icon-button" title="Новый чат" disabled={!root||busy} onClick={()=>selectChat()}><Plus size={16}/></button></div><div className="agent-context"><span className="context-chip"><Folder size={13}/>{project}</span><span className="context-chip">Модель: {model||'не выбрана'}</span>{task&&<TaskProgress task={task} busy={busy} onResume={()=>void sendPrompt(true)}/>}</div>
         <div className="chat-messages">{chat.map((m,i)=><div className={`message ${m.role}`} key={i}>{m.role==='assistant'&&<div className="avatar"><Bot size={14}/></div>}<div className="message-content">{m.text}{m.streaming&&<span className="streaming-caret" aria-label="Ответ генерируется">▍</span>}</div></div>)}<div ref={messagesEnd}/></div>
         <div className="composer"><textarea aria-label="Задача агенту" value={prompt} disabled={busy} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendPrompt();}}} placeholder={!root?'Сначала выберите проект':!model?'Укажите модель в настройках':'Опишите задачу…'}/><div className="composer-footer"><span>{stopping?'Останавливаем…':busy?'Агент работает…':'Enter для отправки'}</span>{busy?<button className="send-button" title="Остановить" disabled={stopping} onClick={cancel}><Square size={14}/></button>:<button className="send-button" title="Отправить" onClick={()=>sendPrompt()} disabled={!prompt.trim()||!root||!model||configuring||!settingsReady}><Play size={14}/></button>}</div></div><div className="agent-foot"><ShieldCheck size={13}/> Подтверждение перед записью</div>
       </aside>

@@ -35,6 +35,7 @@ def new_task(chat_id, project_root, prompt):
         "selected_skills": [], "decisions": [], "discovered_files": [], "modified_files": [],
         "test_results": [], "resume_state": {"next_action": "Начать текущий этап", "attempt": 0},
         "last_event": "Задача запущена", "stop_reason": "",
+        "tool_activity": [], "activity_sequence": 0, "activity_omitted": 0,
     }
 
 def save_task(task):
@@ -68,7 +69,8 @@ def set_stage(task, stage_id, status="active", event=""):
     if stage_id in order:
         idx=order.index(stage_id)
         for i,s in enumerate(task["stages"]):
-            if i<idx and s.get("status")!="done": s["status"]="done"
+            if s.get("status") == "active" and i != idx: s["status"]="done"
+            if i<idx and s.get("status")=="pending": s["status"]="skipped"
             if i==idx: s["status"]=status
         task["stage"]=stage_id
     if event: task["last_event"]=str(event)[:500]
@@ -76,7 +78,8 @@ def set_stage(task, stage_id, status="active", event=""):
 
 def finish_task(task, status="completed", reason=""):
     for s in task.get("stages",[]):
-        s["status"]="done"
+        if s.get('status') == 'active' or s.get('id') == 'finish': s['status']='done'
+        elif s.get('status') == 'pending': s['status']='skipped'
     task["status"]=status
     task["stage"]="finish"
     task["stop_reason"]=str(reason)[:500]

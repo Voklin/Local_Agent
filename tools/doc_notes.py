@@ -1,6 +1,9 @@
 """Ручные объяснения для генерируемого справочника; код здесь не запускает агента."""
 
 FILE_NOTES = {
+    'agent/task_activity.py': 'Ограниченный журнал метаданных tools и восстановление незавершённых операций из канонической истории.',
+    'tests/test_task_activity.py': 'Контракты журнала: лимиты, статусы, отсутствие содержимого файлов, этапы и anchored recovery.',
+    'apps/desktop/src/TaskProgress.tsx': 'Типизированная панель этапов, инструментов, результатов и продолжения задачи.',
     'requirements-build.txt': 'Точные Python-зависимости для Windows x64 freeze Core без Qt.',
     'electron-builder.json': 'Allowlist приложения, extraResources Core и локальный NSIS installer без публикации.',
     'tools/build_windows_core.py': 'PyInstaller onedir сборка Windows x64 Core с Python 3.12 и данными навыков.',
@@ -218,8 +221,8 @@ new_task | Создаёт словарь running-задачи с планом, �
 save_task | Обновляет timestamp и записывает checkpoint через temporary+fsync+replace.
 load_task | Читает checkpoint; отсутствие или повреждённый JSON даёт None.
 clear_task | Удаляет checkpoint, не удаляя историю чата.
-set_stage | Обновляет активный этап и помечает более ранние этапы завершёнными.
-finish_task | Завершает этапы, задаёт итоговый статус/причину и сохраняет checkpoint.
+set_stage | Закрывает посещённый активный этап, помечает непосещённые предыдущие skipped и активирует целевой.
+finish_task | Завершает посещённые этапы, пропускает pending и сохраняет итоговый статус/причину.
 ''')
 register('agent/planner.py', '''
 PlanStage | Dataclass этапа: ID, заголовок, цель, статус и декларативный max_turns.
@@ -377,6 +380,13 @@ Main.mcp_connect.bad | Показывает ошибку эксперимент�
 ''')
 
 TEST_PURPOSES = {
+    'multiple_tools_keep_same_archive_anchor_for_write_recovery': 'Несколько tools одного ответа сохраняют общий assistant anchor; восстановление учитывает точный результат записи.',
+    'activity_is_bounded_metadata_with_monotonic_ids': 'Журнал содержит максимум 100 записей, устойчивые ID и метаданные без содержимого файлов.',
+    'tool_outcomes_distinguish_denial_cancel_failure_and_truncation': 'Различаются отказ, отмена, ошибка и успех с ограниченной выдачей.',
+    'activity_recovery_uses_anchored_result_and_is_idempotent': 'Повторённый tool ID не даёт ложного успеха; восстановление использует точный блок и не повторяется.',
+    'recovery_interrupts_waiting_without_replaying_approval': 'Ожидание approval после сбоя становится interrupted без повторного согласия.',
+    'stage_transitions_skip_unvisited_and_keep_only_one_active': 'Непосещённые этапы пропускаются, при возврате остаётся ровно один active.',
+
     'approved_write_and_preferences_survive_process_restart': 'Подтверждённая запись и настройки переживают рестарт bridge; ключ не попадает в JSON.',
     'unreadable_directory_is_not_reported_as_empty_catalog': 'Недоступный каталог чатов выдаёт ошибку вместо ложного пустого списка.',
     'missing_corrupt_and_stale_index_is_rebuilt_from_chat_files': 'Отсутствующий, повреждённый и устаревший индекс восстанавливается из канонических файлов.',
@@ -726,4 +736,17 @@ TS_NOTES.update({
     'tests/electron/packaged-smoke.mjs:evaluate.receive': 'Сопоставляет CDP response с запросом и возвращает значение либо ошибку JavaScript.',
     'tests/electron/packaged-smoke.mjs:run': 'Запускает packaged exe с изолированными данными/урезанным PATH и проверяет Core, настройки и нормальное закрытие.',
     'tests/electron/packaged-smoke.mjs:main': 'Поднимает HTTP-фикстуру, дважды проверяет пакет и отсутствие ключа в настройках/диагностике.',
+})
+
+register('agent/task_activity.py', '''
+begin_tool | Создаёт запись метаданных и активирует research/implementation, добавляя отсутствующий этап записи и ограничивая журнал 100 элементами.
+update_tool | Обновляет статус/краткую сводку по внутреннему ID и время завершения терминального состояния.
+finish_tool | Преобразует фактический result в безопасную сводку/статус без копирования содержимого файла или результатов поиска.
+recover_tools | Восстанавливает in-flight запись из соответствующего блока tool-call/result; неопределённый Apply отмечает unknown, остальные прерванные — interrupted.
+''')
+TS_NOTES.update({
+    'apps/desktop/src/TaskProgress.tsx:TaskStage': 'UI-представление этапа: идентификатор, название, цель и статус исполнения.',
+    'apps/desktop/src/TaskProgress.tsx:ToolActivity': 'UI-проекция метаданных tool: устойчивый ID, путь, этап, статус и сводка без raw content.',
+    'apps/desktop/src/TaskProgress.tsx:TaskSnapshot': 'Тип полей checkpoint, используемых панелью плана и результатов.',
+    'apps/desktop/src/TaskProgress.tsx:TaskProgress': 'Показывает посещённые/пропущенные этапы, последние операции, изменённые файлы, остановку и кнопку resume.',
 })

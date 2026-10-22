@@ -151,6 +151,7 @@ class BridgeProcessTests(unittest.TestCase):
         recovered = self.reopen_after_kill(chat_id)
         self.assertEqual(recovered['task']['status'], 'paused')
         self.assertFalse((self.root / 'new.txt').exists())
+        self.assertEqual(recovered['task']['tool_activity'][-1]['status'], 'interrupted')
         self.assertFalse(self.call('resolve_approval', run_id=proposal['run_id'], approval_id=proposal['approval_id'], decision='apply')['ok'])
         self.assertTrue(self.call('start_task', resume=True)['ok'])
         fresh = self.until(lambda r: r.get('event') == 'approval')

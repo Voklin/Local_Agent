@@ -13,6 +13,7 @@ from agent.project_memory import load_project_memory
 from agent.task_store import clear_task, load_task, save_task
 from agent.model_preferences import load_preferences, save_preferences
 from agent.model_discovery import discover_models
+from agent.task_activity import recover_tools
 
 
 class TaskService:
@@ -145,6 +146,8 @@ class TaskService:
             dirty = True
         if task and task.get('recovery_warning'):
             warnings.append(task['recovery_warning'])
+        if task and recover_tools(task, self.chat['messages']):
+            dirty = True
         if task:
             self.chat['task_checkpoint'] = deepcopy(task)
         if dirty:
@@ -347,11 +350,12 @@ class TaskService:
                 self.approval = None
                 try:
                     task = self.engine.task_snapshot()
+                    activity_changed = recover_tools(task, self.chat['messages']) if task else False
                     if task and task.get('status') == 'running':
                         task['status'] = 'paused'
                         task['last_event'] = 'Исполнение прервано; проверьте сообщения об ошибках и продолжите задачу'
                     saved_status = (self.chat.get('task_checkpoint') or {}).get('status')
-                    if task and saved_status != task.get('status'):
+                    if task and (saved_status != task.get('status') or activity_changed):
                         self._task_event(task)
                 except Exception as exc:
                     self._event('failed', text=f'Не удалось сохранить состояние задачи: {type(exc).__name__}: {exc}')

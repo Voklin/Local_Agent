@@ -10,6 +10,7 @@ from .project_memory import format_memory_context, merge_memory_update, save_pro
 from .task_store import new_task, save_task, set_stage, finish_task, load_task
 from .runtime import AgentRuntime
 from .model_client import ModelClient
+from .task_activity import begin_tool, update_tool, finish_tool, recover_tools
 
 SYSTEM_PROMPT = """Ты локальный помощник по программированию. Отвечай по-русски, если пользователь пишет по-русски.
 Для фактов о проекте используй инструменты, а не угадывай. Доступны только файлы внутри выбранной пользователем корневой директории.
@@ -321,6 +322,7 @@ class AgentEngine:
                     break
 
                 messages.append({"role": "assistant", "content": content or None, "tool_calls": tool_calls})
+                tool_message_index = len(messages) - 2
                 content_parts = []
                 self.conversation_updated.emit(messages[1:])
                 hit_limit = False
@@ -338,8 +340,10 @@ class AgentEngine:
                         continue
                     name = call["function"]["name"]
                     try:
-                        signature = name + ":" + json.dumps(json.loads(call["function"].get("arguments") or "{}"), sort_keys=True, ensure_ascii=False)
+                        activity_args = json.loads(call["function"].get("arguments") or "{}")
+                        signature = name + ":" + json.dumps(activity_args, sort_keys=True, ensure_ascii=False)
                     except Exception:
+                        activity_args = {}
                         signature = name + ":<invalid-args>"
                     if signature == last_tool_signature:
                         repeated_tool_signature_count += 1
@@ -349,6 +353,8 @@ class AgentEngine:
                     repeated_call_detected = repeated_tool_signature_count >= 6
                     memory_event = {"tool": name}
                     self._memory_tool_events.append(memory_event)
+                    activity_id = begin_tool(self._task, name, activity_args, call['id'], tool_message_index)
+                    self._checkpoint(None, f'Выполняется инструмент {name}')
                     if repeated_call_detected:
                         # Return a tool result for the outstanding call so the transcript remains
                         # structurally valid for OpenAI-compatible servers.
@@ -379,14 +385,16 @@ class AgentEngine:
                                 else:
                                     if self._task:
                                         self._task['pending_write'] = {'path': preview['path'], 'call_id': call['id'],
-                                                                      'message_index': len(messages) - 2,
+                                                                      'message_index': tool_message_index,
                                                                       'status': 'awaiting_approval', 'snapshot': preview['snapshot']}
+                                        update_tool(self._task, activity_id, 'awaiting_approval', 'Ожидается решение по diff')
                                         self._checkpoint(None, 'Ожидается подтверждение записи ' + preview['path'])
                                     self._emit_change(preview["path"], preview["diff"], preview["exists"], "pending")
                                     decision = self._ask_write_approval(preview["path"], preview["diff"], preview["exists"])
                                     if decision == "apply":
                                         if self._task:
                                             self._task['pending_write']['status'] = 'applying'
+                                            update_tool(self._task, activity_id, 'applying', 'Записывается подтверждённое изменение')
                                             self._checkpoint(None, 'Применяется запись ' + preview['path'])
                                         result = execute_tool(name, args, self.project_root, self.settings,
                                                               approved=True, expected_snapshot=preview['snapshot'])
@@ -416,6 +424,7 @@ class AgentEngine:
                     messages.append({"role": "tool", "tool_call_id": call["id"], "content": pretty})
                     self.conversation_updated.emit(messages[1:])
                     if self._task:
+                        finish_tool(self._task, activity_id, name, result)
                         self._task['pending_write'] = None
                         self._checkpoint(None, f'Выполнено вызовов инструментов: {tool_calls_count}')
                     if repeated_call_detected:
@@ -497,6 +506,7 @@ class AgentEngine:
                 stop_reason = "Остановлено пользователем."
             if self._task:
                 if stop_reason:
+                    recover_tools(self._task, messages[1:])
                     self._task['status'] = 'paused'
                     self._task['stop_reason'] = stop_reason
                     self._checkpoint(None, stop_reason)
@@ -512,6 +522,8 @@ class AgentEngine:
                 messages.append({'role': 'assistant', 'content': partial})
             if messages:
                 self.conversation_updated.emit(messages[1:])
+            if self._task:
+                recover_tools(self._task, messages[1:])
             if self.isInterruptionRequested():
                 if self._task:
                     self._task['status'] = 'paused'

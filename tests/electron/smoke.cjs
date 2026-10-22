@@ -98,6 +98,8 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `!document.querySelector('[title="Отправить"]').disabled`);
       await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
       await poll(win, `!!document.querySelector('[role="dialog"]')`);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-tools [data-status="awaiting_approval"]').textContent.includes('smoke.txt')`), true);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-stages [aria-current="step"]').textContent.includes('Реализация')`), true);
       assert.equal(fs.existsSync(path.join(project, 'smoke.txt')), false);
       assert.ok(await win.webContents.executeJavaScript(`document.querySelector('[role="dialog"] pre').textContent.includes('+verified')`));
       await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
@@ -111,6 +113,12 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.message-content')).filter(m => m.textContent === 'Smoke completed').length`), 1);
       assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.streaming-caret')`), false);
       assert.equal(fs.readFileSync(path.join(project, 'smoke.txt'), 'utf8'), 'verified');
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-tools [data-status="succeeded"]').textContent.includes('Файл записан')`), true);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-stages [data-status="skipped"]').textContent.includes('Исследование')`), true);
+      await win.webContents.executeJavaScript(`document.querySelector('[title="History"]').click()`);
+      await poll(win, `Array.from(document.querySelectorAll('.sidebar .file-row')).some(b => b.textContent === 'hello')`);
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.sidebar .file-row')).find(b => b.textContent === 'hello').click()`);
+      await poll(win, `!!document.querySelector('.task-tools [data-status="succeeded"]') && document.querySelector('.task-files').textContent.includes('smoke.txt')`);
       await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       fs.writeFileSync(path.join(testRoot, 'completed.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
       const corruptChat = path.join(testRoot, 'LocalCodingAgent/chats', '0'.repeat(32) + '.json');
@@ -132,6 +140,7 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript(`document.querySelector('.approval-actions .primary-button').click()`);
       await poll(win, `!document.querySelector('[title="Остановить"]') && document.querySelector('.chat-messages').textContent.includes('запросите новый diff')`);
       assert.equal(fs.readFileSync(path.join(project, 'conflict.txt'), 'utf8'), 'external edit');
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-tools [data-status="failed"]').textContent.includes('изменились')`), true);
       const saved = JSON.parse(fs.readFileSync(path.join(testRoot, 'LocalCodingAgent/model-preferences.json'), 'utf8'));
       assert.deepEqual(saved, {base_url:url, model:'smoke-model'});
       assert.equal(JSON.stringify(saved).includes('test-secret'), false);
