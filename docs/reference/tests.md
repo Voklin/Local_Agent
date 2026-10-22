@@ -181,7 +181,7 @@ def start_crash_scenario(self, handler, mode=None)
 
 ### `BridgeProcessTests.reopen_after_kill`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L93)
+[Исходник](../../tests/migration/test_bridge_process.py#L94)
 
 ```python
 def reopen_after_kill(self, chat_id)
@@ -191,7 +191,7 @@ def reopen_after_kill(self, chat_id)
 
 ### `BridgeProcessTests.test_process_kill_before_headers_recovers_user_request_and_paused_task`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L103)
+[Исходник](../../tests/migration/test_bridge_process.py#L104)
 
 ```python
 def test_process_kill_before_headers_recovers_user_request_and_paused_task(self)
@@ -201,7 +201,7 @@ def test_process_kill_before_headers_recovers_user_request_and_paused_task(self)
 
 ### `BridgeProcessTests.test_approved_write_and_preferences_survive_process_restart`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L110)
+[Исходник](../../tests/migration/test_bridge_process.py#L111)
 
 ```python
 def test_approved_write_and_preferences_survive_process_restart(self)
@@ -211,7 +211,7 @@ def test_approved_write_and_preferences_survive_process_restart(self)
 
 ### `BridgeProcessTests.test_process_kill_during_stream_recovers_partial_once`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L124)
+[Исходник](../../tests/migration/test_bridge_process.py#L125)
 
 ```python
 def test_process_kill_during_stream_recovers_partial_once(self)
@@ -221,7 +221,7 @@ def test_process_kill_during_stream_recovers_partial_once(self)
 
 ### `BridgeProcessTests.test_process_kill_during_approval_never_replays_permission`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L134)
+[Исходник](../../tests/migration/test_bridge_process.py#L148)
 
 ```python
 def test_process_kill_during_approval_never_replays_permission(self)
@@ -231,7 +231,7 @@ def test_process_kill_during_approval_never_replays_permission(self)
 
 ### `BridgeProcessTests.start_discovery_server`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L149)
+[Исходник](../../tests/migration/test_bridge_process.py#L163)
 
 ```python
 def start_discovery_server(self, mode)
@@ -241,7 +241,7 @@ def start_discovery_server(self, mode)
 
 ### `BridgeProcessTests.test_bridge_models_discovery_keeps_commands_responsive_and_pins_config`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L164)
+[Исходник](../../tests/migration/test_bridge_process.py#L178)
 
 ```python
 def test_bridge_models_discovery_keeps_commands_responsive_and_pins_config(self)
@@ -251,7 +251,7 @@ def test_bridge_models_discovery_keeps_commands_responsive_and_pins_config(self)
 
 ### `BridgeProcessTests.test_bridge_cancel_closes_discovery_socket`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L174)
+[Исходник](../../tests/migration/test_bridge_process.py#L188)
 
 ```python
 def test_bridge_cancel_closes_discovery_socket(self)
@@ -261,7 +261,7 @@ def test_bridge_cancel_closes_discovery_socket(self)
 
 ### `BridgeProcessTests.until`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L182)
+[Исходник](../../tests/migration/test_bridge_process.py#L196)
 
 ```python
 def until(self, predicate)
@@ -271,7 +271,7 @@ def until(self, predicate)
 
 ### `BridgeProcessTests.call`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L193)
+[Исходник](../../tests/migration/test_bridge_process.py#L207)
 
 ```python
 def call(self, method, **params)
@@ -281,7 +281,7 @@ def call(self, method, **params)
 
 ### `BridgeProcessTests.test_malformed_input_does_not_reuse_previous_request_id`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L200)
+[Исходник](../../tests/migration/test_bridge_process.py#L214)
 
 ```python
 def test_malformed_input_does_not_reuse_previous_request_id(self)
@@ -291,7 +291,7 @@ def test_malformed_input_does_not_reuse_previous_request_id(self)
 
 ### `BridgeProcessTests.test_bridge_remains_responsive_during_write_approval`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L209)
+[Исходник](../../tests/migration/test_bridge_process.py#L223)
 
 ```python
 def test_bridge_remains_responsive_during_write_approval(self)

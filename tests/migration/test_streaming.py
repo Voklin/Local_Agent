@@ -27,7 +27,7 @@ class SlowHandler(BaseHTTPRequestHandler):
 
     def wait_for_disconnect(self):
         self.server.waiting.set()
-        self.connection.settimeout(5)
+        self.connection.settimeout(getattr(self.server, 'disconnect_timeout', 5))
         try:
             if self.connection.recv(1) == b'':
                 self.server.disconnected.set()

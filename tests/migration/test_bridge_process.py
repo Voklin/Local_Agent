@@ -85,6 +85,7 @@ class BridgeProcessTests(unittest.TestCase):
         server.waiting = threading.Event()
         server.disconnected = threading.Event()
         server.release = threading.Event()
+        server.disconnect_timeout = 20
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.assertTrue(self.call('set_project', root=str(self.root))['ok'])
         self.assertTrue(self.call('configure_model', base_url=f'http://127.0.0.1:{server.server_port}/v1', model='test-model')['ok'])
@@ -102,7 +103,7 @@ class BridgeProcessTests(unittest.TestCase):
 
     def test_process_kill_before_headers_recovers_user_request_and_paused_task(self):
         chat_id = self.start_crash_scenario(SlowHandler, 'before_headers')
-        self.assertTrue(self.scenario_server.waiting.wait(3))
+        self.assertTrue(self.scenario_server.waiting.wait(10))
         recovered = self.reopen_after_kill(chat_id)
         self.assertEqual(recovered['task']['status'], 'paused')
         self.assertEqual(recovered['chat']['messages'], [{'role': 'user', 'content': 'hello'}])
@@ -123,8 +124,21 @@ class BridgeProcessTests(unittest.TestCase):
 
     def test_process_kill_during_stream_recovers_partial_once(self):
         chat_id = self.start_crash_scenario(SlowHandler, 'crash_stream')
-        self.until(lambda r: r.get('event') == 'text_delta')
-        time.sleep(1.2)  # The final fragment must be saved even while the server is idle.
+        expected = 'Начало потока '
+        received = ''
+        while received != expected:
+            received += self.until(lambda r: r.get('event') == 'text_delta')['text']
+            self.assertTrue(expected.startswith(received))
+        # Wait for persistence, not an assumed scheduler/fsync duration. The
+        # fixture sends no further tokens; the expected draft must reach disk before kill.
+        archive = Path(self.temp.name) / 'LocalCodingAgent/chats' / (chat_id + '.json')
+        deadline = time.monotonic() + 10
+        while True:
+            saved = json.loads(archive.read_text(encoding='utf-8'))
+            if saved.get('stream_draft', {}).get('text') == expected:
+                break
+            self.assertLess(time.monotonic(), deadline, 'Periodic stream draft was not saved while the server was idle')
+            time.sleep(0.05)
         recovered = self.reopen_after_kill(chat_id)
         self.assertEqual(recovered['task']['status'], 'paused')
         self.assertEqual([m['content'] for m in recovered['chat']['messages'] if m.get('role') == 'assistant'], ['Начало потока '])
