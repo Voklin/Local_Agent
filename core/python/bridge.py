@@ -101,7 +101,11 @@ def main() -> None:
             if not isinstance(req, dict) or not isinstance(req.get('params', {}), dict):
                 raise ValueError('Ожидается JSON-объект запроса и параметров')
             req_id = req.get('id')
-            result = handle(str(req.get('method', '')), req.get('params') or {})
+            method = str(req.get('method', ''))
+            if method == 'list_models':
+                tasks.start_model_discovery(lambda result, request_id=req_id: emit({'id': request_id, **result}))
+                continue
+            result = handle(method, req.get('params') or {})
             response = {'id': req_id, **result}
         except Exception as exc:
             response = {'id': req_id, 'ok': False, 'error': str(exc)[:500]}

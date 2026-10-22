@@ -10,6 +10,7 @@
 
 - [tests/migration/test_bridge.py](#module-tests-migration-test-bridge-py)
 - [tests/migration/test_bridge_process.py](#module-tests-migration-test-bridge-process-py)
+- [tests/migration/test_model_discovery.py](#module-tests-migration-test-model-discovery-py)
 - [tests/migration/test_streaming.py](#module-tests-migration-test-streaming-py)
 - [tests/migration/test_task_service.py](#module-tests-migration-test-task-service-py)
 - [tests/test_approval_flow.py](#module-tests-test-approval-flow-py)
@@ -110,7 +111,7 @@ def test_write_is_not_exposed(self)
 
 ### `BridgeProcessTests`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L17)
+[Исходник](../../tests/migration/test_bridge_process.py#L19)
 
 ```python
 class BridgeProcessTests(unittest.TestCase)
@@ -120,7 +121,7 @@ class BridgeProcessTests(unittest.TestCase)
 
 ### `BridgeProcessTests.setUp`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L18)
+[Исходник](../../tests/migration/test_bridge_process.py#L20)
 
 ```python
 def setUp(self)
@@ -130,7 +131,7 @@ def setUp(self)
 
 ### `BridgeProcessTests.read_output`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L31)
+[Исходник](../../tests/migration/test_bridge_process.py#L34)
 
 ```python
 def read_output(self)
@@ -140,7 +141,7 @@ def read_output(self)
 
 ### `BridgeProcessTests.tearDown`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L38)
+[Исходник](../../tests/migration/test_bridge_process.py#L41)
 
 ```python
 def tearDown(self)
@@ -148,9 +149,39 @@ def tearDown(self)
 
 Закрывает ресурсы и удаляет временные данные после теста.
 
+### `BridgeProcessTests.start_discovery_server`
+
+[Исходник](../../tests/migration/test_bridge_process.py#L57)
+
+```python
+def start_discovery_server(self, mode)
+```
+
+Запускает управляемую HTTP-фикстуру и отправляет discovery в реальный bridge subprocess.
+
+### `BridgeProcessTests.test_bridge_models_discovery_keeps_commands_responsive_and_pins_config`
+
+[Исходник](../../tests/migration/test_bridge_process.py#L72)
+
+```python
+def test_bridge_models_discovery_keeps_commands_responsive_and_pins_config(self)
+```
+
+Проверка: JSON-lines отвечает на health/новые команды во время discovery, ограничивает worker и сохраняет снимок настроек.
+
+### `BridgeProcessTests.test_bridge_cancel_closes_discovery_socket`
+
+[Исходник](../../tests/migration/test_bridge_process.py#L82)
+
+```python
+def test_bridge_cancel_closes_discovery_socket(self)
+```
+
+Проверка: cancel_task отвечает без ожидания discovery и закрывает его HTTP-сокет.
+
 ### `BridgeProcessTests.until`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L50)
+[Исходник](../../tests/migration/test_bridge_process.py#L90)
 
 ```python
 def until(self, predicate)
@@ -160,7 +191,7 @@ def until(self, predicate)
 
 ### `BridgeProcessTests.call`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L61)
+[Исходник](../../tests/migration/test_bridge_process.py#L101)
 
 ```python
 def call(self, method, **params)
@@ -170,7 +201,7 @@ def call(self, method, **params)
 
 ### `BridgeProcessTests.test_malformed_input_does_not_reuse_previous_request_id`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L68)
+[Исходник](../../tests/migration/test_bridge_process.py#L108)
 
 ```python
 def test_malformed_input_does_not_reuse_previous_request_id(self)
@@ -180,13 +211,129 @@ def test_malformed_input_does_not_reuse_previous_request_id(self)
 
 ### `BridgeProcessTests.test_bridge_remains_responsive_during_write_approval`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L77)
+[Исходник](../../tests/migration/test_bridge_process.py#L117)
 
 ```python
 def test_bridge_remains_responsive_during_write_approval(self)
 ```
 
 Проверка: Реальный Core отвечает на health/cancel, пока engine ждёт согласия.
+
+<a id="module-tests-migration-test-model-discovery-py"></a>
+
+## `tests/migration/test_model_discovery.py`
+
+HTTP-фикстура discovery: валидация ответа, медленный поток, общий deadline и отмена сокета.
+
+### `DiscoveryHandler`
+
+[Исходник](../../tests/migration/test_model_discovery.py#L13)
+
+```python
+class DiscoveryHandler(BaseHTTPRequestHandler)
+```
+
+Тестовый класс/фикстура: HTTP-фикстура discovery: валидация ответа, медленный поток, общий deadline и отмена сокета.
+
+### `DiscoveryHandler.log_message`
+
+[Исходник](../../tests/migration/test_model_discovery.py#L14)
+
+```python
+def log_message(self, *_args)
+```
+
+Отключает стандартный HTTP-log тестовой фикстуры.
+
+### `DiscoveryHandler.do_GET`
+
+[Исходник](../../tests/migration/test_model_discovery.py#L17)
+
+```python
+def do_GET(self)
+```
+
+Отдаёт детерминированный список моделей тестового HTTP-сервера.
+
+### `ModelDiscoveryTests`
+
+[Исходник](../../tests/migration/test_model_discovery.py#L51)
+
+```python
+class ModelDiscoveryTests(unittest.TestCase)
+```
+
+Тестовый класс/фикстура: HTTP-фикстура discovery: валидация ответа, медленный поток, общий deadline и отмена сокета.
+
+### `ModelDiscoveryTests.setUp`
+
+[Исходник](../../tests/migration/test_model_discovery.py#L52)
+
+```python
+def setUp(self)
+```
+
+Создаёт изолированные данные и подмены перед каждым тестом этого класса.
+
+### `ModelDiscoveryTests.tearDown`
+
+[Исходник](../../tests/migration/test_model_discovery.py#L62)
+
+```python
+def tearDown(self)
+```
+
+Закрывает ресурсы и удаляет временные данные после теста.
+
+### `ModelDiscoveryTests.test_valid_discovery_filters_invalid_ids`
+
+[Исходник](../../tests/migration/test_model_discovery.py#L68)
+
+```python
+def test_valid_discovery_filters_invalid_ids(self)
+```
+
+Проверка: Валидный список моделей возвращается без неправильных/пустых ID.
+
+### `ModelDiscoveryTests.test_invalid_json_shape_status_and_size_are_rejected`
+
+[Исходник](../../tests/migration/test_model_discovery.py#L71)
+
+```python
+def test_invalid_json_shape_status_and_size_are_rejected(self)
+```
+
+Проверка: Ошибочные JSON, data, HTTP status и превышение размера дают отказ.
+
+### `ModelDiscoveryTests.test_total_deadline_stops_slow_trickle`
+
+[Исходник](../../tests/migration/test_model_discovery.py#L78)
+
+```python
+def test_total_deadline_stops_slow_trickle(self)
+```
+
+Проверка: Общий deadline закрывает медленно поступающий HTTP body, даже если отдельные чтения не зависли.
+
+### `ModelDiscoveryTests.test_cancellation_closes_stalled_socket`
+
+[Исходник](../../tests/migration/test_model_discovery.py#L86)
+
+```python
+def test_cancellation_closes_stalled_socket(self)
+```
+
+Проверка: Отмена discovery закрывает реальное зависшее HTTP-соединение.
+
+### `ModelDiscoveryTests.test_cancellation_closes_stalled_socket.run`
+
+[Исходник](../../tests/migration/test_model_discovery.py#L90)
+
+```python
+def run()
+```
+
+В тесте запускает сетевой вызов в отдельном потоке и передаёт результат/ошибку в очередь.
 
 <a id="module-tests-migration-test-streaming-py"></a>
 

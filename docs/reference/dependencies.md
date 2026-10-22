@@ -33,6 +33,7 @@
 ```text
 # The Electron Python Core does not require Qt.
 openai>=1.68.0,<4
+httpx>=0.27,<1
 ```
 
 ### `requirements.txt`

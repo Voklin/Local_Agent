@@ -16,6 +16,7 @@
 - [agent/engine.py](#module-agent-engine-py)
 - [agent/mcp.py](#module-agent-mcp-py)
 - [agent/model_client.py](#module-agent-model-client-py)
+- [agent/model_discovery.py](#module-agent-model-discovery-py)
 - [agent/model_gateway.py](#module-agent-model-gateway-py)
 - [agent/model_manager.py](#module-agent-model-manager-py)
 - [agent/model_preferences.py](#module-agent-model-preferences-py)
@@ -737,6 +738,52 @@ async def shutdown()
 ```
 
 Async-фаза закрытия: cancel/gather задач и client.close внутри принадлежащего loop.
+
+<a id="module-agent-model-discovery-py"></a>
+
+## `agent/model_discovery.py`
+
+HTTPX-получение списка моделей с общим deadline, ограничением ответа и отменой сокета.
+
+### `_request_models`
+
+[Исходник](../../agent/model_discovery.py#L10)
+
+```python
+async def _request_models(config, max_bytes)
+```
+
+Читает HTTPX stream с ограничением размера и проверяет JSON data/models ID.
+
+### `_wait_cancelled`
+
+[Исходник](../../agent/model_discovery.py#L31)
+
+```python
+async def _wait_cancelled(cancelled)
+```
+
+Наблюдает threading.Event через короткие asyncio sleep без блокировки event loop.
+
+### `_discover`
+
+[Исходник](../../agent/model_discovery.py#L37)
+
+```python
+async def _discover(config, timeout, max_bytes, cancelled)
+```
+
+Соревнуется запросом, отменой и общим timeout; всегда отменяет и закрывает незавершённые задачи.
+
+### `discover_models`
+
+[Исходник](../../agent/model_discovery.py#L55)
+
+```python
+def discover_models(config, *, timeout=5.0, max_bytes=1000000, cancelled=None)
+```
+
+Синхронная точка входа фонового worker, запускающая отдельный asyncio loop.
 
 <a id="module-agent-model-gateway-py"></a>
 
@@ -2252,7 +2299,7 @@ def main() -> None
 
 ### `TaskService`
 
-[Исходник](../../core/python/task_service.py#L17)
+[Исходник](../../core/python/task_service.py#L16)
 
 ```python
 class TaskService
@@ -2262,7 +2309,7 @@ class TaskService
 
 ### `TaskService.__init__`
 
-[Исходник](../../core/python/task_service.py#L18)
+[Исходник](../../core/python/task_service.py#L17)
 
 ```python
 def __init__(self, emit, engine_factory=AgentEngine)
@@ -2272,7 +2319,7 @@ def __init__(self, emit, engine_factory=AgentEngine)
 
 ### `TaskService.idle`
 
-[Исходник](../../core/python/task_service.py#L33)
+[Исходник](../../core/python/task_service.py#L34)
 
 ```python
 def idle(self)
@@ -2282,7 +2329,7 @@ def idle(self)
 
 ### `TaskService.configure`
 
-[Исходник](../../core/python/task_service.py#L37)
+[Исходник](../../core/python/task_service.py#L38)
 
 ```python
 def configure(self, params)
@@ -2292,7 +2339,7 @@ def configure(self, params)
 
 ### `TaskService.preferences`
 
-[Исходник](../../core/python/task_service.py#L45)
+[Исходник](../../core/python/task_service.py#L46)
 
 ```python
 def preferences(self)
@@ -2302,17 +2349,37 @@ def preferences(self)
 
 ### `TaskService.models`
 
-[Исходник](../../core/python/task_service.py#L48)
+[Исходник](../../core/python/task_service.py#L49)
 
 ```python
-def models(self)
+def models(self, config=None, cancelled=None)
 ```
 
-Запрашивает /models через urllib с timeout/лимитом ответа и возвращает ID.
+Вызывает ограниченное отменяемое HTTPX-обнаружение моделей для копии настроек.
+
+### `TaskService.start_model_discovery`
+
+[Исходник](../../core/python/task_service.py#L52)
+
+```python
+def start_model_discovery(self, respond)
+```
+
+Фиксирует копию настроек и запускает не больше одного discovery-потока, возвращающего ответ по исходному request ID.
+
+### `TaskService.start_model_discovery.run_discovery`
+
+[Исходник](../../core/python/task_service.py#L59)
+
+```python
+def run_discovery()
+```
+
+Получает список моделей или структурированную ошибку и вызывает callback ответа.
 
 ### `TaskService.chats`
 
-[Исходник](../../core/python/task_service.py#L59)
+[Исходник](../../core/python/task_service.py#L69)
 
 ```python
 def chats(self, root)
@@ -2322,7 +2389,7 @@ def chats(self, root)
 
 ### `TaskService.select_chat`
 
-[Исходник](../../core/python/task_service.py#L62)
+[Исходник](../../core/python/task_service.py#L72)
 
 ```python
 def select_chat(self, root, chat_id=None)
@@ -2332,7 +2399,7 @@ def select_chat(self, root, chat_id=None)
 
 ### `TaskService._event`
 
-[Исходник](../../core/python/task_service.py#L80)
+[Исходник](../../core/python/task_service.py#L90)
 
 ```python
 def _event(self, kind, **data)
@@ -2342,7 +2409,7 @@ def _event(self, kind, **data)
 
 ### `TaskService._flush_text`
 
-[Исходник](../../core/python/task_service.py#L83)
+[Исходник](../../core/python/task_service.py#L93)
 
 ```python
 def _flush_text(self)
@@ -2352,7 +2419,7 @@ def _flush_text(self)
 
 ### `TaskService._flush_scheduled`
 
-[Исходник](../../core/python/task_service.py#L92)
+[Исходник](../../core/python/task_service.py#L102)
 
 ```python
 def _flush_scheduled(self, run_id)
@@ -2362,7 +2429,7 @@ def _flush_scheduled(self, run_id)
 
 ### `TaskService._text_delta`
 
-[Исходник](../../core/python/task_service.py#L97)
+[Исходник](../../core/python/task_service.py#L107)
 
 ```python
 def _text_delta(self, turn, text)
@@ -2372,7 +2439,7 @@ def _text_delta(self, turn, text)
 
 ### `TaskService._chat_event`
 
-[Исходник](../../core/python/task_service.py#L111)
+[Исходник](../../core/python/task_service.py#L121)
 
 ```python
 def _chat_event(self, role, text)
@@ -2382,7 +2449,7 @@ def _chat_event(self, role, text)
 
 ### `TaskService._request_approval`
 
-[Исходник](../../core/python/task_service.py#L119)
+[Исходник](../../core/python/task_service.py#L129)
 
 ```python
 def _request_approval(self, path, diff, exists)
@@ -2392,7 +2459,7 @@ def _request_approval(self, path, diff, exists)
 
 ### `TaskService.resolve_approval`
 
-[Исходник](../../core/python/task_service.py#L127)
+[Исходник](../../core/python/task_service.py#L137)
 
 ```python
 def resolve_approval(self, params)
@@ -2402,17 +2469,17 @@ def resolve_approval(self, params)
 
 ### `TaskService.cancel`
 
-[Исходник](../../core/python/task_service.py#L138)
+[Исходник](../../core/python/task_service.py#L148)
 
 ```python
 def cancel(self)
 ```
 
-Запрашивает отмену сетевого исполнения и незавершённого approval.
+Отменяет исполнение задачи, ожидающее approval и фоновое обнаружение моделей.
 
 ### `TaskService.start`
 
-[Исходник](../../core/python/task_service.py#L146)
+[Исходник](../../core/python/task_service.py#L157)
 
 ```python
 def start(self, root: Path, params)
@@ -2422,7 +2489,7 @@ def start(self, root: Path, params)
 
 ### `TaskService._save_messages`
 
-[Исходник](../../core/python/task_service.py#L190)
+[Исходник](../../core/python/task_service.py#L201)
 
 ```python
 def _save_messages(self, messages)
@@ -2432,7 +2499,7 @@ def _save_messages(self, messages)
 
 ### `TaskService._run`
 
-[Исходник](../../core/python/task_service.py#L194)
+[Исходник](../../core/python/task_service.py#L205)
 
 ```python
 def _run(self)
@@ -2442,13 +2509,13 @@ def _run(self)
 
 ### `TaskService.shutdown`
 
-[Исходник](../../core/python/task_service.py#L205)
+[Исходник](../../core/python/task_service.py#L216)
 
 ```python
 def shutdown(self)
 ```
 
-Запрашивает отмену и ограниченно ждёт поток при завершении моста.
+Отменяет операции и ограниченно ждёт потоки задачи и model discovery при EOF.
 
 <a id="module-main-py"></a>
 
@@ -2492,7 +2559,7 @@ def main()
 
 ### `register`
 
-[Исходник](../../tools/doc_notes.py#L97)
+[Исходник](../../tools/doc_notes.py#L99)
 
 ```python
 def register(module, text)

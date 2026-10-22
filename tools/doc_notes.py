@@ -1,6 +1,8 @@
 """Ручные объяснения для генерируемого справочника; код здесь не запускает агента."""
 
 FILE_NOTES = {
+    'agent/model_discovery.py': 'HTTPX-получение списка моделей с общим deadline, ограничением ответа и отменой сокета.',
+    'tests/migration/test_model_discovery.py': 'HTTP-фикстура discovery: валидация ответа, медленный поток, общий deadline и отмена сокета.',
     'main.py': 'Точка входа сохранённого PySide6 GUI: QApplication, MainWindow, Qt event loop.',
     'VERSION': 'Исторический маркер 5.8.0; не является единственным источником версии нового Electron-приложения.',
     'README.md': 'Краткий вход в проект, запуск и ссылка на учебное руководство.',
@@ -8,7 +10,7 @@ FILE_NOTES = {
     'MIGRATION_PLAN.md': 'Выполненные границы миграции и оставшиеся этапы.',
     'package.json': 'Корневой npm workspace и делегирование dev/build/typecheck.',
     'package-lock.json': 'Зафиксированное дерево npm-зависимостей; редактируется npm, а не вручную.',
-    'requirements-core.txt': 'Диапазон OpenAI SDK для ядра без Qt.',
+    'requirements-core.txt': 'Диапазоны OpenAI SDK и отдельного HTTPX model discovery для ядра без Qt.',
     'requirements.txt': 'Полное Python-окружение с PySide6 и сохранённой зависимостью python-dotenv.',
     'run.bat': 'Старый запуск Qt с установкой зависимостей; содержит оставшуюся ссылку на отсутствующий .env.example.',
     'run-desktop.bat': 'Запуск npm dev; выбирает .venv Python, если LCA_PYTHON не задан.',
@@ -287,11 +289,13 @@ handle | Whitelist диспетчер RPC: состояние, проект, м�
 main | Цикл stdin JSON-lines с ID ответов, обработкой некорректного ввода и shutdown при EOF.
 ''')
 register('core/python/task_service.py', '''
+TaskService.start_model_discovery | Фиксирует копию настроек и запускает не больше одного discovery-потока, возвращающего ответ по исходному request ID.
+TaskService.start_model_discovery.run_discovery | Получает список моделей или структурированную ошибку и вызывает callback ответа.
 TaskService | Сервис одного Core-процесса: конфигурация, чат, активный run, поток и события UI.
 TaskService.idle | Отказывает операции, когда поток текущей задачи ещё жив.
 TaskService.configure | Сохраняет whitelist preferences и держит API-ключ только в памяти конфигурации.
 TaskService.preferences | Возвращает URL и модель без ключа.
-TaskService.models | Запрашивает /models через urllib с timeout/лимитом ответа и возвращает ID.
+TaskService.models | Вызывает ограниченное отменяемое HTTPX-обнаружение моделей для копии настроек.
 TaskService.chats | Фильтрует индекс чатов по точной строке выбранного корня.
 TaskService.select_chat | Создаёт/загружает чат после проверки ID и проекта; running после перезапуска переводит в paused.
 TaskService._event | Добавляет общие run_id/chat_id к событию и передаёт emit.
@@ -301,11 +305,11 @@ TaskService._text_delta | Собирает текст под RLock и орган
 TaskService._chat_event | Допечатывает буфер и публикует полное сообщение с тем же ID, согласованно с таймером.
 TaskService._request_approval | Создаёт UUID предложения или немедленно отменяет его, если двигатель уже остановлен.
 TaskService.resolve_approval | Проверяет актуальные run/proposal ID и разрешённое решение, затем освобождает engine wait.
-TaskService.cancel | Запрашивает отмену сетевого исполнения и незавершённого approval.
+TaskService.cancel | Отменяет исполнение задачи, ожидающее approval и фоновое обнаружение моделей.
 TaskService.start | Проверяет задачу, готовит историю/память, подписывает события и запускает agent-task.
 TaskService._save_messages | Заменяет messages выбранного чата списком движка и сохраняет JSON.
 TaskService._run | Обёртка исполнения с failed и обязательным task_end/flush в finally.
-TaskService.shutdown | Запрашивает отмену и ограниченно ждёт поток при завершении моста.
+TaskService.shutdown | Отменяет операции и ограниченно ждёт потоки задачи и model discovery при EOF.
 ''')
 register('agent/ui.py', '''
 ApprovalDialog | Qt-диалог readonly diff с Apply/Reject/Cancel.
@@ -358,6 +362,12 @@ Main.mcp_connect.bad | Показывает ошибку эксперимент�
 ''')
 
 TEST_PURPOSES = {
+    'valid_discovery_filters_invalid_ids': 'Валидный список моделей возвращается без неправильных/пустых ID.',
+    'invalid_json_shape_status_and_size_are_rejected': 'Ошибочные JSON, data, HTTP status и превышение размера дают отказ.',
+    'total_deadline_stops_slow_trickle': 'Общий deadline закрывает медленно поступающий HTTP body, даже если отдельные чтения не зависли.',
+    'cancellation_closes_stalled_socket': 'Отмена discovery закрывает реальное зависшее HTTP-соединение.',
+    'bridge_models_discovery_keeps_commands_responsive_and_pins_config': 'JSON-lines отвечает на health/новые команды во время discovery, ограничивает worker и сохраняет снимок настроек.',
+    'bridge_cancel_closes_discovery_socket': 'cancel_task отвечает без ожидания discovery и закрывает его HTTP-сокет.',
     'snapshot_is_required_and_model_cannot_supply_it': 'Модельные аргументы не могут подменить обязательный снимок подтверждения.',
     'external_edit_after_preview_is_not_overwritten': 'Изменённый после diff файл не перезаписывается.',
     'deleted_existing_file_requires_new_approval': 'Удаление существующего файла после preview требует нового согласия.',
@@ -442,6 +452,8 @@ TEST_PURPOSES = {
 }
 
 TEST_HELPERS = {
+    'start_discovery_server': 'Запускает управляемую HTTP-фикстуру и отправляет discovery в реальный bridge subprocess.',
+    'run': 'В тесте запускает сетевой вызов в отдельном потоке и передаёт результат/ошибку в очередь.',
     'late_create': 'Имитирует создание внешнего файла непосредственно перед атомарным созданием агентом.',
     'setUp': 'Создаёт изолированные данные и подмены перед каждым тестом этого класса.',
     'tearDown': 'Закрывает ресурсы и удаляет временные данные после теста.',
@@ -656,3 +668,10 @@ TS_NOTES = {
     'poll': 'В тесте ожидает DOM-условие с ограничением времени.',
     'BrowserWindow.prototype.show': 'Только в smoke-тесте подавляет показ настоящего окна пользователю.',
 }
+
+register('agent/model_discovery.py', '''
+_request_models | Читает HTTPX stream с ограничением размера и проверяет JSON data/models ID.
+_wait_cancelled | Наблюдает threading.Event через короткие asyncio sleep без блокировки event loop.
+_discover | Соревнуется запросом, отменой и общим timeout; всегда отменяет и закрывает незавершённые задачи.
+discover_models | Синхронная точка входа фонового worker, запускающая отдельный asyncio loop.
+''')

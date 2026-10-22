@@ -1,17 +1,16 @@
 """Threaded agent service. Only the main bridge thread accepts UI commands."""
 from __future__ import annotations
-import json
 import threading
 import time
 import uuid
 from pathlib import Path
-from urllib.request import Request, urlopen
 
 from agent.engine import AgentEngine
 from agent.chat_store import create_chat, list_chats, load_chat, save_chat
 from agent.project_memory import load_project_memory
 from agent.task_store import clear_task, load_task, save_task
 from agent.model_preferences import load_preferences, save_preferences
+from agent.model_discovery import discover_models
 
 
 class TaskService:
@@ -29,6 +28,8 @@ class TaskService:
         self.stream_buffer = ''
         self.last_stream_emit = 0
         self.stream_timer = None
+        self.discovery_thread = None
+        self.discovery_cancel = threading.Event()
 
     def idle(self):
         if self.thread and self.thread.is_alive():
@@ -45,16 +46,25 @@ class TaskService:
     def preferences(self):
         return {'ok': True, 'base_url': self.config['base_url'], 'model': self.config['model']}
 
-    def models(self):
-        req = Request(self.config['base_url'] + '/models', headers={
-            'Authorization': 'Bearer ' + (self.config['api_key'] or 'no-key')})
-        with urlopen(req, timeout=5) as response:
-            raw = response.read(1_000_001)
-        if len(raw) > 1_000_000:
-            raise ValueError('Слишком большой ответ списка моделей')
-        data = json.loads(raw)
-        return {'ok': True, 'models': [str(m['id'])[:300] for m in data.get('data', [])[:500]
-                                      if isinstance(m, dict) and isinstance(m.get('id'), str)]}
+    def models(self, config=None, cancelled=None):
+        return discover_models(dict(config if config is not None else self.config), cancelled=cancelled)
+
+    def start_model_discovery(self, respond):
+        with self.lock:
+            if self.discovery_thread and self.discovery_thread.is_alive():
+                raise ValueError('Загрузка списка моделей уже выполняется')
+            config = dict(self.config)
+            self.discovery_cancel = cancelled = threading.Event()
+
+            def run_discovery():
+                try:
+                    response = self.models(config, cancelled)
+                except Exception as exc:
+                    response = {'ok': False, 'error': str(exc)[:500]}
+                respond(response)
+
+            self.discovery_thread = threading.Thread(target=run_discovery, daemon=True, name='model-discovery')
+            self.discovery_thread.start()
 
     def chats(self, root):
         return {'ok': True, 'chats': [c for c in list_chats() if c.get('project_root') == str(root)]}
@@ -137,6 +147,7 @@ class TaskService:
 
     def cancel(self):
         with self.lock:
+            self.discovery_cancel.set()
             if self.engine:
                 self.engine.requestInterruption()
                 self.engine.resolve_write_approval('cancel')
@@ -206,3 +217,5 @@ class TaskService:
         self.cancel()
         if self.thread:
             self.thread.join(timeout=2)
+        if self.discovery_thread:
+            self.discovery_thread.join(timeout=1)

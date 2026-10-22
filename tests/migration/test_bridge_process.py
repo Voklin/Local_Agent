@@ -6,10 +6,12 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from test_task_service import ModelHandler
+from test_model_discovery import DiscoveryHandler
 
 BRIDGE = Path(__file__).resolve().parents[2] / 'core/python/bridge.py'
 
@@ -22,6 +24,7 @@ class BridgeProcessTests(unittest.TestCase):
         self.messages = queue.Queue()
         self.buffer = []
         self.counter = 0
+        self.discovery_server = None
         self.process = subprocess.Popen([sys.executable, '-u', str(BRIDGE)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding='utf-8', env={**os.environ, 'LOCALAPPDATA': self.temp.name, 'PYTHONIOENCODING':'utf-8'})
@@ -45,7 +48,44 @@ class BridgeProcessTests(unittest.TestCase):
         self.reader.join(2)
         self.process.stdout.close()
         self.process.stderr.close()
+        if self.discovery_server:
+            self.discovery_server.release.set()
+            self.discovery_server.shutdown()
+            self.discovery_server.server_close()
         self.temp.cleanup()
+
+    def start_discovery_server(self, mode):
+        server = self.discovery_server = ThreadingHTTPServer(('127.0.0.1', 0), DiscoveryHandler)
+        server.mode = mode
+        server.waiting = threading.Event()
+        server.release = threading.Event()
+        server.disconnected = threading.Event()
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.assertTrue(self.call('configure_model', base_url=f'http://127.0.0.1:{server.server_port}/v1', model='first')['ok'])
+        self.counter += 1
+        request_id = self.counter
+        self.process.stdin.write(json.dumps({'id': request_id, 'method': 'list_models'}) + '\n')
+        self.process.stdin.flush()
+        self.assertTrue(server.waiting.wait(3))
+        return request_id
+
+    def test_bridge_models_discovery_keeps_commands_responsive_and_pins_config(self):
+        request_id = self.start_discovery_server('hold')
+        started = time.monotonic()
+        self.assertTrue(self.call('health')['ok'])
+        self.assertLess(time.monotonic() - started, 1)
+        self.assertFalse(self.call('list_models')['ok'], 'A second discovery must not spawn another worker')
+        self.assertTrue(self.call('configure_model', base_url='http://127.0.0.1:1/v1', model='second')['ok'])
+        self.discovery_server.release.set()
+        self.assertEqual(self.until(lambda item: item.get('id') == request_id)['models'], ['original-model'])
+
+    def test_bridge_cancel_closes_discovery_socket(self):
+        request_id = self.start_discovery_server('stall')
+        self.assertTrue(self.call('cancel_task')['ok'])
+        result = self.until(lambda item: item.get('id') == request_id)
+        self.assertFalse(result['ok'])
+        self.assertIn('отменена', result['error'])
+        self.assertTrue(self.discovery_server.disconnected.wait(2))
 
     def until(self, predicate):
         for i, item in enumerate(self.buffer):
