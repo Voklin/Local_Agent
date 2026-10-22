@@ -69,11 +69,14 @@ async function run(executable, directory, first, modelUrl) {
     assert.equal(health?.service, 'python-core-bridge', stderr);
     assert.equal(await evaluate(socket, 'typeof require'), 'undefined');
     if (first) {
-      const config = { base_url: modelUrl, model: 'packaged-smoke', api_key: 'packaging-test-secret' };
+      const config = { base_url: modelUrl, model: 'packaged-smoke', api_key: 'packaging-test-secret', settings:{temperature:0.45,max_tokens:1536} };
       assert.equal((await evaluate(socket, `window.lca.configureModel(${JSON.stringify(config)})`)).ok, true);
     }
     assert.equal((await evaluate(socket, 'window.lca.getModelSettings()')).model, 'packaged-smoke');
+    assert.equal((await evaluate(socket, 'window.lca.getModelSettings()')).settings.temperature, 0.45);
+    assert.equal((await evaluate(socket, 'window.lca.getModelSettings()')).settings.max_tokens, 1536);
     assert.deepEqual((await evaluate(socket, 'window.lca.listModels()')).models, ['packaged-smoke']);
+    assert.equal((await evaluate(socket, `window.lca.testModel({base_url:${JSON.stringify(modelUrl)},model:'packaged-smoke'})`)).ok, true);
     await evaluate(socket, 'setTimeout(() => window.close(), 50); true');
     const code = await Promise.race([exited, delay(10_000).then(() => 'timeout')]);
     assert.equal(code, 0, stderr);
@@ -90,7 +93,7 @@ async function main() {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'localagent-package-'));
   const model = http.createServer((_request, response) => {
     response.writeHead(200, { 'Content-Type': 'application/json' });
-    response.end(JSON.stringify({ data: [{ id: 'packaged-smoke' }] }));
+    response.end(JSON.stringify(_request.method === 'POST' ? {choices:[{message:{content:'Probe OK'}}]} : { data: [{ id: 'packaged-smoke' }] }));
   });
   await new Promise(resolve => model.listen(0, '127.0.0.1', resolve));
   const modelUrl = `http://127.0.0.1:${model.address().port}/v1`;

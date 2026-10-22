@@ -22,6 +22,9 @@ DEFAULT_SETTINGS = {
     "max_tool_calls": 1000,
     "max_consecutive_errors": 5,
     "max_tokens": 8192,
+    "temperature": 0.2,
+    "top_p": 1.0,
+    "request_timeout": 180,
     "max_entries": 1000,
     "max_search_depth": 15,
     "max_agent_turns": 200,
@@ -193,7 +196,7 @@ class AgentEngine:
         messages = []
         content_parts = []
         try:
-            client = self._client = ModelClient(self.base_url, self.api_key, self._interrupted)
+            client = self._client = ModelClient(self.base_url, self.api_key, self._interrupted, timeout=self.settings['request_timeout'])
             system_prompt = SYSTEM_PROMPT
             if not self.allow_tools:
                 system_prompt = 'Ты полезный собеседник. Отвечай на языке пользователя. Это режим Chat: доступа к файлам, инструментам и выполнению команд нет. Не утверждай, что изучил или изменил файлы. Для работы с проектом предложи режим IDE.'
@@ -247,7 +250,8 @@ class AgentEngine:
                     messages=model_messages,
                     tools=TOOL_DEFINITIONS,
                     tool_choice="auto",
-                    temperature=0.2,
+                    temperature=self.settings["temperature"],
+                    top_p=self.settings["top_p"],
                     max_tokens=max_tokens,
                     stream=True,
                 )

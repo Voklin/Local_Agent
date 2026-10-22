@@ -12,6 +12,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from test_task_service import ModelHandler
 from test_model_discovery import DiscoveryHandler
+from test_model_probe import ProbeHandler
 from test_streaming import SlowHandler
 
 BRIDGE = Path(__file__).resolve().parents[2] / 'core/python/bridge.py'
@@ -185,6 +186,27 @@ class BridgeProcessTests(unittest.TestCase):
         self.assertTrue(self.call('configure_model', base_url='http://127.0.0.1:1/v1', model='second')['ok'])
         self.discovery_server.release.set()
         self.assertEqual(self.until(lambda item: item.get('id') == request_id)['models'], ['original-model'])
+
+    def test_draft_probe_keeps_bridge_responsive_and_can_be_cancelled(self):
+        server = self.scenario_server = ThreadingHTTPServer(('127.0.0.1',0), ProbeHandler)
+        server.mode = 'stall'
+        server.waiting = threading.Event()
+        server.release = threading.Event()
+        threading.Thread(target=server.serve_forever,daemon=True).start()
+        self.counter += 1
+        request_id = self.counter
+        draft = {'base_url':f'http://127.0.0.1:{server.server_port}/v1','model':'draft-model'}
+        self.process.stdin.write(json.dumps({'id':request_id,'method':'test_model','params':draft})+'\n')
+        self.process.stdin.flush()
+        self.assertTrue(server.waiting.wait(5))
+        started = time.monotonic()
+        self.assertTrue(self.call('health')['ok'])
+        self.assertLess(time.monotonic()-started,1)
+        self.assertTrue(self.call('cancel_model_setup')['ok'])
+        response = self.until(lambda item:item.get('id')==request_id)
+        self.assertFalse(response['ok'])
+        self.assertIn('отменена',response['error'])
+        self.assertEqual(self.call('get_model_settings')['model'],'')
 
     def test_bridge_cancel_closes_discovery_socket(self):
         request_id = self.start_discovery_server('stall')

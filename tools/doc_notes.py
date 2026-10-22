@@ -179,7 +179,7 @@ ModelClient.close | Отменяет async-задачи, закрывает SDK 
 ModelClient.close.shutdown | Async-фаза закрытия: cancel/gather задач и client.close внутри принадлежащего loop.
 ''')
 register('agent/model_preferences.py', '''
-validate_preferences | Разрешает HTTP(S) endpoint без credentials/query/fragment, проверяет порт и возвращает только URL/ID модели.
+validate_preferences | Разрешает HTTP(S) endpoint без credentials/query/fragment, проверяет порт и возвращает URL/ID и whitelist settings без ключа.
 load_preferences | Читает и проверяет JSON; при ошибке возвращает копию defaults, никогда не восстанавливает ключ.
 save_preferences | Атомарно сохраняет whitelist полей во внешний служебный JSON.
 ''')
@@ -769,3 +769,48 @@ TEST_PURPOSES.update({'chat_scope_does_not_require_selected_folder': 'Bridge в�
 
 TEST_PURPOSES['task_end_allows_immediate_configuration_before_thread_returns'] = 'Синхронный callback task_end меняет настройки, пока прежний поток ещё жив: завершённое исполнение уже idle.'
 TEST_HELPERS['observe'] = 'Перехватывает task_end, проверяет ещё живой worker и синхронно меняет настройки до возврата потока.'
+FILE_NOTES.update({
+    'agent/model_probe.py': 'Ограниченная отменяемая проверка draft-модели через Chat Completions без файлов, истории и сохранения настроек.',
+    'tests/migration/test_model_probe.py': 'Реальный HTTP-стенд проверки ответа, пустого/некорректного/слишком большого результата, deadline и отмены.',
+    'apps/desktop/src/ModelSettings.tsx': 'Модальное окно draft-настроек: endpoint, ключ, список моделей, тест ответа, генерация, лимиты, сохранение и focus trap.',
+    'agent/model_preferences.py': 'Валидация endpoint и whitelist числовых настроек, миграция старого JSON и атомарное сохранение без API-ключа.',
+})
+register('agent/model_preferences.py', '''
+validate_settings | Проверяет конечность, тип, целочисленность и диапазон каждого разрешённого параметра; неизвестные поля не сохраняет.
+''')
+register('agent/model_probe.py', '''
+_request_probe | Выполняет bounded HTTP POST с коротким prompt, параметрами черновика, заданным бюджетом токенов и проверкой текстового ответа.
+_probe | Ограничивает полное время запроса и следит за Event отмены, закрывая обе asyncio-задачи в finally.
+probe_model | Проверяет ID, запускает отдельный asyncio loop и возвращает ответ/время без изменения истории или preferences.
+''')
+register('core/python/task_service.py', '''
+TaskService.diagnostic_config | Создаёт отдельную валидированную копию черновика либо текущих настроек, включая ключ только в памяти.
+TaskService.start_model_probe | Запускает один фоновый worker проверки; запрещает параллельную проверку/активную задачу и фиксирует конфигурацию.
+TaskService.start_model_probe.run_probe | Вызывает probe_model и возвращает исходному RPC callback результат или ограниченную ошибку.
+TaskService.cancel_model_setup | Отменяет discovery и probe независимо от основной задачи агента.
+''')
+TS_NOTES.update({
+    'GenerationSettings': 'Числовой контракт семи применяемых настроек: sampling, token/context budgets, HTTP timeout и ограничения цикла.',
+    'ModelConfig': 'Конфигурация окна/IPC: URL, ID, временный API-ключ и числовые настройки.',
+    'ModelSettings': 'Модальное окно с отдельным draft; применяет настройки только после успешного backend save.',
+    'change': 'Меняет поле черновика и помечает его несохранённым; новый URL сбрасывает устаревший список моделей.',
+    'validate': 'Проверяет URL и диапазоны полей до отправки, backend повторяет обязательную валидацию.',
+    'perform': 'Последовательно выполняет discovery, bounded probe или save с явным статусом и обработкой ошибок в окне.',
+    'resetGeneration': 'Возвращает числовые поля к defaults только в черновике, не меняет endpoint/ID/ключ.',
+    'handleKeys': 'Закрывает окно по Escape вне операции и удерживает Tab-навигацию в доступных контролах диалога.',
+    'modelConfig': 'Явно перечисляет поля model IPC, остальные поля renderer не передаёт в Core.',
+    'testModel': 'Посылает фиксированный RPC диагностики без произвольного prompt и файлов.',
+    'cancelModelSetup': 'Отменяет текущую диагностику модели через отдельный фиксированный канал.',
+})
+TEST_PURPOSES.update({
+    'old_preferences_gain_generation_defaults': 'Старый JSON с URL/ID получает числовые defaults без смены endpoint и модели.',
+    'generation_roundtrip_and_invalid_values_do_not_replace_file': 'Числовые настройки переживают сохранение; NaN, bool, дробный integer и выход за диапазон не перезаписывают файл.',
+    'draft_probe_uses_generation_without_saving_configuration': 'Probe получает draft sampling/ID, но не меняет сохранённые настройки и не отправляет tools/историю.',
+    'saved_generation_is_used_by_engine': 'Настройки из preferences реально попадают в HTTP streaming payload и переживают новый TaskService.',
+    'probe_requires_real_text_and_bounds_bad_responses': 'Проверка принимает текст и отклоняет пустой результат, неверную структуру, большой ответ и HTTP 401.',
+    'probe_deadline_and_cancellation_are_bounded': 'Зависший HTTP прерывается общим deadline и Event отмены.',
+    'draft_probe_keeps_bridge_responsive_and_can_be_cancelled': 'Во время зависшего probe реальный bridge отвечает health/cancel и сохраняет прежнюю конфигурацию.',
+})
+
+TS_NOTES.pop('discoverModels', None)
+TS_NOTES.pop('saveSettings', None)

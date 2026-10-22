@@ -57,7 +57,7 @@ function callBackend(method: string, params: Record<string, unknown> = {}) {
   startBackend();
   const id = ++requestId;
   return new Promise<any>((resolve) => {
-    const timer = setTimeout(() => { pending.delete(id); resolve({ ok: false, error: 'Python Core: время ожидания истекло' }); }, 10000);
+    const timer = setTimeout(() => { pending.delete(id); resolve({ ok: false, error: 'Python Core: время ожидания истекло' }); }, method === 'test_model' ? 35000 : 10000);
     timer.unref();
     pending.set(id, { resolve, timer });
     backend!.stdin.write(JSON.stringify({ id, method, params }) + '\n');
@@ -89,8 +89,13 @@ handle('project:choose', async () => {
 });
 handle('project:list', (rel = '.') => callBackend('list_files', { path: String(rel).slice(0, 1000) }));
 handle('project:read', (rel) => callBackend('read_file', { path: String(rel).slice(0, 1000) }));
-handle('model:configure', (config) => callBackend('configure_model', { base_url: String(config?.base_url || '').slice(0, 2000), model: String(config?.model || '').slice(0, 300), api_key: String(config?.api_key || '').slice(0, 4000) }));
-handle('model:list', () => callBackend('list_models'));
+function modelConfig(config: any) {
+  return { base_url: String(config?.base_url || '').slice(0, 2000), model: String(config?.model || '').slice(0, 300), api_key: String(config?.api_key || '').slice(0, 4000), settings: config?.settings ?? {} };
+}
+handle('model:configure', (config) => callBackend('configure_model', modelConfig(config)));
+handle('model:list', (config) => callBackend('list_models', config ? modelConfig(config) : {}));
+handle('model:test', (config) => callBackend('test_model', modelConfig(config)));
+handle('model:cancel-setup', () => callBackend('cancel_model_setup'));
 handle('model:settings', () => callBackend('get_model_settings'));
 handle('chat:list', (mode = 'ide') => callBackend('list_chats', {mode}));
 handle('chat:new', (mode = 'ide') => callBackend('new_chat', {mode}));

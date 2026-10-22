@@ -12,6 +12,7 @@
 - [apps/desktop/electron/main.ts](#module-apps-desktop-electron-main-ts)
 - [apps/desktop/electron/preload.ts](#module-apps-desktop-electron-preload-ts)
 - [apps/desktop/src/App.tsx](#module-apps-desktop-src-app-tsx)
+- [apps/desktop/src/ModelSettings.tsx](#module-apps-desktop-src-modelsettings-tsx)
 - [apps/desktop/src/TaskProgress.tsx](#module-apps-desktop-src-taskprogress-tsx)
 - [apps/desktop/src/VoicePanel.tsx](#module-apps-desktop-src-voicepanel-tsx)
 - [apps/desktop/src/main.tsx](#module-apps-desktop-src-main-tsx)
@@ -123,6 +124,16 @@ function handle(channel: string, handler: (...args: any[]) => any)
 
 Регистрирует IPC handler с проверкой sender и mainFrame.
 
+### `modelConfig`
+
+[Исходник](../../apps/desktop/electron/main.ts#L92)
+
+```typescript
+function modelConfig(config: any)
+```
+
+Явно перечисляет поля model IPC, остальные поля renderer не передаёт в Core.
+
 <a id="module-apps-desktop-electron-preload-ts"></a>
 
 ## `apps/desktop/electron/preload.ts`
@@ -184,7 +195,7 @@ Preload-запрос home/platform у main, без tool модели.
 [Исходник](../../apps/desktop/electron/preload.ts#L8)
 
 ```typescript
-configureModel(config: { base_url: string; model: string; api_key: string })
+configureModel(config: { base_url: string; model: string; api_key: string; settings?: Record<string, number> })
 ```
 
 Передаёт URL/модель/сеансовый ключ в фиксированный model:configure.
@@ -194,14 +205,34 @@ configureModel(config: { base_url: string; model: string; api_key: string })
 [Исходник](../../apps/desktop/electron/preload.ts#L9)
 
 ```typescript
-listModels()
+listModels(config?: unknown)
 ```
 
 Запрашивает ID доступных моделей.
 
-### `getModelSettings`
+### `testModel`
 
 [Исходник](../../apps/desktop/electron/preload.ts#L10)
+
+```typescript
+testModel(config: unknown)
+```
+
+Посылает фиксированный RPC диагностики без произвольного prompt и файлов.
+
+### `cancelModelSetup`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L11)
+
+```typescript
+cancelModelSetup()
+```
+
+Отменяет текущую диагностику модели через отдельный фиксированный канал.
+
+### `getModelSettings`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L12)
 
 ```typescript
 getModelSettings()
@@ -211,7 +242,7 @@ getModelSettings()
 
 ### `listChats`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L11)
+[Исходник](../../apps/desktop/electron/preload.ts#L13)
 
 ```typescript
 listChats(mode = 'ide')
@@ -221,7 +252,7 @@ listChats(mode = 'ide')
 
 ### `newChat`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L12)
+[Исходник](../../apps/desktop/electron/preload.ts#L14)
 
 ```typescript
 newChat(mode = 'ide')
@@ -231,7 +262,7 @@ newChat(mode = 'ide')
 
 ### `loadChat`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L13)
+[Исходник](../../apps/desktop/electron/preload.ts#L15)
 
 ```typescript
 loadChat(chatId: string, mode = 'ide')
@@ -241,7 +272,7 @@ loadChat(chatId: string, mode = 'ide')
 
 ### `startTask`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L14)
+[Исходник](../../apps/desktop/electron/preload.ts#L16)
 
 ```typescript
 startTask(prompt: string, resume = false, mode = 'ide')
@@ -251,7 +282,7 @@ startTask(prompt: string, resume = false, mode = 'ide')
 
 ### `cancelTask`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L15)
+[Исходник](../../apps/desktop/electron/preload.ts#L17)
 
 ```typescript
 cancelTask()
@@ -261,7 +292,7 @@ cancelTask()
 
 ### `resolveApproval`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L16)
+[Исходник](../../apps/desktop/electron/preload.ts#L18)
 
 ```typescript
 resolveApproval(runId: string, approvalId: string, decision: string)
@@ -271,7 +302,7 @@ resolveApproval(runId: string, approvalId: string, decision: string)
 
 ### `onEvent`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L17)
+[Исходник](../../apps/desktop/electron/preload.ts#L19)
 
 ```typescript
 onEvent(callback: (event: unknown) => void)
@@ -281,7 +312,7 @@ onEvent(callback: (event: unknown) => void)
 
 ### `onEvent.listener`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L18)
+[Исходник](../../apps/desktop/electron/preload.ts#L20)
 
 ```typescript
 listener(_event: Electron.IpcRendererEvent, data: unknown)
@@ -297,7 +328,7 @@ React-состояние и представление проекта, наст�
 
 ### `FileItem`
 
-[Исходник](../../apps/desktop/src/App.tsx#L6)
+[Исходник](../../apps/desktop/src/App.tsx#L7)
 
 ```typescript
 type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
@@ -307,7 +338,7 @@ type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
 
 ### `Message`
 
-[Исходник](../../apps/desktop/src/App.tsx#L7)
+[Исходник](../../apps/desktop/src/App.tsx#L8)
 
 ```typescript
 type Message = { role: string; text: string; id?: string; streaming?: boolean };
@@ -317,7 +348,7 @@ type Message = { role: string; text: string; id?: string; streaming?: boolean };
 
 ### `ChatSummary`
 
-[Исходник](../../apps/desktop/src/App.tsx#L8)
+[Исходник](../../apps/desktop/src/App.tsx#L9)
 
 ```typescript
 type ChatSummary = { id: string; title: string };
@@ -327,7 +358,7 @@ type ChatSummary = { id: string; title: string };
 
 ### `App`
 
-[Исходник](../../apps/desktop/src/App.tsx#L11)
+[Исходник](../../apps/desktop/src/App.tsx#L12)
 
 ```typescript
 function App()
@@ -337,7 +368,7 @@ function App()
 
 ### `App.report`
 
-[Исходник](../../apps/desktop/src/App.tsx#L44)
+[Исходник](../../apps/desktop/src/App.tsx#L45)
 
 ```typescript
 function report(text: string)
@@ -347,7 +378,7 @@ function report(text: string)
 
 ### `App.showWarning`
 
-[Исходник](../../apps/desktop/src/App.tsx#L45)
+[Исходник](../../apps/desktop/src/App.tsx#L46)
 
 ```typescript
 function showWarning(text: string)
@@ -357,7 +388,7 @@ function showWarning(text: string)
 
 ### `App.refreshChats`
 
-[Исходник](../../apps/desktop/src/App.tsx#L49)
+[Исходник](../../apps/desktop/src/App.tsx#L50)
 
 ```typescript
 async function refreshChats(scope = modeRef.current)
@@ -367,7 +398,7 @@ async function refreshChats(scope = modeRef.current)
 
 ### `App.refreshFiles`
 
-[Исходник](../../apps/desktop/src/App.tsx#L102)
+[Исходник](../../apps/desktop/src/App.tsx#L103)
 
 ```typescript
 async function refreshFiles(path = '.')
@@ -377,7 +408,7 @@ async function refreshFiles(path = '.')
 
 ### `App.chooseProject`
 
-[Исходник](../../apps/desktop/src/App.tsx#L106)
+[Исходник](../../apps/desktop/src/App.tsx#L107)
 
 ```typescript
 async function chooseProject()
@@ -387,7 +418,7 @@ async function chooseProject()
 
 ### `App.switchMode`
 
-[Исходник](../../apps/desktop/src/App.tsx#L116)
+[Исходник](../../apps/desktop/src/App.tsx#L117)
 
 ```typescript
 async function switchMode(next: WorkspaceMode)
@@ -397,7 +428,7 @@ async function switchMode(next: WorkspaceMode)
 
 ### `App.openFile`
 
-[Исходник](../../apps/desktop/src/App.tsx#L124)
+[Исходник](../../apps/desktop/src/App.tsx#L125)
 
 ```typescript
 async function openFile(item: FileItem)
@@ -407,7 +438,7 @@ async function openFile(item: FileItem)
 
 ### `App.selectChat`
 
-[Исходник](../../apps/desktop/src/App.tsx#L130)
+[Исходник](../../apps/desktop/src/App.tsx#L131)
 
 ```typescript
 async function selectChat(id?: string)
@@ -417,7 +448,7 @@ async function selectChat(id?: string)
 
 ### `App.configure`
 
-[Исходник](../../apps/desktop/src/App.tsx#L140)
+[Исходник](../../apps/desktop/src/App.tsx#L141)
 
 ```typescript
 async function configure()
@@ -425,29 +456,9 @@ async function configure()
 
 Передаёт текущие поля модели сервису и выбрасывает ошибку при отказе.
 
-### `App.saveSettings`
-
-[Исходник](../../apps/desktop/src/App.tsx#L144)
-
-```typescript
-async function saveSettings()
-```
-
-Сохраняет настройки и отображает результат в output.
-
-### `App.discoverModels`
-
-[Исходник](../../apps/desktop/src/App.tsx#L150)
-
-```typescript
-async function discoverModels()
-```
-
-Настраивает сервер, загружает модели, выбирает ID и сохраняет выбор.
-
 ### `App.sendPrompt`
 
-[Исходник](../../apps/desktop/src/App.tsx#L165)
+[Исходник](../../apps/desktop/src/App.tsx#L145)
 
 ```typescript
 async function sendPrompt(resume = false)
@@ -457,7 +468,7 @@ async function sendPrompt(resume = false)
 
 ### `App.decide`
 
-[Исходник](../../apps/desktop/src/App.tsx#L190)
+[Исходник](../../apps/desktop/src/App.tsx#L170)
 
 ```typescript
 async function decide(decision: string)
@@ -467,13 +478,104 @@ async function decide(decision: string)
 
 ### `App.cancel`
 
-[Исходник](../../apps/desktop/src/App.tsx#L199)
+[Исходник](../../apps/desktop/src/App.tsx#L179)
 
 ```typescript
 async function cancel()
 ```
 
 Показывает состояние остановки и вызывает cancelTask.
+
+<a id="module-apps-desktop-src-modelsettings-tsx"></a>
+
+## `apps/desktop/src/ModelSettings.tsx`
+
+Модальное окно draft-настроек: endpoint, ключ, список моделей, тест ответа, генерация, лимиты, сохранение и focus trap.
+
+### `GenerationSettings`
+
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L4)
+
+```typescript
+export type GenerationSettings = {
+  temperature: number; top_p: number; max_tokens: number; max_context_chars: number;
+  request_timeout: number; max_agent_turns: number; max_runtime_minutes: number;
+};
+```
+
+Числовой контракт семи применяемых настроек: sampling, token/context budgets, HTTP timeout и ограничения цикла.
+
+### `ModelConfig`
+
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L8)
+
+```typescript
+export type ModelConfig = { base_url: string; model: string; api_key: string; settings: GenerationSettings };
+```
+
+Конфигурация окна/IPC: URL, ID, временный API-ключ и числовые настройки.
+
+### `ModelSettings`
+
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L23)
+
+```typescript
+function ModelSettings({ initial, busy, onSaved, onClose }: {
+  initial: ModelConfig; busy: boolean; onSaved: (config: ModelConfig) => void; onClose: () => void;
+})
+```
+
+Модальное окно с отдельным draft; применяет настройки только после успешного backend save.
+
+### `ModelSettings.change`
+
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L39)
+
+```typescript
+function change(key: K, value: ModelConfig[K])
+```
+
+Меняет поле черновика и помечает его несохранённым; новый URL сбрасывает устаревший список моделей.
+
+### `ModelSettings.validate`
+
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L44)
+
+```typescript
+function validate()
+```
+
+Проверяет URL и диапазоны полей до отправки, backend повторяет обязательную валидацию.
+
+### `ModelSettings.perform`
+
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L56)
+
+```typescript
+async function perform(action: 'discover' | 'probe' | 'save')
+```
+
+Последовательно выполняет discovery, bounded probe или save с явным статусом и обработкой ошибок в окне.
+
+### `ModelSettings.resetGeneration`
+
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L83)
+
+```typescript
+function resetGeneration()
+```
+
+Возвращает числовые поля к defaults только в черновике, не меняет endpoint/ID/ключ.
+
+### `ModelSettings.handleKeys`
+
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L86)
+
+```typescript
+function handleKeys(event: React.KeyboardEvent<HTMLElement>)
+```
+
+Закрывает окно по Escape вне операции и удерживает Tab-навигацию в доступных контролах диалога.
 
 <a id="module-apps-desktop-src-taskprogress-tsx"></a>
 
@@ -608,8 +710,9 @@ type CoreEvent = { event: string; chat_id?: string; run_id?: string; [key: strin
 interface Window { lca: {
   health: () => Promise<any>; chooseProject: () => Promise<any>;
   listFiles: (path?: string) => Promise<any>; readFile: (path: string) => Promise<any>; systemInfo: () => Promise<any>;
-  configureModel: (config: {base_url: string; model: string; api_key: string}) => Promise<any>;
-  listModels: () => Promise<any>; listChats: (mode?: string) => Promise<any>; newChat: (mode?: string) => Promise<any>; loadChat: (id: string, mode?: string) => Promise<any>;
+  configureModel: (config: {base_url: string; model: string; api_key: string; settings?: Record<string, number>}) => Promise<any>;
+  listModels: (config?: unknown) => Promise<any>; listChats: (mode?: string) => Promise<any>; newChat: (mode?: string) => Promise<any>; loadChat: (id: string, mode?: string) => Promise<any>;
+  testModel: (config: unknown) => Promise<any>; cancelModelSetup: () => Promise<any>;
   getModelSettings: () => Promise<any>;
   startTask: (prompt: string, resume?: boolean, mode?: string) => Promise<any>; cancelTask: () => Promise<any>;
   resolveApproval: (run: string, approval: string, decision: string) => Promise<any>;
@@ -685,7 +788,7 @@ async function run(executable, directory, first, modelUrl)
 
 ### `main`
 
-[Исходник](../../tests/electron/packaged-smoke.mjs#L87)
+[Исходник](../../tests/electron/packaged-smoke.mjs#L90)
 
 ```typescript
 async function main()

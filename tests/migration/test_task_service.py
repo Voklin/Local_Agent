@@ -113,6 +113,39 @@ class TaskServiceTests(unittest.TestCase):
     def resolve(self, approval, decision):
         return self.service.resolve_approval({**approval, 'decision':decision})
 
+    def test_draft_probe_uses_generation_without_saving_configuration(self):
+        before = self.service.preferences()
+        draft = {**self.service.config, 'model':'draft-model', 'api_key':'probe-secret',
+                 'settings':{**self.service.config['settings'], 'temperature':0.7, 'top_p':0.9, 'max_tokens':2048}}
+        result = queue.Queue()
+        self.service.start_model_probe(draft, result.put)
+        response = result.get(timeout=5)
+        self.assertTrue(response['ok'], response)
+        self.service.probe_thread.join(2)
+        self.assertEqual(self.service.preferences(), before)
+        self.assertNotIn('probe-secret', model_preferences.PREFERENCES_FILE.read_text())
+        request = self.server.requests[-1]
+        self.assertEqual(request['model'], 'draft-model')
+        self.assertEqual(request['temperature'], 0.7)
+        self.assertEqual(request['top_p'], 0.9)
+        self.assertEqual(request['max_tokens'], 2048)
+        self.assertNotIn('tools', request)
+        self.assertEqual(len(request['messages']), 2)
+
+    def test_saved_generation_is_used_by_engine(self):
+        self.service.configure({**self.service.config, 'settings':{'temperature':0.65,'top_p':0.85,'max_tokens':1024,'request_timeout':12}})
+        self.service.select_chat('')
+        before = len(self.server.requests)
+        self.service.start('', {'prompt':'hello'})
+        self.event('task_end')
+        self.service.thread.join(2)
+        request = self.server.requests[before]
+        self.assertEqual((request['temperature'],request['top_p'],request['max_tokens']), (0.65,0.85,1024))
+        self.assertEqual(self.service.engine.settings['request_timeout'],12)
+        restarted = TaskService(self.events.put)
+        self.assertEqual(restarted.preferences()['settings'],self.service.preferences()['settings'])
+        restarted.shutdown()
+
     def test_empty_after_tool_recovers_without_repeating_write(self):
         before = len(self.server.requests)
         with patch.object(self.server, 'empty_mode', 'after-tool-recover', create=True):

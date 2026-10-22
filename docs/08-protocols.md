@@ -17,9 +17,11 @@ HTTP модели — четвёртый, независимый канал. Н�
 | `listFiles(path='.')` | `project:list` | `list_files` | Относительный `path`; ответ `items`, `truncated` |
 | `readFile(path)` | `project:read` | `read_file` | Ответ `content`, `path` |
 | `systemInfo()` | `system:home` | Нет | Main возвращает `home`, `platform`; это не файловый инструмент модели |
-| `configureModel(config)` | `model:configure` | `configure_model` | `base_url`, `model`, `api_key`; ответ только не-секретные поля |
-| `listModels()` | `model:list` | `list_models` | `models: string[]` |
-| `getModelSettings()` | `model:settings` | `get_model_settings` | `base_url`, `model`, без ключа |
+| `configureModel(config)` | `model:configure` | `configure_model` | `base_url`, `model`, `api_key`, `settings`; ответ без ключа |
+| `listModels(config?)` | `model:list` | `list_models` | Draft либо применённая конфигурация; `models: string[]` |
+| `testModel(config)` | `model:test` | `test_model` | Draft; непустой `text` и `elapsed_ms`, без сохранения |
+| `cancelModelSetup()` | `model:cancel-setup` | `cancel_model_setup` | Отмена диагностики |
+| `getModelSettings()` | `model:settings` | `get_model_settings` | `base_url`, `model`, `settings`, без ключа |
 | `listChats()` | `chat:list` | `list_chats` | Метаданные чатов выбранного проекта |
 | `newChat()` | `chat:new` | `new_chat` | `chat`, `task` |
 | `loadChat(id)` | `chat:load` | `load_chat` | `chat_id`; ответ `chat`, `task` |
@@ -116,3 +118,5 @@ Checkpoint может содержать tool_activity (последние 100 �
 ## Обновление трёх режимов
 
 Chat работает без папки в области `project_root=""` с отключёнными tools и проектной памятью. IDE сохраняет прежнюю работу с выбранным корнем. Для RPC истории и старта добавлен необязательный `mode=chat|ide` (по умолчанию ide). Ассистент пока представляет подготовительный экран без аудио. Подробности архитектуры, IPC, восстановления пустых ответов и границ реализации — в [главе 16](16-workspaces-and-answer-recovery.md).
+
+Расширенные настройки и probe (deadline 30 с, IPC 35 с) подробно описаны в [главе 17](17-model-settings-and-theme.md).

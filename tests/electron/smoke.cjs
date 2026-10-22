@@ -91,8 +91,36 @@ app.on('browser-window-created', (_event, win) => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input, 'test-secret');
         input.dispatchEvent(new Event('input', { bubbles:true }));
       }`);
-      await win.webContents.executeJavaScript(`document.querySelector('.model-settings button').click()`);
-      await poll(win, `document.querySelector('input[list="model-names"]').value === 'smoke-model'`);
+      await win.webContents.executeJavaScript(`document.querySelector('.discover-models').click()`);
+      await poll(win, `document.querySelector('input[list="model-names"]').value === 'smoke-model' && !document.querySelector('.discover-models').disabled && document.querySelector('.settings-feedback').textContent.includes('Сервер доступен')`);
+      for (const [name,value] of [['temperature','0.65'],['max_tokens','1024']]) {
+        await win.webContents.executeJavaScript(`{
+          const input=document.querySelector('input[name="${name}"]');
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});
+          input.dispatchEvent(new Event('input',{bubbles:true}));
+        }`);
+        await poll(win, `document.querySelector('input[name="${name}"]').value === ${JSON.stringify(value)}`);
+      }
+      await win.webContents.executeJavaScript(`document.querySelector('.probe-model').click()`);
+      await poll(win, `document.querySelector('.settings-feedback').textContent.includes('Модель ответила')`);
+      const beforeInvalid = await win.webContents.executeJavaScript('window.lca.getModelSettings()');
+      await win.webContents.executeJavaScript(`{ const input=document.querySelector('input[name="temperature"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'3'); input.dispatchEvent(new Event('input',{bubbles:true})); }`);
+      await win.webContents.executeJavaScript(`document.querySelector('.save-model-settings').click()`);
+      await poll(win, `document.querySelector('[role="alert"]').textContent.includes('Temperature')`);
+      const afterInvalid = await win.webContents.executeJavaScript('window.lca.getModelSettings()');
+      assert.equal(afterInvalid.base_url, beforeInvalid.base_url);
+      assert.equal(afterInvalid.model, beforeInvalid.model);
+      assert.deepEqual(afterInvalid.settings, beforeInvalid.settings);
+      await win.webContents.executeJavaScript(`{ const input=document.querySelector('input[name="temperature"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0.65'); input.dispatchEvent(new Event('input',{bubbles:true})); }`);
+
+      await win.webContents.executeJavaScript(`document.querySelector('.save-model-settings').click()`);
+      await poll(win, `document.querySelector('.settings-feedback').textContent.includes('Настройки сохранены')`);
+      assert.equal((await win.webContents.executeJavaScript('window.lca.getModelSettings()')).settings.temperature, 0.65);
+      await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      fs.writeFileSync(path.join(testRoot, 'settings.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Закрыть настройки"]').click()`);
+      await poll(win, `!document.querySelector('.settings-dialog')`);
+
       await win.webContents.executeJavaScript(`{
         const input = document.querySelector('textarea');
         Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'hello');
@@ -146,7 +174,7 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(fs.readFileSync(path.join(project, 'conflict.txt'), 'utf8'), 'external edit');
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-tools [data-status="failed"]').textContent.includes('изменились')`), true);
       const saved = JSON.parse(fs.readFileSync(path.join(testRoot, 'LocalCodingAgent/model-preferences.json'), 'utf8'));
-      assert.deepEqual(saved, {base_url:url, model:'smoke-model'});
+      assert.deepEqual(saved, {base_url:url, model:'smoke-model', settings:{temperature:0.65,top_p:1,max_tokens:1024,max_context_chars:80000,request_timeout:180,max_agent_turns:200,max_runtime_minutes:180}});
       assert.equal(JSON.stringify(saved).includes('test-secret'), false);
       const reloaded = new Promise(resolve => win.webContents.once('did-finish-load', resolve));
       win.webContents.reload();
@@ -156,6 +184,10 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `!!document.querySelector('.model-settings input')`);
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.model-settings input').value`), url);
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('input[type="password"]').value`), '');
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('input[name="temperature"]').value`), '0.65');
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Закрыть настройки"]').click()`);
+      await poll(win, `!document.querySelector('.settings-dialog')`);
+
       await win.webContents.executeJavaScript(`document.querySelector('.project-pill').click()`);
       await poll(win, `document.querySelector('.project-pill').textContent.includes(${JSON.stringify(path.basename(project))})`);
       modelMode = 'stall';
@@ -175,6 +207,10 @@ app.on('browser-window-created', (_event, win) => {
       assert.ok(Date.now() - stoppedAt < 3000, 'Stop should not wait for the model timeout');
       assert.equal(streamDisconnected, true);
       assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.streaming-caret')`), false);
+      await win.webContents.executeJavaScript(`document.querySelector('.progress-toggle').click()`);
+      await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      fs.writeFileSync(path.join(testRoot, 'ide.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
+      assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.main-panel')).backgroundColor`), 'rgb(25, 25, 28)');
       await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:last-child').click()`);
       await poll(win, `!!document.querySelector('.voice-panel')`);
       fs.writeFileSync(path.join(testRoot, 'voice.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());

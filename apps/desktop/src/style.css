@@ -234,3 +234,92 @@
 .mode-tabs button {
   padding:6px 10px}
 }
+/* Shared graphite / lilac theme: IDE uses the same surfaces as Chat and Companion. */
+:root {
+  --surface: #202023;
+  --surface-raised: #27262c;
+  --surface-soft: #242229;
+  --surface-inset: #19191c;
+  --accent: #bba5d7;
+  --accent-soft: #393142;
+  --accent-border: #655373;
+  --muted: #a39aaa;
+  --text: #e9e3ed;
+}
+body, .app-shell, .main-panel, .tab.active { background: var(--surface-inset); }
+.main-panel, .editor-tabs, .bottom-panel, .agent-panel { border-color: var(--line); }
+.editor-tabs, .bottom-panel, .agent-panel, .approval-dialog { background: var(--surface); }
+.tab.active { border-top-color: var(--accent); }
+.tab svg, .project-pill svg:first-child, .agent-heading svg, .context-chip svg,
+.migration-note svg, .welcome-logo, .empty-icon { color: var(--accent); }
+.welcome-logo { background: var(--accent-soft); border-color: var(--accent-border); }
+.welcome-actions button, .project-pill { background: var(--surface-raised); border-color: #45414d; }
+.primary-button, .welcome-actions button:first-child { background: #675079; border-color: #8b6e9c; }
+.primary-button:hover:not(:disabled), .welcome-actions button:first-child:hover:not(:disabled) { background: #785c8c; }
+.migration-note, .task-progress { background: var(--surface-soft); border-color: #4a4053; }
+.migration-note b, .task-progress-heading>b, .task-plan>summary, .bottom-tab.active { color: #e0cfee; }
+.breadcrumbs, .bottom-tabs, .agent-context { border-color: var(--line); }
+.file-row:hover, .file-row.selected, .activity-bar>button.active { background: var(--accent-soft); }
+.file-row svg, .activity-bar>button.active, .code-view { color: #c9bdd3; }
+.composer:focus-within, .model-settings input:focus { border-color: var(--accent); }
+.task-tools>li { background: #211e28; border-color: #483e52; border-left-color: #a58abc; }
+.task-tools-heading { border-color: #483e52; }
+.task-tool-title strong, .task-tools code, .task-files code { color: #d1bfdc; }
+.task-progress-body { scrollbar-color: #655373 #242229; }
+.task-stages>li[data-status=active], .task-stages>li[data-status=active] span { color: #d0b4e8; }
+.task-progress .task-resume { color: #e0cfee; border-color: var(--accent-border); }
+.approval-dialog pre { background: var(--surface-inset); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.settings-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(900px, 94vw);
+  max-height: 92vh;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid #51445b;
+  border-radius: 16px;
+  box-shadow: 0 24px 100px #000a;
+  overflow: hidden;
+}
+.settings-header { padding: 22px 26px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.settings-header>div { display: flex; align-items: center; gap: 14px; }
+.settings-header svg { color: var(--accent); }
+.settings-header h2 { font-size: 19px; font-weight: 600; margin: 0 0 5px; }
+.settings-header p { font-size: 12px; color: var(--muted); margin: 0; }
+.settings-dialog .model-settings { padding: 0; display: flex; flex: 1; min-height: 0; gap: 0; }
+.settings-scroll { overflow: auto; padding: 22px 26px; scrollbar-width: thin; }
+.settings-section { display: flex; flex-direction: column; gap: 16px; margin-bottom: 26px; }
+.settings-section h3 { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 0; color: #dfd0e9; }
+.settings-section h3 svg { color: var(--accent); }
+.settings-dialog .model-settings label { font-size: 12px; color: var(--text); gap: 8px; }
+.settings-dialog .model-settings input { background: var(--surface-inset); border: 1px solid #48404f; border-radius: 7px; padding: 10px 12px; font-size: 13px; outline: none; color: var(--text); }
+.settings-dialog small, .settings-help { font-size: 11px; line-height: 1.6; color: var(--muted); }
+.field-optional { font-size: 10px; color: var(--muted); }
+.endpoint-presets { display: flex; gap: 8px; align-items: center; }
+.endpoint-presets>span { font-size: 11px; color: var(--muted); margin-right: 4px; }
+.endpoint-presets button { border: 1px solid #51445b; border-radius: 6px; padding: 6px 12px; background: var(--surface-soft); color: #d8c6e5; font-size: 11px; }
+.key-input { display: flex; align-items: center; border: 1px solid #48404f; border-radius: 7px; background: var(--surface-inset); }
+.settings-dialog .key-input input { flex: 1; min-width: 0; border: 0; background: none; }
+.key-input:focus-within { border-color: var(--accent); }
+.key-input>.icon-button { margin-right: 6px; }
+.secondary-button { border: 1px solid #51445b; background: #2d2833; border-radius: 7px; padding: 9px 13px; color: #e0d4e9; }
+.secondary-button:hover:not(:disabled), .endpoint-presets button:hover:not(:disabled) { background: #393142; }
+.probe-model { align-self: flex-start; }
+.model-picker { max-height: 120px; overflow: auto; border: 1px solid #48404f; border-radius: 7px; padding: 4px; background: var(--surface-inset); }
+.model-picker button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; padding: 8px 10px; border-radius: 5px; font: 12px Consolas, monospace; }
+.model-picker button span { overflow-wrap: anywhere; }
+.model-picker button.selected, .model-picker button:hover:not(:disabled) { background: var(--accent-soft); color: #eadcf4; }
+.model-picker svg { flex-shrink: 0; }
+.settings-section-heading { display: flex; align-items: center; justify-content: space-between; }
+.reset-generation { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--accent); }
+.generation-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+.settings-footer { border-top: 1px solid var(--line); padding: 16px 26px; background: #242127; }
+.settings-feedback { font-size: 12px; line-height: 1.6; max-height: 95px; overflow: auto; overflow-wrap: anywhere; color: var(--muted); }
+.settings-feedback.success { color: #a5cfb5; }
+.settings-feedback.error { color: #e2ad9b; }
+.settings-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; }
+.settings-notice { border: 1px solid #645139; border-radius: 7px; padding: 10px 12px; color: #dbbe95; margin-bottom: 18px; }
+
+.task-tool-title span, .streaming-caret { color: var(--accent); }
+.task-progress-body:focus-visible { outline-color: var(--accent); }

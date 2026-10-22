@@ -42,11 +42,11 @@ class ModelStream:
 
 
 class ModelClient:
-    def __init__(self, base_url, api_key, interrupted):
+    def __init__(self, base_url, api_key, interrupted, timeout=180):
         from openai import AsyncOpenAI
         self.interrupted = interrupted
         self.loop = asyncio.new_event_loop()
-        self.client = AsyncOpenAI(base_url=base_url, api_key=api_key or 'no-key', timeout=180, max_retries=0)
+        self.client = AsyncOpenAI(base_url=base_url, api_key=api_key or 'no-key', timeout=timeout, max_retries=0)
         self.lock = threading.Lock()
         self.pending = set()
         self.thread = threading.Thread(target=self.loop.run_forever, daemon=True, name='model-http')

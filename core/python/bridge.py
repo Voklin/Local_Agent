@@ -54,7 +54,9 @@ def handle(method: str, params: dict) -> dict:
     if method == 'get_model_settings':
         return tasks.preferences()
     if method == 'list_models':
-        return tasks.models()
+        return tasks.models(tasks.diagnostic_config(params or None))
+    if method == 'cancel_model_setup':
+        return tasks.cancel_model_setup()
     if method in ('list_chats', 'new_chat', 'load_chat', 'start_task'):
         mode = params.get('mode', 'ide')
         if mode not in ('chat', 'ide'):
@@ -112,7 +114,10 @@ def main() -> None:
             req_id = req.get('id')
             method = str(req.get('method', ''))
             if method == 'list_models':
-                tasks.start_model_discovery(lambda result, request_id=req_id: emit({'id': request_id, **result}))
+                tasks.start_model_discovery(lambda result, request_id=req_id: emit({'id': request_id, **result}), req.get('params') or None)
+                continue
+            if method == 'test_model':
+                tasks.start_model_probe(req.get('params') or None, lambda result, request_id=req_id: emit({'id': request_id, **result}))
                 continue
             result = handle(method, req.get('params') or {})
             response = {'id': req_id, **result}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, ChevronDown, Code2, FileCode2, Folder, FolderOpen, GitBranch, History, Play, Plus, Settings2, ShieldCheck, Square, SquareTerminal } from 'lucide-react';
+import { ModelSettings, defaultGeneration, type GenerationSettings } from './ModelSettings';
 import { VoicePanel, type WorkspaceMode } from './VoicePanel';
 import { TaskProgress, type TaskSnapshot } from './TaskProgress';
 
@@ -31,8 +32,8 @@ export default function App() {
   const [baseUrl, setBaseUrl] = useState('http://127.0.0.1:1234/v1');
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [models, setModels] = useState<string[]>([]);
-  const [configuring, setConfiguring] = useState(false);
+  const [generation, setGeneration] = useState<GenerationSettings>({...defaultGeneration});
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsReady, setSettingsReady] = useState(false);
   const [stopping, setStopping] = useState(false);
   const chatId = useRef('');
@@ -55,7 +56,7 @@ export default function App() {
   useEffect(() => {
     window.lca.health().then(r => setHealth(r.ok ? 'Python Core подключён' : r.error)).catch(e => setHealth(String(e)));
     window.lca.getModelSettings().then(r => {
-      if (r.ok) { setBaseUrl(r.base_url); setModel(r.model); }
+      if (r.ok) { setBaseUrl(r.base_url); setModel(r.model); setGeneration({...defaultGeneration, ...r.settings}); }
       else report(r.error);
     }).catch(e => report(String(e))).finally(() => setSettingsReady(true));
     void refreshChats();
@@ -138,29 +139,8 @@ export default function App() {
     return r.chat.id as string;
   }
   async function configure() {
-    const r = await window.lca.configureModel({base_url: baseUrl, model, api_key: apiKey});
+    const r = await window.lca.configureModel({base_url: baseUrl, model, api_key: apiKey, settings:generation});
     if (!r.ok) throw new Error(r.error);
-  }
-  async function saveSettings() {
-    setConfiguring(true);
-    try { await configure(); report('Адрес сервера и модель сохранены'); }
-    catch (e) { report(String(e)); }
-    finally { setConfiguring(false); }
-  }
-  async function discoverModels() {
-    setConfiguring(true);
-    try {
-      await configure();
-      const r = await window.lca.listModels();
-      if (!r.ok) throw new Error(r.error);
-      setModels(r.models);
-      const chosen = r.models.includes(model) ? model : r.models[0] || '';
-      setModel(chosen);
-      const saved = await window.lca.configureModel({base_url:baseUrl, model:chosen, api_key:apiKey});
-      if (!saved.ok) throw new Error(saved.error);
-      report(r.models.length ? `Найдено моделей: ${r.models.length}` : 'Сервер доступен, но список моделей пуст');
-    } catch (e) { report(String(e)); }
-    finally { setConfiguring(false); }
   }
   async function sendPrompt(resume = false) {
     const value = prompt.trim();
@@ -204,30 +184,23 @@ export default function App() {
   }
   const parent = directory.split(/[\\/]/).slice(0, -1).join('/') || '.';
   return <div className={`app-shell mode-${mode}`}>
-    <header className="topbar"><div className="brand"><div className="brand-mark"><Code2 size={18}/></div><span>LOCAL<b>AGENT</b></span><span className="version">v6.0</span></div><button className="project-pill" onClick={chooseProject} disabled={busy}><FolderOpen size={15}/>{project}<ChevronDown size={14}/></button><div className="mode-tabs" role="tablist" aria-label="Режим работы">{(['chat','ide','voice'] as WorkspaceMode[]).map(m=><button role="tab" aria-selected={mode===m} disabled={busy} className={mode===m?'selected':''} key={m} onClick={()=>void switchMode(m)}>{m==='chat'?'Chat':m==='ide'?'IDE':'Ассистент'}</button>)}</div><div className="top-spacer"/><span className="status">{health}</span><button className="icon-button" title="Настройки модели" onClick={()=>{if(mode==='voice') void switchMode('chat'); setNav('Models');}}><Settings2 size={17}/></button></header>
+    <header className="topbar"><div className="brand"><div className="brand-mark"><Code2 size={18}/></div><span>LOCAL<b>AGENT</b></span><span className="version">v6.0</span></div><button className="project-pill" onClick={chooseProject} disabled={busy}><FolderOpen size={15}/>{project}<ChevronDown size={14}/></button><div className="mode-tabs" role="tablist" aria-label="Режим работы">{(['chat','ide','voice'] as WorkspaceMode[]).map(m=><button role="tab" aria-selected={mode===m} disabled={busy} className={mode===m?'selected':''} key={m} onClick={()=>void switchMode(m)}>{m==='chat'?'Chat':m==='ide'?'IDE':'Ассистент'}</button>)}</div><div className="top-spacer"/><span className="status">{health}</span><button className="icon-button" title="Настройки модели" onClick={()=>setSettingsOpen(true)}><Settings2 size={17}/></button></header>
     <div className="workarea">
-      <nav className="activity-bar">{[{id:'Explorer',icon:Folder},{id:'History',icon:History},{id:'Models',icon:Settings2}].map(x=><button key={x.id} className={nav===x.id?'active':''} onClick={()=>setNav(x.id)} title={x.id}><x.icon size={19}/></button>)}</nav>
+      <nav className="activity-bar">{[{id:'Explorer',icon:Folder},{id:'History',icon:History},{id:'Models',icon:Settings2}].map(x=><button key={x.id} className={(x.id==='Models'?settingsOpen:nav===x.id)?'active':''} onClick={()=>x.id==='Models'?setSettingsOpen(true):setNav(x.id)} title={x.id}><x.icon size={19}/></button>)}</nav>
       <aside className="sidebar"><div className="side-heading"><span>{nav==='History'?'ИСТОРИЯ ЧАТОВ':nav==='Models'?'НАСТРОЙКИ МОДЕЛИ':'ФАЙЛЫ ПРОЕКТА'}</span><button onClick={()=>nav==='History'?refreshChats():refreshFiles(directory)} title="Обновить"><ChevronDown size={15}/></button></div>
         {nav==='Explorer' && <div className="file-list">{directory!=='.'&&<button className="file-row" onClick={()=>refreshFiles(parent)}>..</button>}{files.map(f=><button key={f.path} className={`file-row ${selectedFile===f.path?'selected':''}`} onClick={()=>openFile(f)}>{f.kind==='directory'?<Folder size={15}/>:<FileCode2 size={15}/>}<span>{f.name}</span></button>)}{!root&&<div className="empty-small">Выберите папку проекта</div>}</div>}
         {nav==='History' && <div className="file-list"><button className="file-row" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={15}/>Новый чат</button>{chats.map(c=><button className="file-row" key={c.id} disabled={busy} onClick={()=>selectChat(c.id)}><History size={15}/><span>{c.title}</span></button>)}</div>}
-        {nav==='Models' && <form className="model-settings" onSubmit={e=>{e.preventDefault();void discoverModels();}}>
-          <label>URL сервера<input value={baseUrl} disabled={busy||configuring||!settingsReady} onChange={e=>setBaseUrl(e.target.value)} placeholder="http://127.0.0.1:1234/v1"/></label>
-          <label>API-ключ (если требуется)<input type="password" autoComplete="off" value={apiKey} disabled={busy||configuring||!settingsReady} onChange={e=>setApiKey(e.target.value)}/></label>
-          <button className="primary-button" disabled={busy||configuring||!settingsReady}>{configuring?'Подключение…':'Загрузить модели'}</button>
-          <label>Имя модели<input list="model-names" value={model} disabled={busy||configuring||!settingsReady} onChange={e=>setModel(e.target.value)} placeholder="Выберите или введите ID"/><datalist id="model-names">{models.map(m=><option value={m} key={m}/>)}</datalist></label>
-          <button type="button" className="primary-button" disabled={busy||configuring||!settingsReady} onClick={saveSettings}>Сохранить настройки</button>
-          <p>Адрес сервера и модель сохраняются между запусками. API-ключ остаётся только в памяти.</p>
-        </form>}
         <div className="sidebar-footer"><div className="project-status"><GitBranch size={14}/><span>{root?'Локальный проект':'Проект не выбран'}</span></div></div>
       </aside>
-      {mode==='ide'&&<main className="main-panel"><div className="editor-tabs"><div className="tab active"><FileCode2 size={14}/>{selectedFile.split(/[\\/]/).pop()||'Welcome'}</div></div><div className="editor-area">{selectedFile?<><div className="breadcrumbs">{selectedFile}</div><pre className="code-view">{fileText}</pre></>:<div className="welcome"><div className="welcome-logo"><Code2 size={28}/></div><h1>Agent Studio</h1><p>Рабочее пространство Local Coding Agent</p><div className="welcome-actions"><button onClick={chooseProject} disabled={busy}><FolderOpen size={16}/>Открыть проект</button><button onClick={()=>setNav('Models')}><Settings2 size={16}/>Настроить модель</button></div><div className="migration-note"><ShieldCheck size={17}/><span><b>Контроль изменений</b><br/>Агент покажет diff и запросит разрешение перед записью каждого файла.</span></div></div>}</div>
+      {mode==='ide'&&<main className="main-panel"><div className="editor-tabs"><div className="tab active"><FileCode2 size={14}/>{selectedFile.split(/[\\/]/).pop()||'Welcome'}</div></div><div className="editor-area">{selectedFile?<><div className="breadcrumbs">{selectedFile}</div><pre className="code-view">{fileText}</pre></>:<div className="welcome"><div className="welcome-logo"><Code2 size={28}/></div><h1>Agent Studio</h1><p>Рабочее пространство Local Coding Agent</p><div className="welcome-actions"><button onClick={chooseProject} disabled={busy}><FolderOpen size={16}/>Открыть проект</button><button onClick={()=>setSettingsOpen(true)}><Settings2 size={16}/>Настроить модель</button></div><div className="migration-note"><ShieldCheck size={17}/><span><b>Контроль изменений</b><br/>Агент покажет diff и запросит разрешение перед записью каждого файла.</span></div></div>}</div>
         <div className="bottom-panel"><div className="bottom-tabs"><span className="bottom-tab active"><SquareTerminal size={14}/>ВЫВОД</span></div><div className="output-log">{logs.length?logs.map((l,i)=><pre key={i}>{l}</pre>):<div className="output-line dim">События агента появятся здесь.</div>}</div></div>
       </main>}
       {mode==='voice'?<VoicePanel onChat={()=>void switchMode('chat')}/>:<aside className="agent-panel"><div className="agent-heading"><div><Bot size={17}/><b>{mode==='chat'?'Разговор с моделью':'Агент проекта'}</b></div><button className="icon-button" title="Новый чат" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={16}/></button></div><div className="agent-context"><span className="context-chip"><Folder size={13}/>{mode==='chat'?'Личный чат · без файловых инструментов':project}</span><span className="context-chip">Модель: {model||'не выбрана'}</span>{task&&<button className="progress-toggle" aria-expanded={showProgress} onClick={()=>setShowProgress(!showProgress)}>Ход задачи · {task.status==='completed'?'завершена':task.status==='paused'?'приостановлена':'в работе'} <ChevronDown size={13}/></button>}</div>
         {showProgress&&task&&<div className="progress-drawer"><TaskProgress task={task} busy={busy} onResume={()=>void sendPrompt(true)}/></div>}<div className="chat-messages">{chat.map((m,i)=><div className={`message ${m.role}`} key={i}>{m.role==='assistant'&&<div className="avatar"><Bot size={14}/></div>}<div className="message-content">{m.text}{m.streaming&&<span className="streaming-caret" aria-label="Ответ генерируется">▍</span>}</div></div>)}<div ref={messagesEnd}/></div>
-        <div className="composer"><textarea aria-label="Задача агенту" value={prompt} disabled={busy} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendPrompt();}}} placeholder={mode==='ide'&&!root?'Сначала выберите проект':!model?'Укажите модель в настройках':'Опишите задачу…'}/><div className="composer-footer"><span>{stopping?'Останавливаем…':busy?'Агент работает…':'Enter для отправки'}</span>{busy?<button className="send-button" title="Остановить" disabled={stopping} onClick={cancel}><Square size={14}/></button>:<button className="send-button" title="Отправить" onClick={()=>sendPrompt()} disabled={!prompt.trim()||(mode==='ide'&&!root)||!model||configuring||!settingsReady}><Play size={14}/></button>}</div></div><div className="agent-foot"><ShieldCheck size={13}/> {mode==='ide'?'Подтверждение перед записью':'Локальная модель · история сохраняется на этом ПК'}</div>
+        <div className="composer"><textarea aria-label="Задача агенту" value={prompt} disabled={busy} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendPrompt();}}} placeholder={mode==='ide'&&!root?'Сначала выберите проект':!model?'Укажите модель в настройках':'Опишите задачу…'}/><div className="composer-footer"><span>{stopping?'Останавливаем…':busy?'Агент работает…':'Enter для отправки'}</span>{busy?<button className="send-button" title="Остановить" disabled={stopping} onClick={cancel}><Square size={14}/></button>:<button className="send-button" title="Отправить" onClick={()=>sendPrompt()} disabled={!prompt.trim()||(mode==='ide'&&!root)||!model||!settingsReady}><Play size={14}/></button>}</div></div><div className="agent-foot"><ShieldCheck size={13}/> {mode==='ide'?'Подтверждение перед записью':'Локальная модель · история сохраняется на этом ПК'}</div>
       </aside>}
     </div><footer className="statusbar"><span><GitBranch size={12}/>{project}</span><span><ShieldCheck size={12}/>{mode==='ide'?'Файлы ограничены папкой проекта':mode==='chat'?'Chat · файловые инструменты отключены':'Голосовой режим · подготовка'}</span><span className="statusbar-right">Electron · React · Python</span></footer>
+    {settingsOpen&&settingsReady&&<ModelSettings initial={{base_url:baseUrl,model,api_key:apiKey,settings:generation}} busy={busy} onClose={()=>setSettingsOpen(false)} onSaved={config=>{setBaseUrl(config.base_url);setModel(config.model);setApiKey(config.api_key);setGeneration(config.settings);report('Настройки модели сохранены');}}/>}
     {approval&&<div className="modal-backdrop"><section className="approval-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-title"><h2 id="approval-title">{approval.exists?'Изменение файла':'Новый файл'}: {approval.path}</h2><p>Проверьте изменения перед записью.</p><pre>{approval.diff||'Текстовых изменений нет'}</pre><div className="approval-actions"><button disabled={deciding} onClick={()=>decide('cancel')}>Отменить задачу</button><button disabled={deciding} onClick={()=>decide('reject')}>Отклонить изменение</button><button className="primary-button" disabled={deciding} onClick={()=>decide('apply')}>Применить изменение</button></div></section></div>}
   </div>;
 }

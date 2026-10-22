@@ -10,7 +10,7 @@
 | Диалог | `chats/<uuid>.json` | Канонические сообщения, embedded checkpoint, draft, проект и метаданные |
 | Задача | `tasks/<hash>.json` | Этап, статус, счётчики и resume state |
 | Память | `project_memory/<hash>/memory.json` | Структурированные краткие сведения о проекте |
-| Настройки модели | `model-preferences.json` | Только `base_url` и `model` для Electron Core |
+| Настройки модели | `model-preferences.json` | `base_url`, `model`, whitelist числовых `settings` для Electron Core; без ключа |
 | GGUF и runtime | `models/`, `runtime/` | Используются сохранённым менеджером локальных моделей |
 | Qt preferences | `QSettings` | Отдельные настройки сохранённого GUI, включая ключ из старого диалога |
 

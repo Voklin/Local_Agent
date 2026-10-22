@@ -11,8 +11,9 @@ from agent.engine import AgentEngine
 from agent.chat_store import create_chat, read_chat_catalog, load_chat, save_chat
 from agent.project_memory import load_project_memory
 from agent.task_store import clear_task, load_task, save_task
-from agent.model_preferences import load_preferences, save_preferences
+from agent.model_preferences import load_preferences, save_preferences, validate_preferences
 from agent.model_discovery import discover_models
+from agent.model_probe import probe_model
 from agent.task_activity import recover_tools
 
 
@@ -32,6 +33,8 @@ class TaskService:
         self.stream_buffer = ''
         self.last_stream_emit = 0
         self.stream_timer = None
+        self.probe_thread = None
+        self.probe_cancel = threading.Event()
         self.discovery_thread = None
         self.discovery_cancel = threading.Event()
         self.stream_text = ''
@@ -52,16 +55,43 @@ class TaskService:
         return {'ok': True, **preferences}
 
     def preferences(self):
-        return {'ok': True, 'base_url': self.config['base_url'], 'model': self.config['model']}
+        return {'ok': True, 'base_url': self.config['base_url'], 'model': self.config['model'],
+                'settings': deepcopy(self.config['settings'])}
 
     def models(self, config=None, cancelled=None):
         return discover_models(dict(config if config is not None else self.config), cancelled=cancelled)
 
-    def start_model_discovery(self, respond):
+    def diagnostic_config(self, params=None):
+        if params is None:
+            return deepcopy(self.config)
+        return {**validate_preferences(params), 'api_key': str(params.get('api_key', ''))[:4000]}
+
+    def start_model_probe(self, params, respond):
+        self.idle()
+        with self.lock:
+            if self.probe_thread and self.probe_thread.is_alive():
+                raise ValueError('Проверка модели уже выполняется')
+            config = self.diagnostic_config(params)
+            self.probe_cancel = cancelled = threading.Event()
+            def run_probe():
+                try:
+                    response = probe_model(config, cancelled=cancelled)
+                except Exception as exc:
+                    response = {'ok': False, 'error': str(exc)[:500]}
+                respond(response)
+            self.probe_thread = threading.Thread(target=run_probe, daemon=True, name='model-probe')
+            self.probe_thread.start()
+
+    def cancel_model_setup(self):
+        self.discovery_cancel.set()
+        self.probe_cancel.set()
+        return {'ok': True}
+
+    def start_model_discovery(self, respond, params=None):
         with self.lock:
             if self.discovery_thread and self.discovery_thread.is_alive():
                 raise ValueError('Загрузка списка моделей уже выполняется')
-            config = dict(self.config)
+            config = self.diagnostic_config(params)
             self.discovery_cancel = cancelled = threading.Event()
 
             def run_discovery():
@@ -369,8 +399,11 @@ class TaskService:
                     self._event('task_end')
 
     def shutdown(self):
+        self.cancel_model_setup()
         self.cancel()
         if self.thread:
             self.thread.join(timeout=2)
         if self.discovery_thread:
             self.discovery_thread.join(timeout=1)
+        if self.probe_thread:
+            self.probe_thread.join(timeout=1)
