@@ -1,0 +1,84 @@
+# 10. Проверки и диагностика
+
+## Что подтверждено
+
+Для базовой версии `1482424` прошли 39 основных тестов и 21 migration-тест, TypeScript-проверки renderer/main/preload и production build. Эти команды также успешно выполнились в Windows GitHub Actions. Скрытый реальный Electron smoke-тест был запущен отдельно локально.
+
+Число Python-тестов относится к внешним unittest cases: `run_sandbox_self_test` внутри одного теста дополнительно выполняет собственный набор. Результат symlink-подпроверки зависит от возможностей ОС. Не нужно складывать внутренние и внешние числа, чтобы получить искусственно больший показатель покрытия.
+
+## Команды
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -m unittest discover -s tests/migration -v
+npm run typecheck
+npm run build
+```
+
+Запускайте две discovery-команды отдельно: папка `tests/migration` не включена автоматически в первый набор в текущей структуре. Для воспроизводимого запуска тестов адаптера Qt установите полный `requirements.txt`. Для самого приложения Electron достаточно `requirements-core.txt`.
+
+## Группы проверок
+
+| Область | Файлы | Что проверяют |
+| --- | --- | --- |
+| Разрешения и I/O | `test_sandbox`, `test_file_editing`, `test_editor_io`, `test_limits` | Выход за корень, отказ без approval, preview, overwrite, размеры, глубина |
+| Диалог и состояние | `test_chat_store`, `test_conversation_history`, `test_task_store`, `test_project_memory` | Сохранение, выбор контекста, checkpoint, валидация памяти |
+| Оркестрация | `test_runtime_architecture`, `test_approval_flow` | Примитивы runtime и совместимость Qt-адаптера |
+| Модели | `test_model_gateway`, `test_model_manager`, `test_model_preferences` | Endpoint, поиск GGUF, остановленный runtime, не-секретные настройки |
+| Bridge | `test_bridge`, `test_bridge_process` | Dispatch, JSON-lines, отдельный процесс, отзывчивость при approval |
+| Сервис задач | `test_task_service` | Реальный цикл tools с фикстурой, корреляция согласия, история и resume |
+| Streaming | `test_streaming` | Текст до финала, закрытие сокета, отмена до заголовков/посреди SSE/памяти, пакетирование |
+| UI целиком | `tests/electron/smoke.cjs` | Настоящий renderer/preload/main/Python/model fixture и действия пользователя |
+
+Подробное назначение каждого test method находится в [справочнике тестов](reference/tests.md).
+
+## Почему нужны HTTP-фикстуры
+
+Настоящая LLM может выбрать другой инструмент или сформулировать ответ иначе. Для проверки нашего кода используются HTTP-серверы с фиксированными ответами. `ModelHandler` выдаёт write proposal и финал; `SlowHandler` намеренно задерживает заголовки или данные, чтобы проверить остановку.
+
+Важное различие: проверка «поток задачи завершился быстро» недостаточна для сетевой отмены. Тесты дополнительно ожидают закрытие фактического TCP-соединения на стороне сервера. Они не проверяют, прекращает ли конкретный inference-сервер вычисления на GPU.
+
+## Скрытый Electron smoke-тест
+
+Сначала соберите приложение и запустите Vite на 5173:
+
+```powershell
+npm run build
+npm exec --workspace apps/desktop vite -- --host 127.0.0.1 --port 5173
+```
+
+В другом терминале задайте Python и запустите тест:
+
+```powershell
+$env:LCA_PYTHON = (Resolve-Path .venv/Scripts/python.exe).Path
+.\node_modules\electron\dist\electron.exe tests/electron/smoke.cjs
+```
+
+Тест создаёт временный проект в `.test-data/electron-smoke`, скрывает своё окно, подменяет ответ системного выбора папки, поднимает HTTP-фикстуру и взаимодействует с настоящими DOM-элементами. Он проверяет отсутствие файла до согласия, текст diff, появление файла после нажатия, частичный ответ без дубля, восстановление настроек после reload и кнопку остановки.
+
+Результат пишется в `result.json`; снимки `approval.png` и `completed.png` помогают визуальной проверке. На Windows запуск GUI-exe из оболочки может вернуть управление без ожидаемого вывода. Для надёжного ожидания используйте `Start-Process -WindowStyle Hidden -Wait`; проверяйте JSON-результат, а не только отсутствие текста в консоли.
+
+## Что делает CI
+
+Workflow [validate.yml](../.github/workflows/validate.yml) использует Windows, Python 3.12 и Node 24. Он устанавливает Python-зависимости, выполняет обе группы тестов, делает `npm ci` с отключённой загрузкой Electron binary и собирает проект. Отдельный hidden UI smoke в workflow пока не запускается: TypeScript/build не являются заменой UI-проверки.
+
+## Разбор неисправностей
+
+| Симптом | Где искать | Первая проверка |
+| --- | --- | --- |
+| Python Core недоступен | `startBackend`, stderr, `LCA_PYTHON` | Путь ведёт к exe, и в этом Python установлен `openai` |
+| `window.lca` отсутствует | Способ запуска | Открыта ли страница в Electron, а не обычном браузере |
+| Список моделей пуст | `TaskService.models` | Доступен ли `<base_url>/models`, есть ли загруженная модель |
+| Модель найдена, tools не работают | Ответы сервера и `AgentEngine.run` | Поддерживает ли модель/шаблон tool calling |
+| Файл открывается в UI, но tool не читает | Лимиты и UTF-8 | UI и tools имеют разные пределы размера |
+| Нет записи | `preview_file_change`, событие `change` | Существуют ли родительский каталог и согласие, корректен ли overwrite |
+| Задача остановилась сама | `stop_reason`, лог tools | Лимит, повтор одинакового вызова или серия ошибок |
+| Ответ повторяется/события чужого чата | `message_id`, `chat_id`, `run_id` | Не потеряна ли фильтрация после рефакторинга |
+| После правки Python поведение старое | Дочерний процесс | Полностью перезапустить приложение |
+| Ошибка npm dependency tree | `package.json`, lock | Использовать согласованный lock и `npm ci`, не `latest` для случайной замены |
+| Тесты пишут в реальные данные | Константы stores | Установить изолированное `LOCALAPPDATA` до импорта или использовать patch |
+
+## Безопасная учебная отладка
+
+Работайте с отдельной маленькой папкой, фикстурой или тестом. Печатайте диагностические сведения в stderr, не в stdout моста. Не копируйте целиком служебные чаты в issue без просмотра: они могут содержать текст файлов. Фиксируйте точную команду, интерпретатор, версию кода и ожидаемое поведение — это делает ошибку воспроизводимой.

@@ -30,3 +30,5 @@
 - Reject project/chat/configuration changes while a task is active.
 
 See `README_V6_MIGRATION.md` for setup, validation, and current limitations.
+
+The detailed [project handbook](docs/README.md) documents the current architecture, development stages, source symbols, protocols and remaining limitations. Regenerate and check its reference with `npm run docs:generate` and `npm run docs:check` when changing declarations.

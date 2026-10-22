@@ -1,5 +1,7 @@
 # Local Coding Agent v6.0 — Electron agent bridge
 
+For the detailed Russian learning guide, architecture and source reference, see [the project handbook](docs/README.md).
+
 The Electron + React interface now runs the existing agent engine through a threaded Python JSON-lines service. The original PySide6 application remains available through `run.bat`.
 
 ## Windows setup
