@@ -22,6 +22,7 @@ class TaskService:
         self.engine_factory = engine_factory
         self.lock = threading.RLock()
         self.thread = None
+        self.task_running = False
         self.engine = None
         self.approval = None
         self.chat = None
@@ -38,8 +39,9 @@ class TaskService:
         self.draft_timer = None
 
     def idle(self):
-        if self.thread and self.thread.is_alive():
-            raise ValueError('Сначала остановите текущую задачу и дождитесь завершения')
+        with self.lock:
+            if self.task_running:
+                raise ValueError('Сначала остановите текущую задачу и дождитесь завершения')
 
     def configure(self, params):
         self.idle()
@@ -322,6 +324,7 @@ class TaskService:
         self.engine.finished_text.connect(lambda text: self._event('result', text=text))
         self.engine.failed.connect(lambda text: self._event('failed', text=text))
         self.thread = threading.Thread(target=self._run, daemon=True, name='agent-task')
+        self.task_running = True
         self.thread.start()
         return {'ok': True, 'run_id': self.run_id, 'chat_id': self.chat['id']}
 
@@ -361,6 +364,8 @@ class TaskService:
                 except Exception as exc:
                     self._event('failed', text=f'Не удалось сохранить состояние задачи: {type(exc).__name__}: {exc}')
                 finally:
+                    # All state is finalized before clients are told they may start again.
+                    self.task_running = False
                     self._event('task_end')
 
     def shutdown(self):

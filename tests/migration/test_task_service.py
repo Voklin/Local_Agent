@@ -163,6 +163,27 @@ class TaskServiceTests(unittest.TestCase):
         self.assertNotIn(project_chat['id'], [c['id'] for c in self.service.chats('')['chats']])
         self.assertFalse((self.root / 'new.txt').exists())
 
+    def test_task_end_allows_immediate_configuration_before_thread_returns(self):
+        original_emit = self.service.emit
+        errors = []
+        observed = []
+        def observe(event):
+            if event['event'] == 'task_end':
+                observed.append(self.service.thread.is_alive())
+                try:
+                    self.service.configure(dict(self.service.config))
+                except Exception as exc:
+                    errors.append(str(exc))
+            original_emit(event)
+        self.service.emit = observe
+        self.service.select_chat('')
+        self.service.start('', {'prompt': 'hello'})
+        self.event('task_end')
+        self.service.thread.join(2)
+        self.assertEqual(observed, [True])
+        self.assertEqual(errors, [])
+        self.assertFalse(self.service.task_running)
+
     def test_chat_refuses_unsolicited_tool(self):
         self.service.select_chat('')
         with patch.object(self.server, 'unexpected_tool', True, create=True):

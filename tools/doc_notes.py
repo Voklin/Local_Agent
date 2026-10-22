@@ -310,7 +310,7 @@ TaskService._persist_draft_scheduled | Сохраняет последний ф�
 TaskService.start_model_discovery | Фиксирует копию настроек и запускает не больше одного discovery-потока, возвращающего ответ по исходному request ID.
 TaskService.start_model_discovery.run_discovery | Получает список моделей или структурированную ошибку и вызывает callback ответа.
 TaskService | Сервис одного Core-процесса: конфигурация, чат, активный run, поток и события UI.
-TaskService.idle | Отказывает операции, когда поток текущей задачи ещё жив.
+TaskService.idle | Под RLock отказывает операции, пока task_running=True; после task_end живой завершающийся Thread не блокирует новый запрос.
 TaskService.configure | Сохраняет whitelist preferences и держит API-ключ только в памяти конфигурации.
 TaskService.preferences | Возвращает URL и модель без ключа.
 TaskService.models | Вызывает ограниченное отменяемое HTTPX-обнаружение моделей для копии настроек.
@@ -326,7 +326,7 @@ TaskService.resolve_approval | Проверяет актуальные run/propo
 TaskService.cancel | Отменяет исполнение задачи, ожидающее approval и фоновое обнаружение моделей.
 TaskService.start | Проверяет задачу, готовит историю/память, подписывает события и запускает agent-task.
 TaskService._save_messages | Допечатывает stream-буфер, отменяет draft-таймер и сохраняет канонические сообщения вместе с checkpoint.
-TaskService._run | Обёртка исполнения с failed и обязательным task_end/flush в finally.
+TaskService._run | Завершает исполнение и сохранения, сбрасывает task_running под lock перед task_end; сообщает failed при ошибках.
 TaskService.shutdown | Отменяет операции и ограниченно ждёт потоки задачи и model discovery при EOF.
 ''')
 register('agent/ui.py', '''
@@ -766,3 +766,6 @@ TEST_PURPOSES.update({
 })
 
 TEST_PURPOSES.update({'chat_scope_does_not_require_selected_folder': 'Bridge выбирает пустую область Chat без папки, а IDE требует проект.', 'unknown_mode_is_rejected': 'Bridge отклоняет voice и прочие неисполняемые режимы до сервиса.'})
+
+TEST_PURPOSES['task_end_allows_immediate_configuration_before_thread_returns'] = 'Синхронный callback task_end меняет настройки, пока прежний поток ещё жив: завершённое исполнение уже idle.'
+TEST_HELPERS['observe'] = 'Перехватывает task_end, проверяет ещё живой worker и синхронно меняет настройки до возврата потока.'

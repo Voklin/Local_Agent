@@ -760,9 +760,29 @@ def test_chat_without_project_has_no_tools_and_separate_history(self)
 
 Проверка: Глобальный Chat работает без папки, не передаёт tools и не смешивает историю с проектом.
 
-### `TaskServiceTests.test_chat_refuses_unsolicited_tool`
+### `TaskServiceTests.test_task_end_allows_immediate_configuration_before_thread_returns`
 
 [Исходник](../../tests/migration/test_task_service.py#L166)
+
+```python
+def test_task_end_allows_immediate_configuration_before_thread_returns(self)
+```
+
+Проверка: Синхронный callback task_end меняет настройки, пока прежний поток ещё жив: завершённое исполнение уже idle.
+
+### `TaskServiceTests.test_task_end_allows_immediate_configuration_before_thread_returns.observe`
+
+[Исходник](../../tests/migration/test_task_service.py#L170)
+
+```python
+def observe(event)
+```
+
+Перехватывает task_end, проверяет ещё живой worker и синхронно меняет настройки до возврата потока.
+
+### `TaskServiceTests.test_chat_refuses_unsolicited_tool`
+
+[Исходник](../../tests/migration/test_task_service.py#L187)
 
 ```python
 def test_chat_refuses_unsolicited_tool(self)
@@ -772,7 +792,7 @@ def test_chat_refuses_unsolicited_tool(self)
 
 ### `TaskServiceTests.test_apply_only_after_matching_approval_and_persist_history`
 
-[Исходник](../../tests/migration/test_task_service.py#L181)
+[Исходник](../../tests/migration/test_task_service.py#L202)
 
 ```python
 def test_apply_only_after_matching_approval_and_persist_history(self)
@@ -782,7 +802,7 @@ def test_apply_only_after_matching_approval_and_persist_history(self)
 
 ### `TaskServiceTests.test_long_archive_survives_model_compaction_and_service_restart`
 
-[Исходник](../../tests/migration/test_task_service.py#L203)
+[Исходник](../../tests/migration/test_task_service.py#L224)
 
 ```python
 def test_long_archive_survives_model_compaction_and_service_restart(self)
@@ -792,7 +812,7 @@ def test_long_archive_survives_model_compaction_and_service_restart(self)
 
 ### `TaskServiceTests.test_forced_tool_uses_single_definition_then_restores_auto`
 
-[Исходник](../../tests/migration/test_task_service.py#L230)
+[Исходник](../../tests/migration/test_task_service.py#L251)
 
 ```python
 def test_forced_tool_uses_single_definition_then_restores_auto(self)
@@ -802,7 +822,7 @@ def test_forced_tool_uses_single_definition_then_restores_auto(self)
 
 ### `TaskServiceTests.test_multiple_tools_keep_same_archive_anchor_for_write_recovery`
 
-[Исходник](../../tests/migration/test_task_service.py#L243)
+[Исходник](../../tests/migration/test_task_service.py#L264)
 
 ```python
 def test_multiple_tools_keep_same_archive_anchor_for_write_recovery(self)
@@ -812,7 +832,7 @@ def test_multiple_tools_keep_same_archive_anchor_for_write_recovery(self)
 
 ### `TaskServiceTests.test_reject_does_not_write`
 
-[Исходник](../../tests/migration/test_task_service.py#L263)
+[Исходник](../../tests/migration/test_task_service.py#L284)
 
 ```python
 def test_reject_does_not_write(self)
@@ -822,7 +842,7 @@ def test_reject_does_not_write(self)
 
 ### `TaskServiceTests.test_matching_approval_refuses_new_external_file`
 
-[Исходник](../../tests/migration/test_task_service.py#L272)
+[Исходник](../../tests/migration/test_task_service.py#L293)
 
 ```python
 def test_matching_approval_refuses_new_external_file(self)
@@ -832,7 +852,7 @@ def test_matching_approval_refuses_new_external_file(self)
 
 ### `TaskServiceTests.test_embedded_checkpoint_restores_missing_task_file`
 
-[Исходник](../../tests/migration/test_task_service.py#L287)
+[Исходник](../../tests/migration/test_task_service.py#L308)
 
 ```python
 def test_embedded_checkpoint_restores_missing_task_file(self)
@@ -842,7 +862,7 @@ def test_embedded_checkpoint_restores_missing_task_file(self)
 
 ### `TaskServiceTests.test_recovery_does_not_confuse_reused_tool_ids_with_old_success`
 
-[Исходник](../../tests/migration/test_task_service.py#L300)
+[Исходник](../../tests/migration/test_task_service.py#L321)
 
 ```python
 def test_recovery_does_not_confuse_reused_tool_ids_with_old_success(self)
@@ -852,7 +872,7 @@ def test_recovery_does_not_confuse_reused_tool_ids_with_old_success(self)
 
 ### `TaskServiceTests.test_recovery_recognizes_saved_tool_result_before_task_checkpoint`
 
-[Исходник](../../tests/migration/test_task_service.py#L325)
+[Исходник](../../tests/migration/test_task_service.py#L346)
 
 ```python
 def test_recovery_recognizes_saved_tool_result_before_task_checkpoint(self)
@@ -862,7 +882,7 @@ def test_recovery_recognizes_saved_tool_result_before_task_checkpoint(self)
 
 ### `TaskServiceTests.test_stream_draft_is_recovered_once_and_other_run_is_preserved_separately`
 
-[Исходник](../../tests/migration/test_task_service.py#L338)
+[Исходник](../../tests/migration/test_task_service.py#L359)
 
 ```python
 def test_stream_draft_is_recovered_once_and_other_run_is_preserved_separately(self)
@@ -872,7 +892,7 @@ def test_stream_draft_is_recovered_once_and_other_run_is_preserved_separately(se
 
 ### `TaskServiceTests.test_unexpected_engine_exception_still_persists_pause_and_task_end`
 
-[Исходник](../../tests/migration/test_task_service.py#L356)
+[Исходник](../../tests/migration/test_task_service.py#L377)
 
 ```python
 def test_unexpected_engine_exception_still_persists_pause_and_task_end(self)
@@ -882,7 +902,7 @@ def test_unexpected_engine_exception_still_persists_pause_and_task_end(self)
 
 ### `TaskServiceTests.test_index_cache_failure_warns_without_aborting_agent`
 
-[Исходник](../../tests/migration/test_task_service.py#L366)
+[Исходник](../../tests/migration/test_task_service.py#L387)
 
 ```python
 def test_index_cache_failure_warns_without_aborting_agent(self)
@@ -892,7 +912,7 @@ def test_index_cache_failure_warns_without_aborting_agent(self)
 
 ### `TaskServiceTests.test_index_cache_failure_warns_without_aborting_agent.fail_index_only`
 
-[Исходник](../../tests/migration/test_task_service.py#L368)
+[Исходник](../../tests/migration/test_task_service.py#L389)
 
 ```python
 def fail_index_only(path, data)
@@ -902,7 +922,7 @@ def fail_index_only(path, data)
 
 ### `TaskServiceTests.test_persistence_failure_before_apply_never_writes_and_still_ends_task`
 
-[Исходник](../../tests/migration/test_task_service.py#L384)
+[Исходник](../../tests/migration/test_task_service.py#L405)
 
 ```python
 def test_persistence_failure_before_apply_never_writes_and_still_ends_task(self)
@@ -912,7 +932,7 @@ def test_persistence_failure_before_apply_never_writes_and_still_ends_task(self)
 
 ### `TaskServiceTests.test_resume_preserves_task_and_recovery_marks_interrupted_task_paused`
 
-[Исходник](../../tests/migration/test_task_service.py#L397)
+[Исходник](../../tests/migration/test_task_service.py#L418)
 
 ```python
 def test_resume_preserves_task_and_recovery_marks_interrupted_task_paused(self)
@@ -922,7 +942,7 @@ def test_resume_preserves_task_and_recovery_marks_interrupted_task_paused(self)
 
 ### `TaskServiceTests.test_new_prompt_after_pause_creates_new_task`
 
-[Исходник](../../tests/migration/test_task_service.py#L414)
+[Исходник](../../tests/migration/test_task_service.py#L435)
 
 ```python
 def test_new_prompt_after_pause_creates_new_task(self)
@@ -932,7 +952,7 @@ def test_new_prompt_after_pause_creates_new_task(self)
 
 ### `TaskServiceTests.test_cancel_while_waiting_pauses_task_and_unblocks_worker`
 
-[Исходник](../../tests/migration/test_task_service.py#L426)
+[Исходник](../../tests/migration/test_task_service.py#L447)
 
 ```python
 def test_cancel_while_waiting_pauses_task_and_unblocks_worker(self)
@@ -942,7 +962,7 @@ def test_cancel_while_waiting_pauses_task_and_unblocks_worker(self)
 
 ### `TaskServiceTests.test_busy_task_rejects_chat_and_configuration_changes`
 
-[Исходник](../../tests/migration/test_task_service.py#L435)
+[Исходник](../../tests/migration/test_task_service.py#L456)
 
 ```python
 def test_busy_task_rejects_chat_and_configuration_changes(self)
@@ -952,7 +972,7 @@ def test_busy_task_rejects_chat_and_configuration_changes(self)
 
 ### `TaskServiceTests.test_chats_are_scoped_to_project_and_ids_cannot_escape_store`
 
-[Исходник](../../tests/migration/test_task_service.py#L444)
+[Исходник](../../tests/migration/test_task_service.py#L465)
 
 ```python
 def test_chats_are_scoped_to_project_and_ids_cannot_escape_store(self)
@@ -962,7 +982,7 @@ def test_chats_are_scoped_to_project_and_ids_cannot_escape_store(self)
 
 ### `TaskServiceTests.test_models_and_configuration_do_not_return_key`
 
-[Исходник](../../tests/migration/test_task_service.py#L452)
+[Исходник](../../tests/migration/test_task_service.py#L473)
 
 ```python
 def test_models_and_configuration_do_not_return_key(self)
@@ -972,7 +992,7 @@ def test_models_and_configuration_do_not_return_key(self)
 
 ### `TaskServiceTests.test_missing_model_and_bad_url_are_rejected`
 
-[Исходник](../../tests/migration/test_task_service.py#L457)
+[Исходник](../../tests/migration/test_task_service.py#L478)
 
 ```python
 def test_missing_model_and_bad_url_are_rejected(self)

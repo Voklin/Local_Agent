@@ -2417,17 +2417,17 @@ def __init__(self, emit, engine_factory=AgentEngine)
 
 ### `TaskService.idle`
 
-[Исходник](../../core/python/task_service.py#L40)
+[Исходник](../../core/python/task_service.py#L41)
 
 ```python
 def idle(self)
 ```
 
-Отказывает операции, когда поток текущей задачи ещё жив.
+Под RLock отказывает операции, пока task_running=True; после task_end живой завершающийся Thread не блокирует новый запрос.
 
 ### `TaskService.configure`
 
-[Исходник](../../core/python/task_service.py#L44)
+[Исходник](../../core/python/task_service.py#L46)
 
 ```python
 def configure(self, params)
@@ -2437,7 +2437,7 @@ def configure(self, params)
 
 ### `TaskService.preferences`
 
-[Исходник](../../core/python/task_service.py#L52)
+[Исходник](../../core/python/task_service.py#L54)
 
 ```python
 def preferences(self)
@@ -2447,7 +2447,7 @@ def preferences(self)
 
 ### `TaskService.models`
 
-[Исходник](../../core/python/task_service.py#L55)
+[Исходник](../../core/python/task_service.py#L57)
 
 ```python
 def models(self, config=None, cancelled=None)
@@ -2457,7 +2457,7 @@ def models(self, config=None, cancelled=None)
 
 ### `TaskService.start_model_discovery`
 
-[Исходник](../../core/python/task_service.py#L58)
+[Исходник](../../core/python/task_service.py#L60)
 
 ```python
 def start_model_discovery(self, respond)
@@ -2467,7 +2467,7 @@ def start_model_discovery(self, respond)
 
 ### `TaskService.start_model_discovery.run_discovery`
 
-[Исходник](../../core/python/task_service.py#L65)
+[Исходник](../../core/python/task_service.py#L67)
 
 ```python
 def run_discovery()
@@ -2477,7 +2477,7 @@ def run_discovery()
 
 ### `TaskService.chats`
 
-[Исходник](../../core/python/task_service.py#L75)
+[Исходник](../../core/python/task_service.py#L77)
 
 ```python
 def chats(self, root)
@@ -2487,7 +2487,7 @@ def chats(self, root)
 
 ### `TaskService.select_chat`
 
-[Исходник](../../core/python/task_service.py#L80)
+[Исходник](../../core/python/task_service.py#L82)
 
 ```python
 def select_chat(self, root, chat_id=None)
@@ -2497,7 +2497,7 @@ def select_chat(self, root, chat_id=None)
 
 ### `TaskService._recover_chat`
 
-[Исходник](../../core/python/task_service.py#L95)
+[Исходник](../../core/python/task_service.py#L97)
 
 ```python
 def _recover_chat(self)
@@ -2507,7 +2507,7 @@ def _recover_chat(self)
 
 ### `TaskService._persist_chat`
 
-[Исходник](../../core/python/task_service.py#L164)
+[Исходник](../../core/python/task_service.py#L166)
 
 ```python
 def _persist_chat(self)
@@ -2517,7 +2517,7 @@ def _persist_chat(self)
 
 ### `TaskService._task_event`
 
-[Исходник](../../core/python/task_service.py#L169)
+[Исходник](../../core/python/task_service.py#L171)
 
 ```python
 def _task_event(self, task)
@@ -2527,7 +2527,7 @@ def _task_event(self, task)
 
 ### `TaskService._event`
 
-[Исходник](../../core/python/task_service.py#L175)
+[Исходник](../../core/python/task_service.py#L177)
 
 ```python
 def _event(self, kind, **data)
@@ -2537,7 +2537,7 @@ def _event(self, kind, **data)
 
 ### `TaskService._flush_text`
 
-[Исходник](../../core/python/task_service.py#L178)
+[Исходник](../../core/python/task_service.py#L180)
 
 ```python
 def _flush_text(self)
@@ -2547,7 +2547,7 @@ def _flush_text(self)
 
 ### `TaskService._flush_scheduled`
 
-[Исходник](../../core/python/task_service.py#L187)
+[Исходник](../../core/python/task_service.py#L189)
 
 ```python
 def _flush_scheduled(self, run_id)
@@ -2557,7 +2557,7 @@ def _flush_scheduled(self, run_id)
 
 ### `TaskService._persist_draft`
 
-[Исходник](../../core/python/task_service.py#L192)
+[Исходник](../../core/python/task_service.py#L194)
 
 ```python
 def _persist_draft(self)
@@ -2567,7 +2567,7 @@ def _persist_draft(self)
 
 ### `TaskService._persist_draft_scheduled`
 
-[Исходник](../../core/python/task_service.py#L197)
+[Исходник](../../core/python/task_service.py#L199)
 
 ```python
 def _persist_draft_scheduled(self, run_id, turn)
@@ -2577,7 +2577,7 @@ def _persist_draft_scheduled(self, run_id, turn)
 
 ### `TaskService._text_delta`
 
-[Исходник](../../core/python/task_service.py#L208)
+[Исходник](../../core/python/task_service.py#L210)
 
 ```python
 def _text_delta(self, turn, text)
@@ -2587,7 +2587,7 @@ def _text_delta(self, turn, text)
 
 ### `TaskService._chat_event`
 
-[Исходник](../../core/python/task_service.py#L238)
+[Исходник](../../core/python/task_service.py#L240)
 
 ```python
 def _chat_event(self, role, text)
@@ -2597,7 +2597,7 @@ def _chat_event(self, role, text)
 
 ### `TaskService._request_approval`
 
-[Исходник](../../core/python/task_service.py#L246)
+[Исходник](../../core/python/task_service.py#L248)
 
 ```python
 def _request_approval(self, path, diff, exists)
@@ -2607,7 +2607,7 @@ def _request_approval(self, path, diff, exists)
 
 ### `TaskService.resolve_approval`
 
-[Исходник](../../core/python/task_service.py#L254)
+[Исходник](../../core/python/task_service.py#L256)
 
 ```python
 def resolve_approval(self, params)
@@ -2617,7 +2617,7 @@ def resolve_approval(self, params)
 
 ### `TaskService.cancel`
 
-[Исходник](../../core/python/task_service.py#L265)
+[Исходник](../../core/python/task_service.py#L267)
 
 ```python
 def cancel(self)
@@ -2627,7 +2627,7 @@ def cancel(self)
 
 ### `TaskService.start`
 
-[Исходник](../../core/python/task_service.py#L274)
+[Исходник](../../core/python/task_service.py#L276)
 
 ```python
 def start(self, root: Path, params)
@@ -2637,7 +2637,7 @@ def start(self, root: Path, params)
 
 ### `TaskService._save_messages`
 
-[Исходник](../../core/python/task_service.py#L328)
+[Исходник](../../core/python/task_service.py#L331)
 
 ```python
 def _save_messages(self, messages)
@@ -2647,17 +2647,17 @@ def _save_messages(self, messages)
 
 ### `TaskService._run`
 
-[Исходник](../../core/python/task_service.py#L340)
+[Исходник](../../core/python/task_service.py#L343)
 
 ```python
 def _run(self)
 ```
 
-Обёртка исполнения с failed и обязательным task_end/flush в finally.
+Завершает исполнение и сохранения, сбрасывает task_running под lock перед task_end; сообщает failed при ошибках.
 
 ### `TaskService.shutdown`
 
-[Исходник](../../core/python/task_service.py#L366)
+[Исходник](../../core/python/task_service.py#L371)
 
 ```python
 def shutdown(self)
