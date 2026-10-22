@@ -1,0 +1,2 @@
+# The Electron Python Core does not require Qt.
+openai>=1.68.0,<4

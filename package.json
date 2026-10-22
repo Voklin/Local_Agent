@@ -1,0 +1,1 @@
+{"name":"local-coding-agent-v6-workspace","private":true,"version":"6.0.0","workspaces":["apps/desktop"],"scripts":{"dev":"npm --workspace apps/desktop run dev","build":"npm --workspace apps/desktop run build","typecheck":"npm --workspace apps/desktop run typecheck"}}

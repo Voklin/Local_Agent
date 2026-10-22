@@ -2,3 +2,11 @@
 __pycache__/
 *.py[cod]
 .env
+node_modules/
+dist/
+dist-electron/
+*.tsbuildinfo
+.test-tmp/
+.test-data/
+.npm-cache/
+.venv-test/
