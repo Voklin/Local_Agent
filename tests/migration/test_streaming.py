@@ -52,9 +52,9 @@ class SlowHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'text/event-stream')
         self.end_headers()
         self.chunk('Начало ')
-        if self.server.mode == 'batch':
+        if self.server.mode in ('batch', 'crash_stream'):
             self.chunk('потока ')
-        if self.server.mode == 'mid_stream':
+        if self.server.mode in ('mid_stream', 'crash_stream'):
             self.wait_for_disconnect()
             return
         if self.server.mode in ('normal', 'batch'):

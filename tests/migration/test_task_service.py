@@ -181,6 +181,116 @@ class TaskServiceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.resolve(approval, 'apply')
 
+    def test_embedded_checkpoint_restores_missing_task_file(self):
+        approval = self.start()
+        self.resolve(approval, 'apply')
+        self.event('task_end')
+        self.service.thread.join(2)
+        saved = chat_store.load_chat(self.service.chat['id'])
+        self.assertEqual(saved['task_checkpoint']['status'], 'completed')
+        task_store.clear_task(saved['id'])
+        reopened = self.service.select_chat(self.root, saved['id'])
+        self.assertEqual(reopened['task']['status'], 'completed')
+        self.assertEqual(task_store.load_task(saved['id'])['status'], 'completed')
+        self.assertEqual(reopened['chat']['messages'], saved['messages'])
+
+    def test_recovery_does_not_confuse_reused_tool_ids_with_old_success(self):
+        chat = self.service.select_chat(self.root)['chat']
+        call = {'role': 'assistant', 'content': None, 'tool_calls': [{'id': 'same-id'}]}
+        chat['messages'] = [call, {'role': 'tool', 'tool_call_id': 'same-id', 'content': '{"ok":true}'},
+                            {'role': 'user', 'content': 'new task'}, call]
+        task = task_store.new_task(chat['id'], str(self.root), 'hello')
+        task['pending_write'] = {'path': 'uncertain.txt', 'call_id': 'same-id', 'message_index': 3, 'status': 'applying'}
+        chat['task_checkpoint'] = task
+        (self.root / 'uncertain.txt').write_text('external or applied', encoding='utf-8')
+        chat_store.save_chat(chat)
+        recovered = self.service.select_chat(self.root, chat['id'])
+        self.assertEqual(recovered['task']['status'], 'paused')
+        self.assertIn('могла быть применена', recovered['task']['recovery_warning'])
+        self.assertEqual(recovered['task']['modified_files'], [])
+        self.assertEqual((self.root / 'uncertain.txt').read_text(), 'external or applied')
+        self.assertNotIn('pending_write', recovered['task'])
+        with self.assertRaises(ValueError):
+            self.service.resolve_approval({'run_id': 'old', 'approval_id': 'old', 'decision': 'apply'})
+        with patch.object(AgentEngine, 'run', side_effect=RuntimeError('stop after resume')):
+            self.service.start(self.root, {'resume': True})
+            self.service.thread.join(2)
+        resumed = self.service.engine.task_snapshot()
+        self.assertNotIn('recovery_warning', resumed)
+        self.assertIn('могла быть применена', resumed['resume_state']['recovery_note'])
+
+    def test_recovery_recognizes_saved_tool_result_before_task_checkpoint(self):
+        chat = self.service.select_chat(self.root)['chat']
+        chat['messages'] = [{'role': 'user', 'content': 'new task'},
+                            {'role': 'assistant', 'tool_calls': [{'id': 'saved'}]},
+                            {'role': 'tool', 'tool_call_id': 'saved', 'content': '{"ok":true}'}]
+        task = task_store.new_task(chat['id'], str(self.root), 'hello')
+        task['pending_write'] = {'path': 'done.txt', 'call_id': 'saved', 'message_index': 1, 'status': 'applying'}
+        chat['task_checkpoint'] = task
+        chat_store.save_chat(chat)
+        recovered = self.service.select_chat(self.root, chat['id'])
+        self.assertEqual(recovered['task']['modified_files'], ['done.txt'])
+        self.assertNotIn('recovery_warning', recovered['task'])
+
+    def test_stream_draft_is_recovered_once_and_other_run_is_preserved_separately(self):
+        chat = self.service.select_chat(self.root)['chat']
+        chat['messages'] = [{'role': 'user', 'content': 'hello'}]
+        chat['active_run_id'] = 'current-run'
+        chat['stream_draft'] = {'run_id': 'current-run', 'turn': 0, 'text': 'saved partial'}
+        chat['task_checkpoint'] = task_store.new_task(chat['id'], str(self.root), 'hello')
+        chat_store.save_chat(chat)
+        recovered = self.service.select_chat(self.root, chat['id'])
+        self.assertEqual(recovered['chat']['messages'][-1]['content'], 'saved partial')
+        self.assertEqual(recovered['task']['status'], 'paused')
+        self.assertEqual(len(self.service.select_chat(self.root, chat['id'])['chat']['messages']), 2)
+        chat = self.service.chat
+        chat['stream_draft'] = {'run_id': 'old-run', 'turn': 0, 'text': 'unrelated draft'}
+        chat_store.save_chat(chat)
+        recovered = self.service.select_chat(self.root, chat['id'])
+        self.assertEqual(len(recovered['chat']['messages']), 2)
+        self.assertEqual(recovered['chat']['recovery_fragments'][-1]['text'], 'unrelated draft')
+
+    def test_unexpected_engine_exception_still_persists_pause_and_task_end(self):
+        with patch.object(AgentEngine, 'run', side_effect=RuntimeError('fixture failure')):
+            self.service.start(self.root, {'prompt': 'hello'})
+            self.service.thread.join(2)
+        self.assertFalse(self.service.thread.is_alive())
+        events = list(self.events.queue)
+        self.assertTrue(any(e['event'] == 'failed' for e in events))
+        self.assertTrue(any(e['event'] == 'task_end' for e in events))
+        self.assertEqual(chat_store.load_chat(self.service.chat['id'])['task_checkpoint']['status'], 'paused')
+
+    def test_index_cache_failure_warns_without_aborting_agent(self):
+        original = chat_store._atomic_write
+        def fail_index_only(path, data):
+            if path == chat_store.INDEX_FILE:
+                raise OSError('fixture cache failure')
+            return original(path, data)
+        with patch.object(chat_store, '_atomic_write', side_effect=fail_index_only), patch.object(self.service, '_event', wraps=self.service._event) as events:
+            approval = self.start()
+            self.resolve(approval, 'apply')
+            self.event('task_end')
+            self.service.thread.join(2)
+            self.assertTrue(any(call.args[0] == 'warning' for call in events.call_args_list))
+            saved = chat_store.load_chat(self.service.chat['id'])
+            self.assertEqual(saved['task_checkpoint']['status'], 'completed')
+            self.assertTrue(any(m.get('content') == 'Готово' for m in saved['messages']))
+        self.assertEqual(len(self.service.chats(self.root)['chats']), 1)
+        self.assertEqual(self.service.chats(self.root)['warnings'], [])
+
+    def test_persistence_failure_before_apply_never_writes_and_still_ends_task(self):
+        approval = self.start()
+        with patch('core.python.task_service.save_chat', side_effect=OSError('fixture storage failure')):
+            self.resolve(approval, 'apply')
+            self.service.thread.join(3)
+            self.assertFalse(self.service.thread.is_alive())
+        self.assertFalse((self.root / 'new.txt').exists())
+        events = list(self.events.queue)
+        self.assertTrue(any(e['event'] == 'failed' for e in events))
+        self.assertTrue(any(e['event'] == 'task_end' for e in events))
+        recovered = self.service.select_chat(self.root, self.service.chat['id'])
+        self.assertEqual(recovered['task']['status'], 'paused')
+
     def test_resume_preserves_task_and_recovery_marks_interrupted_task_paused(self):
         self.start()
         self.service.cancel()

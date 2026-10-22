@@ -12,6 +12,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from test_task_service import ModelHandler
 from test_model_discovery import DiscoveryHandler
+from test_streaming import SlowHandler
 
 BRIDGE = Path(__file__).resolve().parents[2] / 'core/python/bridge.py'
 
@@ -25,6 +26,10 @@ class BridgeProcessTests(unittest.TestCase):
         self.buffer = []
         self.counter = 0
         self.discovery_server = None
+        self.scenario_server = None
+        self.start_process()
+
+    def start_process(self):
         self.process = subprocess.Popen([sys.executable, '-u', str(BRIDGE)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding='utf-8', env={**os.environ, 'LOCALAPPDATA': self.temp.name, 'PYTHONIOENCODING':'utf-8'})
@@ -38,8 +43,13 @@ class BridgeProcessTests(unittest.TestCase):
             except json.JSONDecodeError:
                 self.messages.put({'invalid_output':line})
 
-    def tearDown(self):
-        self.process.stdin.close()
+    def stop_process(self, kill=False):
+        if kill and self.process.poll() is None:
+            self.process.kill()
+        try:
+            self.process.stdin.close()
+        except OSError:
+            pass
         try:
             self.process.wait(5)
         except subprocess.TimeoutExpired:
@@ -48,11 +58,72 @@ class BridgeProcessTests(unittest.TestCase):
         self.reader.join(2)
         self.process.stdout.close()
         self.process.stderr.close()
+
+    def tearDown(self):
+        self.stop_process()
         if self.discovery_server:
             self.discovery_server.release.set()
             self.discovery_server.shutdown()
             self.discovery_server.server_close()
+        if self.scenario_server:
+            self.scenario_server.release.set()
+            self.scenario_server.shutdown()
+            self.scenario_server.server_close()
         self.temp.cleanup()
+
+    def start_crash_scenario(self, handler, mode=None):
+        server = self.scenario_server = ThreadingHTTPServer(('127.0.0.1', 0), handler)
+        server.mode = mode
+        server.requests = []
+        server.waiting = threading.Event()
+        server.disconnected = threading.Event()
+        server.release = threading.Event()
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.assertTrue(self.call('set_project', root=str(self.root))['ok'])
+        self.assertTrue(self.call('configure_model', base_url=f'http://127.0.0.1:{server.server_port}/v1', model='test-model')['ok'])
+        return self.call('start_task', prompt='hello')['chat_id']
+
+    def reopen_after_kill(self, chat_id):
+        self.stop_process(kill=True)
+        self.messages = queue.Queue()
+        self.buffer = []
+        self.start_process()
+        self.assertTrue(self.call('set_project', root=str(self.root))['ok'])
+        result = self.call('load_chat', chat_id=chat_id)
+        self.assertTrue(result['ok'], result)
+        return result
+
+    def test_process_kill_before_headers_recovers_user_request_and_paused_task(self):
+        chat_id = self.start_crash_scenario(SlowHandler, 'before_headers')
+        self.assertTrue(self.scenario_server.waiting.wait(3))
+        recovered = self.reopen_after_kill(chat_id)
+        self.assertEqual(recovered['task']['status'], 'paused')
+        self.assertEqual(recovered['chat']['messages'], [{'role': 'user', 'content': 'hello'}])
+
+    def test_process_kill_during_stream_recovers_partial_once(self):
+        chat_id = self.start_crash_scenario(SlowHandler, 'crash_stream')
+        self.until(lambda r: r.get('event') == 'text_delta')
+        time.sleep(1.2)  # The final fragment must be saved even while the server is idle.
+        recovered = self.reopen_after_kill(chat_id)
+        self.assertEqual(recovered['task']['status'], 'paused')
+        self.assertEqual([m['content'] for m in recovered['chat']['messages'] if m.get('role') == 'assistant'], ['Начало потока '])
+        repeated = self.call('load_chat', chat_id=chat_id)
+        self.assertEqual(repeated['chat']['messages'], recovered['chat']['messages'])
+
+    def test_process_kill_during_approval_never_replays_permission(self):
+        chat_id = self.start_crash_scenario(ModelHandler)
+        proposal = self.until(lambda r: r.get('event') == 'approval')
+        recovered = self.reopen_after_kill(chat_id)
+        self.assertEqual(recovered['task']['status'], 'paused')
+        self.assertFalse((self.root / 'new.txt').exists())
+        self.assertFalse(self.call('resolve_approval', run_id=proposal['run_id'], approval_id=proposal['approval_id'], decision='apply')['ok'])
+        self.assertTrue(self.call('start_task', resume=True)['ok'])
+        fresh = self.until(lambda r: r.get('event') == 'approval')
+        self.assertNotEqual(fresh['run_id'], proposal['run_id'])
+        self.assertNotEqual(fresh['approval_id'], proposal['approval_id'])
+        self.assertFalse((self.root / 'new.txt').exists())
+        self.assertTrue(self.call('cancel_task')['ok'])
+        self.until(lambda r: r.get('event') == 'task_end')
 
     def start_discovery_server(self, mode):
         server = self.discovery_server = ThreadingHTTPServer(('127.0.0.1', 0), DiscoveryHandler)

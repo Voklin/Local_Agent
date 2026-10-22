@@ -51,9 +51,19 @@
 
 JSON-чаты и индекс истории вне папки проекта.
 
+### `_valid_id`
+
+[Исходник](../../agent/chat_store.py#L19)
+
+```python
+def _valid_id(chat_id)
+```
+
+Проверяет 32-символьный hex UUID до доступа к пути файла чата.
+
 ### `_now`
 
-[Исходник](../../agent/chat_store.py#L17)
+[Исходник](../../agent/chat_store.py#L23)
 
 ```python
 def _now() -> str
@@ -63,7 +73,7 @@ def _now() -> str
 
 ### `_atomic_write`
 
-[Исходник](../../agent/chat_store.py#L21)
+[Исходник](../../agent/chat_store.py#L27)
 
 ```python
 def _atomic_write(path: Path, data: Any) -> None
@@ -73,7 +83,7 @@ def _atomic_write(path: Path, data: Any) -> None
 
 ### `_load_index`
 
-[Исходник](../../agent/chat_store.py#L33)
+[Исходник](../../agent/chat_store.py#L41)
 
 ```python
 def _load_index() -> list[dict[str, Any]]
@@ -83,7 +93,7 @@ def _load_index() -> list[dict[str, Any]]
 
 ### `list_chats`
 
-[Исходник](../../agent/chat_store.py#L43)
+[Исходник](../../agent/chat_store.py#L51)
 
 ```python
 def list_chats() -> list[dict[str, Any]]
@@ -91,9 +101,39 @@ def list_chats() -> list[dict[str, Any]]
 
 Возвращает метаданные чатов по убыванию updated_at; фильтрацию проекта делает сервис.
 
+### `_metadata`
+
+[Исходник](../../agent/chat_store.py#L55)
+
+```python
+def _metadata(chat)
+```
+
+Выбирает строковые метаданные канонического чата для производного индекса.
+
+### `_cache_chat`
+
+[Исходник](../../agent/chat_store.py#L59)
+
+```python
+def _cache_chat(chat=None, deleted_id=None)
+```
+
+Обновляет производный индекс; отказ возвращает предупреждение, сохраняя канонический JSON.
+
+### `read_chat_catalog`
+
+[Исходник](../../agent/chat_store.py#L72)
+
+```python
+def read_chat_catalog()
+```
+
+Сканирует канонические чаты, восстанавливает индекс и сообщает о повреждениях, не изменяя повреждённые исходники.
+
 ### `create_chat`
 
-[Исходник](../../agent/chat_store.py#L47)
+[Исходник](../../agent/chat_store.py#L97)
 
 ```python
 def create_chat(project_root: str='', model: str='', title: str='Новый чат') -> dict[str, Any]
@@ -103,27 +143,27 @@ def create_chat(project_root: str='', model: str='', title: str='Новый ча
 
 ### `load_chat`
 
-[Исходник](../../agent/chat_store.py#L67)
+[Исходник](../../agent/chat_store.py#L118)
 
 ```python
 def load_chat(chat_id: str) -> dict[str, Any] | None
 ```
 
-Читает JSON одного чата по ID; входной ID должен быть проверен вызывающим сервисом.
+Проверяет UUID и структуру JSON; отсутствие возвращает None, повреждение даёт ошибку с сохранением исходного файла.
 
 ### `save_chat`
 
-[Исходник](../../agent/chat_store.py#L76)
+[Исходник](../../agent/chat_store.py#L133)
 
 ```python
-def save_chat(chat: dict[str, Any]) -> None
+def save_chat(chat: dict[str, Any]) -> str | None
 ```
 
-Обновляет дату, JSON чата и отдельную запись индекса.
+С fsync атомарно сохраняет чат; отказ производного индекса возвращает предупреждение, не отменяя сохранённую историю.
 
 ### `delete_chat`
 
-[Исходник](../../agent/chat_store.py#L85)
+[Исходник](../../agent/chat_store.py#L144)
 
 ```python
 def delete_chat(chat_id: str) -> bool
@@ -133,7 +173,7 @@ def delete_chat(chat_id: str) -> bool
 
 ### `rename_chat`
 
-[Исходник](../../agent/chat_store.py#L95)
+[Исходник](../../agent/chat_store.py#L157)
 
 ```python
 def rename_chat(chat_id: str, title: str) -> dict[str, Any] | None
@@ -143,7 +183,7 @@ def rename_chat(chat_id: str, title: str) -> dict[str, Any] | None
 
 ### `title_from_messages`
 
-[Исходник](../../agent/chat_store.py#L103)
+[Исходник](../../agent/chat_store.py#L165)
 
 ```python
 def title_from_messages(messages: list[dict[str, Any]]) -> str
@@ -307,7 +347,7 @@ def save_project_text(project_root: str | Path, requested: str | Path, text: str
 
 ### `EventHook`
 
-[Исходник](../../agent/engine.py#L31)
+[Исходник](../../agent/engine.py#L32)
 
 ```python
 class EventHook
@@ -317,7 +357,7 @@ class EventHook
 
 ### `EventHook.__init__`
 
-[Исходник](../../agent/engine.py#L33)
+[Исходник](../../agent/engine.py#L34)
 
 ```python
 def __init__(self)
@@ -327,7 +367,7 @@ def __init__(self)
 
 ### `EventHook.connect`
 
-[Исходник](../../agent/engine.py#L36)
+[Исходник](../../agent/engine.py#L37)
 
 ```python
 def connect(self, callback)
@@ -337,7 +377,7 @@ def connect(self, callback)
 
 ### `EventHook.emit`
 
-[Исходник](../../agent/engine.py#L39)
+[Исходник](../../agent/engine.py#L40)
 
 ```python
 def emit(self, *args)
@@ -347,7 +387,7 @@ def emit(self, *args)
 
 ### `AgentEngine`
 
-[Исходник](../../agent/engine.py#L44)
+[Исходник](../../agent/engine.py#L45)
 
 ```python
 class AgentEngine
@@ -357,7 +397,7 @@ class AgentEngine
 
 ### `AgentEngine.requestInterruption`
 
-[Исходник](../../agent/engine.py#L49)
+[Исходник](../../agent/engine.py#L50)
 
 ```python
 def requestInterruption(self)
@@ -367,7 +407,7 @@ def requestInterruption(self)
 
 ### `AgentEngine.isInterruptionRequested`
 
-[Исходник](../../agent/engine.py#L54)
+[Исходник](../../agent/engine.py#L55)
 
 ```python
 def isInterruptionRequested(self)
@@ -377,7 +417,7 @@ def isInterruptionRequested(self)
 
 ### `AgentEngine.__init__`
 
-[Исходник](../../agent/engine.py#L57)
+[Исходник](../../agent/engine.py#L58)
 
 ```python
 def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None)
@@ -387,7 +427,7 @@ def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=No
 
 ### `AgentEngine._checkpoint`
 
-[Исходник](../../agent/engine.py#L87)
+[Исходник](../../agent/engine.py#L88)
 
 ```python
 def _checkpoint(self, stage=None, event='')
@@ -395,9 +435,19 @@ def _checkpoint(self, stage=None, event='')
 
 Обновляет этап/последнее событие, сохраняет checkpoint и публикует снимок.
 
+### `AgentEngine.task_snapshot`
+
+[Исходник](../../agent/engine.py#L98)
+
+```python
+def task_snapshot(self)
+```
+
+Возвращает независимую копию checkpoint для атомарного сохранения в записи чата.
+
 ### `AgentEngine.resolve_write_approval`
 
-[Исходник](../../agent/engine.py#L97)
+[Исходник](../../agent/engine.py#L101)
 
 ```python
 def resolve_write_approval(self, decision)
@@ -407,7 +457,7 @@ def resolve_write_approval(self, decision)
 
 ### `AgentEngine._ask_write_approval`
 
-[Исходник](../../agent/engine.py#L108)
+[Исходник](../../agent/engine.py#L112)
 
 ```python
 def _ask_write_approval(self, path, diff, exists)
@@ -417,7 +467,7 @@ def _ask_write_approval(self, path, diff, exists)
 
 ### `AgentEngine._emit_change`
 
-[Исходник](../../agent/engine.py#L130)
+[Исходник](../../agent/engine.py#L134)
 
 ```python
 def _emit_change(self, path, diff, exists, status, error='')
@@ -427,7 +477,7 @@ def _emit_change(self, path, diff, exists, status, error='')
 
 ### `AgentEngine._looks_like_action_request`
 
-[Исходник](../../agent/engine.py#L140)
+[Исходник](../../agent/engine.py#L144)
 
 ```python
 @staticmethod
@@ -438,7 +488,7 @@ def _looks_like_action_request(prompt)
 
 ### `AgentEngine._verify_task_completion`
 
-[Исходник](../../agent/engine.py#L150)
+[Исходник](../../agent/engine.py#L154)
 
 ```python
 def _verify_task_completion(self, client, messages, max_tokens)
@@ -448,7 +498,7 @@ def _verify_task_completion(self, client, messages, max_tokens)
 
 ### `AgentEngine.run`
 
-[Исходник](../../agent/engine.py#L186)
+[Исходник](../../agent/engine.py#L190)
 
 ```python
 def run(self)
@@ -2299,7 +2349,7 @@ def main() -> None
 
 ### `TaskService`
 
-[Исходник](../../core/python/task_service.py#L16)
+[Исходник](../../core/python/task_service.py#L18)
 
 ```python
 class TaskService
@@ -2309,7 +2359,7 @@ class TaskService
 
 ### `TaskService.__init__`
 
-[Исходник](../../core/python/task_service.py#L17)
+[Исходник](../../core/python/task_service.py#L19)
 
 ```python
 def __init__(self, emit, engine_factory=AgentEngine)
@@ -2319,7 +2369,7 @@ def __init__(self, emit, engine_factory=AgentEngine)
 
 ### `TaskService.idle`
 
-[Исходник](../../core/python/task_service.py#L34)
+[Исходник](../../core/python/task_service.py#L39)
 
 ```python
 def idle(self)
@@ -2329,7 +2379,7 @@ def idle(self)
 
 ### `TaskService.configure`
 
-[Исходник](../../core/python/task_service.py#L38)
+[Исходник](../../core/python/task_service.py#L43)
 
 ```python
 def configure(self, params)
@@ -2339,7 +2389,7 @@ def configure(self, params)
 
 ### `TaskService.preferences`
 
-[Исходник](../../core/python/task_service.py#L46)
+[Исходник](../../core/python/task_service.py#L51)
 
 ```python
 def preferences(self)
@@ -2349,7 +2399,7 @@ def preferences(self)
 
 ### `TaskService.models`
 
-[Исходник](../../core/python/task_service.py#L49)
+[Исходник](../../core/python/task_service.py#L54)
 
 ```python
 def models(self, config=None, cancelled=None)
@@ -2359,7 +2409,7 @@ def models(self, config=None, cancelled=None)
 
 ### `TaskService.start_model_discovery`
 
-[Исходник](../../core/python/task_service.py#L52)
+[Исходник](../../core/python/task_service.py#L57)
 
 ```python
 def start_model_discovery(self, respond)
@@ -2369,7 +2419,7 @@ def start_model_discovery(self, respond)
 
 ### `TaskService.start_model_discovery.run_discovery`
 
-[Исходник](../../core/python/task_service.py#L59)
+[Исходник](../../core/python/task_service.py#L64)
 
 ```python
 def run_discovery()
@@ -2379,7 +2429,7 @@ def run_discovery()
 
 ### `TaskService.chats`
 
-[Исходник](../../core/python/task_service.py#L69)
+[Исходник](../../core/python/task_service.py#L74)
 
 ```python
 def chats(self, root)
@@ -2389,17 +2439,47 @@ def chats(self, root)
 
 ### `TaskService.select_chat`
 
-[Исходник](../../core/python/task_service.py#L72)
+[Исходник](../../core/python/task_service.py#L79)
 
 ```python
 def select_chat(self, root, chat_id=None)
 ```
 
-Создаёт/загружает чат после проверки ID и проекта; running после перезапуска переводит в paused.
+Загружает чат, восстанавливает embedded checkpoint/stream draft и возвращает предупреждения без повторного применения старого approval.
+
+### `TaskService._recover_chat`
+
+[Исходник](../../core/python/task_service.py#L94)
+
+```python
+def _recover_chat(self)
+```
+
+Восстанавливает состояние из embedded checkpoint, draft и точного блока tool result; при неопределённой записи требует проверки файла.
+
+### `TaskService._persist_chat`
+
+[Исходник](../../core/python/task_service.py#L161)
+
+```python
+def _persist_chat(self)
+```
+
+Сохраняет канонический чат и отправляет warning при отказе производного индекса.
+
+### `TaskService._task_event`
+
+[Исходник](../../core/python/task_service.py#L166)
+
+```python
+def _task_event(self, task)
+```
+
+Копирует checkpoint в тот же JSON с историей, сохраняет и публикует состояние задачи.
 
 ### `TaskService._event`
 
-[Исходник](../../core/python/task_service.py#L90)
+[Исходник](../../core/python/task_service.py#L172)
 
 ```python
 def _event(self, kind, **data)
@@ -2409,7 +2489,7 @@ def _event(self, kind, **data)
 
 ### `TaskService._flush_text`
 
-[Исходник](../../core/python/task_service.py#L93)
+[Исходник](../../core/python/task_service.py#L175)
 
 ```python
 def _flush_text(self)
@@ -2419,7 +2499,7 @@ def _flush_text(self)
 
 ### `TaskService._flush_scheduled`
 
-[Исходник](../../core/python/task_service.py#L102)
+[Исходник](../../core/python/task_service.py#L184)
 
 ```python
 def _flush_scheduled(self, run_id)
@@ -2427,19 +2507,39 @@ def _flush_scheduled(self, run_id)
 
 Под блокировкой допечатывает текст, только если таймер относится к текущему run.
 
+### `TaskService._persist_draft`
+
+[Исходник](../../core/python/task_service.py#L189)
+
+```python
+def _persist_draft(self)
+```
+
+Сохраняет текущий текст/run/turn как независимый draft и обновляет время записи.
+
+### `TaskService._persist_draft_scheduled`
+
+[Исходник](../../core/python/task_service.py#L194)
+
+```python
+def _persist_draft_scheduled(self, run_id, turn)
+```
+
+Сохраняет последний фрагмент даже при паузе сервера; проверяет run/turn и отменяет задачу при ошибке хранения.
+
 ### `TaskService._text_delta`
 
-[Исходник](../../core/python/task_service.py#L107)
+[Исходник](../../core/python/task_service.py#L205)
 
 ```python
 def _text_delta(self, turn, text)
 ```
 
-Собирает текст под RLock и организует отправку по размеру или интервалу около 40 мс.
+Отправляет порции текста примерно через 40 мс и сохраняет первый/периодический draft для crash recovery.
 
 ### `TaskService._chat_event`
 
-[Исходник](../../core/python/task_service.py#L121)
+[Исходник](../../core/python/task_service.py#L235)
 
 ```python
 def _chat_event(self, role, text)
@@ -2449,7 +2549,7 @@ def _chat_event(self, role, text)
 
 ### `TaskService._request_approval`
 
-[Исходник](../../core/python/task_service.py#L129)
+[Исходник](../../core/python/task_service.py#L243)
 
 ```python
 def _request_approval(self, path, diff, exists)
@@ -2459,7 +2559,7 @@ def _request_approval(self, path, diff, exists)
 
 ### `TaskService.resolve_approval`
 
-[Исходник](../../core/python/task_service.py#L137)
+[Исходник](../../core/python/task_service.py#L251)
 
 ```python
 def resolve_approval(self, params)
@@ -2469,7 +2569,7 @@ def resolve_approval(self, params)
 
 ### `TaskService.cancel`
 
-[Исходник](../../core/python/task_service.py#L148)
+[Исходник](../../core/python/task_service.py#L262)
 
 ```python
 def cancel(self)
@@ -2479,7 +2579,7 @@ def cancel(self)
 
 ### `TaskService.start`
 
-[Исходник](../../core/python/task_service.py#L157)
+[Исходник](../../core/python/task_service.py#L271)
 
 ```python
 def start(self, root: Path, params)
@@ -2489,17 +2589,17 @@ def start(self, root: Path, params)
 
 ### `TaskService._save_messages`
 
-[Исходник](../../core/python/task_service.py#L201)
+[Исходник](../../core/python/task_service.py#L324)
 
 ```python
 def _save_messages(self, messages)
 ```
 
-Заменяет messages выбранного чата списком движка и сохраняет JSON.
+Допечатывает stream-буфер, отменяет draft-таймер и сохраняет канонические сообщения вместе с checkpoint.
 
 ### `TaskService._run`
 
-[Исходник](../../core/python/task_service.py#L205)
+[Исходник](../../core/python/task_service.py#L336)
 
 ```python
 def _run(self)
@@ -2509,7 +2609,7 @@ def _run(self)
 
 ### `TaskService.shutdown`
 
-[Исходник](../../core/python/task_service.py#L216)
+[Исходник](../../core/python/task_service.py#L361)
 
 ```python
 def shutdown(self)

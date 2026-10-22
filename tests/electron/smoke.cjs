@@ -113,9 +113,13 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(fs.readFileSync(path.join(project, 'smoke.txt'), 'utf8'), 'verified');
       await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       fs.writeFileSync(path.join(testRoot, 'completed.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
+      const corruptChat = path.join(testRoot, 'LocalCodingAgent/chats', '0'.repeat(32) + '.json');
+      fs.writeFileSync(corruptChat, '{broken source');
       modelMode = 'conflict';
       await win.webContents.executeJavaScript(`document.querySelector('[title="Новый чат"]').click()`);
       await poll(win, `!document.querySelector('.task-card') && !document.querySelector('.chat-messages').textContent.includes('Smoke completed')`);
+      await poll(win, `document.querySelector('.chat-messages').textContent.includes('исходный файл сохранён')`);
+      assert.equal(fs.readFileSync(corruptChat, 'utf8'), '{broken source');
       await win.webContents.executeJavaScript(`{
         const input = document.querySelector('textarea');
         Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'hello conflict');

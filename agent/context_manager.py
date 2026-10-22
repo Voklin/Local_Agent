@@ -15,7 +15,8 @@ class ContextManager:
         meta = []
         if task:
             meta.append({"task_stage": task.get('stage'), "status": task.get('status'),
-                         "last_event": task.get('last_event', '')})
+                         "last_event": task.get('last_event', ''),
+                         'next_action': str(task.get('resume_state', {}).get('next_action', ''))[:500]})
         if skills:
             meta.append({"skills": [s.get('id') for s in skills]})
         if meta:

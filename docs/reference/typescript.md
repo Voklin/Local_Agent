@@ -332,9 +332,19 @@ function report(text: string)
 
 Добавляет диагностическую строку, сохраняя ограниченный хвост UI-лога.
 
-### `App.refreshChats`
+### `App.showWarning`
 
 [Исходник](../../apps/desktop/src/App.tsx#L40)
+
+```typescript
+function showWarning(text: string)
+```
+
+Публикует диагностическое предупреждение в логе и чате, не добавляя одинаковый текст повторно.
+
+### `App.refreshChats`
+
+[Исходник](../../apps/desktop/src/App.tsx#L44)
 
 ```typescript
 async function refreshChats()
@@ -344,7 +354,7 @@ async function refreshChats()
 
 ### `App.refreshFiles`
 
-[Исходник](../../apps/desktop/src/App.tsx#L89)
+[Исходник](../../apps/desktop/src/App.tsx#L95)
 
 ```typescript
 async function refreshFiles(path = '.')
@@ -354,7 +364,7 @@ async function refreshFiles(path = '.')
 
 ### `App.chooseProject`
 
-[Исходник](../../apps/desktop/src/App.tsx#L93)
+[Исходник](../../apps/desktop/src/App.tsx#L99)
 
 ```typescript
 async function chooseProject()
@@ -364,7 +374,7 @@ async function chooseProject()
 
 ### `App.openFile`
 
-[Исходник](../../apps/desktop/src/App.tsx#L102)
+[Исходник](../../apps/desktop/src/App.tsx#L108)
 
 ```typescript
 async function openFile(item: FileItem)
@@ -374,7 +384,7 @@ async function openFile(item: FileItem)
 
 ### `App.selectChat`
 
-[Исходник](../../apps/desktop/src/App.tsx#L108)
+[Исходник](../../apps/desktop/src/App.tsx#L114)
 
 ```typescript
 async function selectChat(id?: string)
@@ -384,7 +394,7 @@ async function selectChat(id?: string)
 
 ### `App.configure`
 
-[Исходник](../../apps/desktop/src/App.tsx#L117)
+[Исходник](../../apps/desktop/src/App.tsx#L124)
 
 ```typescript
 async function configure()
@@ -394,7 +404,7 @@ async function configure()
 
 ### `App.saveSettings`
 
-[Исходник](../../apps/desktop/src/App.tsx#L121)
+[Исходник](../../apps/desktop/src/App.tsx#L128)
 
 ```typescript
 async function saveSettings()
@@ -404,7 +414,7 @@ async function saveSettings()
 
 ### `App.discoverModels`
 
-[Исходник](../../apps/desktop/src/App.tsx#L127)
+[Исходник](../../apps/desktop/src/App.tsx#L134)
 
 ```typescript
 async function discoverModels()
@@ -414,7 +424,7 @@ async function discoverModels()
 
 ### `App.sendPrompt`
 
-[Исходник](../../apps/desktop/src/App.tsx#L142)
+[Исходник](../../apps/desktop/src/App.tsx#L149)
 
 ```typescript
 async function sendPrompt(resume = false)
@@ -424,7 +434,7 @@ async function sendPrompt(resume = false)
 
 ### `App.decide`
 
-[Исходник](../../apps/desktop/src/App.tsx#L166)
+[Исходник](../../apps/desktop/src/App.tsx#L174)
 
 ```typescript
 async function decide(decision: string)
@@ -434,7 +444,7 @@ async function decide(decision: string)
 
 ### `App.cancel`
 
-[Исходник](../../apps/desktop/src/App.tsx#L175)
+[Исходник](../../apps/desktop/src/App.tsx#L183)
 
 ```typescript
 async function cancel()

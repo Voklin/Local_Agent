@@ -102,3 +102,9 @@ Stdout зарезервирован под протокол. Обычный `pri
 Это Python-контракт между engine и tools, не новая RPC-команда. `preview_file_change` возвращает `snapshot` с полями `path`, `exists`, `sha256` (null для отсутствующего файла), `proposed_sha256`. Движок удерживает его во время ожидания решения. После совпадающих run/proposal ID решение Apply передаёт `approved=True, expected_snapshot=...` в `execute_tool`. Модель не может установить эти keyword-only параметры внутри своего JSON.
 
 `APPROVAL_REQUIRED` означает отсутствие согласия; `APPROVAL_SNAPSHOT_REQUIRED` — отсутствие внутреннего снимка; `FILE_CHANGED` — несовпадение снимка/появление target. Последний исход показывается в change.error; он не должен восприниматься UI или моделью как успешная запись.
+
+## Восстановление и предупреждения
+
+`list_chats` дополнительно возвращает warnings вместе с доступными chats; `new_chat`/`load_chat` — warnings вместе с chat/task. Событие `warning` содержит text и обычные run_id/chat_id. Renderer показывает его в чате и логах с подавлением одинакового текста.
+
+`chat.task_checkpoint` и `chat.stream_draft` — опциональные поля сохранённого чата. Полное описание и границы гарантий приведены в [главе 9](09-data-and-security.md). `resolve_approval` по-прежнему требует свежие ID; никакое recovery-поле JSON не разрешает повторную запись после перезапуска.

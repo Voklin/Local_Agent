@@ -104,13 +104,17 @@ def register(module, text):
 
 
 register('agent/chat_store.py', '''
+_valid_id | Проверяет 32-символьный hex UUID до доступа к пути файла чата.
+_metadata | Выбирает строковые метаданные канонического чата для производного индекса.
+_cache_chat | Обновляет производный индекс; отказ возвращает предупреждение, сохраняя канонический JSON.
+read_chat_catalog | Сканирует канонические чаты, восстанавливает индекс и сообщает о повреждениях, не изменяя повреждённые исходники.
 _now | Возвращает UTC ISO-время для метаданных чата.
 _atomic_write | Записывает JSON через временный файл и replace; общую транзакцию чата с индексом не создаёт.
 _load_index | Читает индекс; при отсутствующем или повреждённом JSON возвращает пустой список.
 list_chats | Возвращает метаданные чатов по убыванию updated_at; фильтрацию проекта делает сервис.
 create_chat | Генерирует UUID, создаёт запись и добавляет её метаданные в индекс.
-load_chat | Читает JSON одного чата по ID; входной ID должен быть проверен вызывающим сервисом.
-save_chat | Обновляет дату, JSON чата и отдельную запись индекса.
+load_chat | Проверяет UUID и структуру JSON; отсутствие возвращает None, повреждение даёт ошибку с сохранением исходного файла.
+save_chat | С fsync атомарно сохраняет чат; отказ производного индекса возвращает предупреждение, не отменяя сохранённую историю.
 delete_chat | Удаляет файл диалога и запись индекса; не меняет файлы проекта.
 rename_chat | Нормализует заголовок до 120 символов и сохраняет существующий чат.
 title_from_messages | Выбирает первое непустое user-сообщение и делает короткий заголовок.
@@ -134,6 +138,7 @@ read_project_text | Проверяет путь, существование и �
 save_project_text | Сохраняет существующий файл после повторной проверки пути; не является engine approval API.
 ''')
 register('agent/engine.py', '''
+AgentEngine.task_snapshot | Возвращает независимую копию checkpoint для атомарного сохранения в записи чата.
 EventHook | Синхронный набор callbacks для независимых от GUI событий движка.
 EventHook.connect | Добавляет обработчик события.
 EventHook.emit | Вызывает копию списка обработчиков с переданными аргументами в текущем потоке.
@@ -289,6 +294,11 @@ handle | Whitelist диспетчер RPC: состояние, проект, м�
 main | Цикл stdin JSON-lines с ID ответов, обработкой некорректного ввода и shutdown при EOF.
 ''')
 register('core/python/task_service.py', '''
+TaskService._recover_chat | Восстанавливает состояние из embedded checkpoint, draft и точного блока tool result; при неопределённой записи требует проверки файла.
+TaskService._persist_chat | Сохраняет канонический чат и отправляет warning при отказе производного индекса.
+TaskService._task_event | Копирует checkpoint в тот же JSON с историей, сохраняет и публикует состояние задачи.
+TaskService._persist_draft | Сохраняет текущий текст/run/turn как независимый draft и обновляет время записи.
+TaskService._persist_draft_scheduled | Сохраняет последний фрагмент даже при паузе сервера; проверяет run/turn и отменяет задачу при ошибке хранения.
 TaskService.start_model_discovery | Фиксирует копию настроек и запускает не больше одного discovery-потока, возвращающего ответ по исходному request ID.
 TaskService.start_model_discovery.run_discovery | Получает список моделей или структурированную ошибку и вызывает callback ответа.
 TaskService | Сервис одного Core-процесса: конфигурация, чат, активный run, поток и события UI.
@@ -297,17 +307,17 @@ TaskService.configure | Сохраняет whitelist preferences и держит
 TaskService.preferences | Возвращает URL и модель без ключа.
 TaskService.models | Вызывает ограниченное отменяемое HTTPX-обнаружение моделей для копии настроек.
 TaskService.chats | Фильтрует индекс чатов по точной строке выбранного корня.
-TaskService.select_chat | Создаёт/загружает чат после проверки ID и проекта; running после перезапуска переводит в paused.
+TaskService.select_chat | Загружает чат, восстанавливает embedded checkpoint/stream draft и возвращает предупреждения без повторного применения старого approval.
 TaskService._event | Добавляет общие run_id/chat_id к событию и передаёт emit.
 TaskService._flush_text | Отменяет таймер и отправляет накопленный фрагмент с ID сообщения.
 TaskService._flush_scheduled | Под блокировкой допечатывает текст, только если таймер относится к текущему run.
-TaskService._text_delta | Собирает текст под RLock и организует отправку по размеру или интервалу около 40 мс.
+TaskService._text_delta | Отправляет порции текста примерно через 40 мс и сохраняет первый/периодический draft для crash recovery.
 TaskService._chat_event | Допечатывает буфер и публикует полное сообщение с тем же ID, согласованно с таймером.
 TaskService._request_approval | Создаёт UUID предложения или немедленно отменяет его, если двигатель уже остановлен.
 TaskService.resolve_approval | Проверяет актуальные run/proposal ID и разрешённое решение, затем освобождает engine wait.
 TaskService.cancel | Отменяет исполнение задачи, ожидающее approval и фоновое обнаружение моделей.
 TaskService.start | Проверяет задачу, готовит историю/память, подписывает события и запускает agent-task.
-TaskService._save_messages | Заменяет messages выбранного чата списком движка и сохраняет JSON.
+TaskService._save_messages | Допечатывает stream-буфер, отменяет draft-таймер и сохраняет канонические сообщения вместе с checkpoint.
 TaskService._run | Обёртка исполнения с failed и обязательным task_end/flush в finally.
 TaskService.shutdown | Отменяет операции и ограниченно ждёт потоки задачи и model discovery при EOF.
 ''')
@@ -362,6 +372,22 @@ Main.mcp_connect.bad | Показывает ошибку эксперимент�
 ''')
 
 TEST_PURPOSES = {
+    'unreadable_directory_is_not_reported_as_empty_catalog': 'Недоступный каталог чатов выдаёт ошибку вместо ложного пустого списка.',
+    'missing_corrupt_and_stale_index_is_rebuilt_from_chat_files': 'Отсутствующий, повреждённый и устаревший индекс восстанавливается из канонических файлов.',
+    'index_failure_does_not_lose_saved_transcript': 'Ошибка записи индекса не отменяет сохранение истории; повторный каталог исправляет кэш.',
+    'corrupted_chat_is_reported_without_modifying_source': 'Повреждённый чат остаётся нетронутым, валидные чаты доступны и предупреждение содержит ID.',
+    'store_rejects_path_like_chat_ids': 'Файловые пути вместо UUID не читаются, не удаляются и не сохраняются.',
+    'fsync_failure_leaves_previous_chat_and_cleans_temporary_file': 'Ошибка fsync не заменяет предыдущий JSON и удаляет временный файл.',
+    'embedded_checkpoint_restores_missing_task_file': 'Embedded checkpoint восстанавливает отсутствующий task-файл без потери истории.',
+    'recovery_does_not_confuse_reused_tool_ids_with_old_success': 'Старый результат с повторённым tool_call_id не скрывает неопределённую новую запись.',
+    'recovery_recognizes_saved_tool_result_before_task_checkpoint': 'Сохранённый результат в нужном блоке позволяет восстановить учёт успешной записи.',
+    'stream_draft_is_recovered_once_and_other_run_is_preserved_separately': 'Draft текущего запуска восстанавливается один раз; чужой фрагмент сохраняется отдельно.',
+    'unexpected_engine_exception_still_persists_pause_and_task_end': 'Неожиданная ошибка engine сохраняет paused и обязательно отправляет task_end.',
+    'index_cache_failure_warns_without_aborting_agent': 'Отказ кэша индекса предупреждает UI, сохраняя полный успешный агентский цикл.',
+    'persistence_failure_before_apply_never_writes_and_still_ends_task': 'При отказе сохранения перед Apply файл не меняется, задача завершается с ошибкой.',
+    'process_kill_before_headers_recovers_user_request_and_paused_task': 'Реальный kill subprocess до HTTP-заголовков сохраняет запрос и paused при открытии.',
+    'process_kill_during_stream_recovers_partial_once': 'Реальный kill во время паузы SSE восстанавливает последний сохранённый фрагмент без дубля.',
+    'process_kill_during_approval_never_replays_permission': 'После kill во время approval старые ID отклоняются, resume требует нового согласия.',
     'valid_discovery_filters_invalid_ids': 'Валидный список моделей возвращается без неправильных/пустых ID.',
     'invalid_json_shape_status_and_size_are_rejected': 'Ошибочные JSON, data, HTTP status и превышение размера дают отказ.',
     'total_deadline_stops_slow_trickle': 'Общий deadline закрывает медленно поступающий HTTP body, даже если отдельные чтения не зависли.',
@@ -452,6 +478,12 @@ TEST_PURPOSES = {
 }
 
 TEST_HELPERS = {
+    'write_with_failed_index': 'Пропускает каноническую запись и имитирует отказ только кэша индекса.',
+    'fail_index_only': 'Имитирует отказ индекса во время полного агентского цикла.',
+    'start_process': 'Запускает отдельный тестовый bridge с изолированным LOCALAPPDATA и stdout reader.',
+    'stop_process': 'Завершает только принадлежащий тесту subprocess, закрывает каналы и ждёт reader.',
+    'start_crash_scenario': 'Запускает тестовый сервер и задачу перед контролируемым аварийным завершением.',
+    'reopen_after_kill': 'Убивает тестовый subprocess, запускает новый и открывает сохранённый чат.',
     'start_discovery_server': 'Запускает управляемую HTTP-фикстуру и отправляет discovery в реальный bridge subprocess.',
     'run': 'В тесте запускает сетевой вызов в отдельном потоке и передаёт результат/ошибку в очередь.',
     'late_create': 'Имитирует создание внешнего файла непосредственно перед атомарным созданием агентом.',
@@ -618,6 +650,7 @@ DESIGN_METHODS = {
 }
 
 TS_NOTES = {
+    'showWarning': 'Публикует диагностическое предупреждение в логе и чате, не добавляя одинаковый текст повторно.',
     'fileName': 'Возвращает фиксированное имя main.cjs или preload.cjs для соответствующей сборки Vite.',
     'dialog.showOpenDialog': 'Только в smoke-тесте возвращает учебный каталог вместо настоящего системного диалога.',
     'extract': 'Читает один TS/JS-файл, создаёт AST и возвращает его именованные объявления без исполнения кода.',

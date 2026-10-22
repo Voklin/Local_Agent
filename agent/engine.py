@@ -2,6 +2,7 @@ import json
 import re
 import threading
 import time
+from copy import deepcopy
 from .tools import preview_file_change
 from .conversation import build_messages, compact_live_messages
 from .tools import TOOL_DEFINITIONS, execute_tool
@@ -93,6 +94,9 @@ class AgentEngine:
             self._task['last_event'] = str(event)[:500]
         saved = save_task(self._task)
         self.task_updated.emit(saved)
+
+    def task_snapshot(self):
+        return deepcopy(self._task)
 
     def resolve_write_approval(self, decision):
         """Receive Apply/Reject/Cancel (or batch variants) from the GUI without a chat message."""
@@ -318,6 +322,7 @@ class AgentEngine:
 
                 messages.append({"role": "assistant", "content": content or None, "tool_calls": tool_calls})
                 content_parts = []
+                self.conversation_updated.emit(messages[1:])
                 hit_limit = False
                 for call in tool_calls:
                     if self.isInterruptionRequested():
@@ -372,9 +377,17 @@ class AgentEngine:
                                     result = {"ok": False, "error": "Target exists but overwrite=false; no changes made"}
                                     self._emit_change(preview["path"], preview["diff"], preview["exists"], "rejected", result["error"])
                                 else:
+                                    if self._task:
+                                        self._task['pending_write'] = {'path': preview['path'], 'call_id': call['id'],
+                                                                      'message_index': len(messages) - 2,
+                                                                      'status': 'awaiting_approval', 'snapshot': preview['snapshot']}
+                                        self._checkpoint(None, 'Ожидается подтверждение записи ' + preview['path'])
                                     self._emit_change(preview["path"], preview["diff"], preview["exists"], "pending")
                                     decision = self._ask_write_approval(preview["path"], preview["diff"], preview["exists"])
                                     if decision == "apply":
+                                        if self._task:
+                                            self._task['pending_write']['status'] = 'applying'
+                                            self._checkpoint(None, 'Применяется запись ' + preview['path'])
                                         result = execute_tool(name, args, self.project_root, self.settings,
                                                               approved=True, expected_snapshot=preview['snapshot'])
                                         if result.get('ok') and self._task:
@@ -393,7 +406,6 @@ class AgentEngine:
                     tool_calls_count += 1
                     if self._task:
                         self._task['tool_calls'] = tool_calls_count
-                        self._checkpoint(None, f'Выполнено вызовов инструментов: {tool_calls_count}')
                     self.progress.emit(tool_calls_count, max_tool_calls)
                     pretty = json.dumps(result, ensure_ascii=False, indent=2)
                     self.log.emit(f"TOOL RESULT: {pretty[:12000]}")
@@ -403,6 +415,9 @@ class AgentEngine:
                         memory_event["error"] = str(result.get("error"))[:240]
                     messages.append({"role": "tool", "tool_call_id": call["id"], "content": pretty})
                     self.conversation_updated.emit(messages[1:])
+                    if self._task:
+                        self._task['pending_write'] = None
+                        self._checkpoint(None, f'Выполнено вызовов инструментов: {tool_calls_count}')
                     if repeated_call_detected:
                         hit_limit = True
                         break

@@ -37,9 +37,14 @@ export default function App() {
   const messagesEnd = useRef<HTMLDivElement>(null);
 
   function report(text: string) { setLogs(l => [...l.slice(-99), text]); }
+  function showWarning(text: string) {
+    report(text);
+    setChat(c => c.some(m => m.role === 'system' && m.text === text) ? c : [...c, {role: 'system', text}]);
+  }
   async function refreshChats() {
     const r = await window.lca.listChats();
-    if (r.ok) setChats(r.chats);
+    if (r.ok) { setChats(r.chats); (r.warnings || []).forEach(showWarning); }
+    else showWarning(r.error);
   }
   useEffect(() => {
     window.lca.health().then(r => setHealth(r.ok ? 'Python Core подключён' : r.error)).catch(e => setHealth(String(e)));
@@ -67,6 +72,7 @@ export default function App() {
       });
       if (e.event === 'result') setChat(c => c.at(-1)?.role === 'user' ? [...c, {role:'assistant', text:e.text}] : c);
       if (e.event === 'log') report(e.text);
+      if (e.event === 'warning') showWarning(e.text);
       if (e.event === 'failed') { setChat(c => [...c, {role: 'system', text: e.text}]); report(e.text); }
       if (e.event === 'task') setTask(e.task);
       if (e.event === 'progress') setHealth(`Агент работает · инструменты ${e.count}/${e.maximum}`);
@@ -111,6 +117,7 @@ export default function App() {
     if (!r.ok) { report(r.error); return; }
     chatId.current = r.chat.id; runId.current = ''; setTask(r.task);
     setChat(r.chat.messages.filter((m: any) => typeof m.content === 'string' && ['user','assistant'].includes(m.role)).map((m: any) => ({role:m.role, text:m.content})));
+    (r.warnings || []).forEach(showWarning);
     await refreshChats();
     return r.chat.id as string;
   }
@@ -150,6 +157,7 @@ export default function App() {
         const r = await window.lca.newChat();
         if (!r.ok) throw new Error(r.error);
         chatId.current = r.chat.id;
+        (r.warnings || []).forEach(showWarning);
       }
       runId.current = '';
       setChat(c => [...c, {role:'user', text: resume ? 'Продолжить приостановленную задачу' : value}]);

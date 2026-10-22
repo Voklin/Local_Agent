@@ -1,10 +1,12 @@
 import tempfile, unittest
 from pathlib import Path
+from unittest.mock import patch
+from agent import task_store
 from agent.task_store import new_task, save_task, load_task, clear_task, set_stage, finish_task
 
 class TaskStoreTests(unittest.TestCase):
     def test_checkpoint_roundtrip(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, patch.object(task_store, 'TASK_DIR', Path(tmp) / 'tasks'):
             task = new_task("chat-1", tmp, "сделать задачу")
             set_stage(task, "research", "active", "читаю проект")
             saved = save_task(task)

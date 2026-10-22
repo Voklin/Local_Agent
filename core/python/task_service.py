@@ -1,12 +1,14 @@
 """Threaded agent service. Only the main bridge thread accepts UI commands."""
 from __future__ import annotations
+from copy import deepcopy
+import json
 import threading
 import time
 import uuid
 from pathlib import Path
 
 from agent.engine import AgentEngine
-from agent.chat_store import create_chat, list_chats, load_chat, save_chat
+from agent.chat_store import create_chat, read_chat_catalog, load_chat, save_chat
 from agent.project_memory import load_project_memory
 from agent.task_store import clear_task, load_task, save_task
 from agent.model_preferences import load_preferences, save_preferences
@@ -30,6 +32,9 @@ class TaskService:
         self.stream_timer = None
         self.discovery_thread = None
         self.discovery_cancel = threading.Event()
+        self.stream_text = ''
+        self.stream_persist_at = 0
+        self.draft_timer = None
 
     def idle(self):
         if self.thread and self.thread.is_alive():
@@ -67,7 +72,9 @@ class TaskService:
             self.discovery_thread.start()
 
     def chats(self, root):
-        return {'ok': True, 'chats': [c for c in list_chats() if c.get('project_root') == str(root)]}
+        catalog = read_chat_catalog()
+        return {'ok': True, 'chats': [c for c in catalog['chats'] if c.get('project_root') == str(root)],
+                'warnings': catalog['warnings']}
 
     def select_chat(self, root, chat_id=None):
         self.idle()
@@ -80,12 +87,87 @@ class TaskService:
         else:
             chat = create_chat(str(root), self.config['model'])
         self.chat = chat
-        task = load_task(chat['id'])
-        if task and task.get('status') == 'running':
+        warnings = [chat.pop('storage_warning')] if chat.get('storage_warning') else []
+        task, recovered = self._recover_chat()
+        return {'ok': True, 'chat': chat, 'task': task, 'warnings': warnings + recovered}
+
+    def _recover_chat(self):
+        embedded = self.chat.get('task_checkpoint')
+        task = deepcopy(embedded) if isinstance(embedded, dict) else load_task(self.chat['id'])
+        if task and (task.get('chat_id') != self.chat['id'] or task.get('project_root') != self.chat['project_root']):
+            raise ValueError('Контрольная точка не соответствует чату и проекту; исходные данные сохранены')
+        warnings = []
+        draft = self.chat.pop('stream_draft', None)
+        dirty = draft is not None or (task is not None and embedded is None)
+        if isinstance(draft, dict) and isinstance(draft.get('text'), str) and draft['text']:
+            if draft.get('run_id') == self.chat.get('active_run_id'):
+                message = {'role': 'assistant', 'content': draft['text']}
+                if not self.chat['messages'] or self.chat['messages'][-1] != message:
+                    self.chat['messages'].append(message)
+                warnings.append('Восстановлен последний сохранённый фрагмент ответа после прерывания процесса.')
+            else:
+                self.chat.setdefault('recovery_fragments', []).append(draft)
+                warnings.append('Фрагмент другого запуска сохранён в recovery_fragments; он не добавлен к текущему диалогу автоматически.')
+        elif draft is not None:
+            self.chat.setdefault('recovery_fragments', []).append(draft)
+            warnings.append('Не удалось автоматически восстановить фрагмент потока; исходные данные сохранены в recovery_fragments.')
+        if task and (task.get('status') == 'running' or task.get('pending_write')):
             task['status'] = 'paused'
             task['last_event'] = 'Предыдущий процесс завершился; задачу можно продолжить'
-            task = save_task(task)
-        return {'ok': True, 'chat': chat, 'task': task}
+            pending = task.pop('pending_write', None)
+            if isinstance(pending, dict):
+                result = None
+                index = pending.get('message_index')
+                messages = self.chat['messages']
+                if isinstance(index, int) and 0 <= index < len(messages):
+                    anchor = messages[index]
+                    if anchor.get('role') == 'assistant' and any(c.get('id') == pending.get('call_id') for c in anchor.get('tool_calls', []) if isinstance(c, dict)):
+                        for message in messages[index + 1:]:
+                            if message.get('role') != 'tool':
+                                break
+                            if message.get('tool_call_id') == pending.get('call_id'):
+                                result = message
+                                break
+                if result:
+                    try:
+                        value = json.loads(result['content'])
+                        if value.get('ok') and pending.get('path') not in task.setdefault('modified_files', []):
+                            task['modified_files'].append(pending['path'])
+                    except (ValueError, KeyError, TypeError, AttributeError):
+                        result = None
+                if not result and pending.get('status') == 'applying':
+                    task['recovery_warning'] = f"Последняя запись {pending.get('path', '')} могла быть применена до сбоя. Проверьте файл перед продолжением; старое согласие сброшено."
+                    task.setdefault('resume_state', {})['next_action'] = task['recovery_warning']
+                elif not result:
+                    warnings.append('Прерванное подтверждение сброшено; новые изменения потребуют нового diff и согласия.')
+            if task.get('recovery_warning'):
+                task['last_event'] = task['recovery_warning']
+            dirty = True
+        if task and task.get('recovery_warning'):
+            warnings.append(task['recovery_warning'])
+        if task:
+            self.chat['task_checkpoint'] = deepcopy(task)
+        if dirty:
+            warning = save_chat(self.chat)
+            if warning:
+                warnings.append(warning)
+        if task:
+            try:
+                save_task(task)
+            except OSError:
+                warnings.append('Контрольная точка сохранена в чате, но её отдельная копия недоступна; проверьте доступ к каталогу данных.')
+        return task, warnings
+
+    def _persist_chat(self):
+        warning = save_chat(self.chat)
+        if warning:
+            self._event('warning', text=warning)
+
+    def _task_event(self, task):
+        with self.lock:
+            self.chat['task_checkpoint'] = deepcopy(task)
+            self._persist_chat()
+            self._event('task', task=task)
 
     def _event(self, kind, **data):
         self.emit({'event': kind, 'run_id': self.run_id, 'chat_id': self.chat['id'], **data})
@@ -104,12 +186,44 @@ class TaskService:
             if self.run_id == run_id:
                 self._flush_text()
 
+    def _persist_draft(self):
+        self.chat['stream_draft'] = {'run_id': self.run_id, 'turn': self.stream_turn, 'text': self.stream_text}
+        self._persist_chat()
+        self.stream_persist_at = time.monotonic()
+
+    def _persist_draft_scheduled(self, run_id, turn):
+        with self.lock:
+            if self.run_id != run_id or self.stream_turn != turn or not self.stream_text:
+                return
+            self.draft_timer = None
+            try:
+                self._persist_draft()
+            except Exception as exc:
+                self._event('failed', text=f'Не удалось сохранить потоковый ответ: {type(exc).__name__}: {exc}')
+                self.cancel()
+
     def _text_delta(self, turn, text):
         with self.lock:
             if self.stream_turn != turn:
                 self._flush_text()
+                if self.draft_timer:
+                    self.draft_timer.cancel()
+                    self.draft_timer = None
                 self.stream_turn = turn
+                self.stream_text = ''
+                self.stream_persist_at = 0
             self.stream_buffer += text
+            self.stream_text += text
+            if time.monotonic() - self.stream_persist_at >= 1:
+                if self.draft_timer:
+                    self.draft_timer.cancel()
+                    self.draft_timer = None
+                self._persist_draft()
+            elif self.draft_timer is None:
+                self.draft_timer = threading.Timer(max(0.01, 1 - (time.monotonic() - self.stream_persist_at)),
+                                                  self._persist_draft_scheduled, (self.run_id, turn))
+                self.draft_timer.daemon = True
+                self.draft_timer.start()
             elapsed = time.monotonic() - self.last_stream_emit
             if len(self.stream_buffer) >= 2000 or elapsed >= 0.04:
                 self._flush_text()
@@ -160,14 +274,19 @@ class TaskService:
             raise ValueError('Выберите модель в настройках')
         prompt = str(params.get('prompt', '')).strip()
         if params.get('resume'):
-            task = load_task(self.chat['id']) if self.chat else None
+            task = (self.chat.get('task_checkpoint') or load_task(self.chat['id'])) if self.chat else None
             if not task or task.get('status') != 'paused':
                 raise ValueError('Нет приостановленной задачи')
+            if task.get('recovery_warning'):
+                task.setdefault('resume_state', {})['recovery_note'] = task.pop('recovery_warning')
+            save_task(task)
             prompt = task['prompt']
         if not prompt or len(prompt) > 50000:
             raise ValueError('Введите задачу длиной от 1 до 50000 символов')
         if not self.chat:
             self.select_chat(root)
+        elif self.chat.get('stream_draft'):
+            self._recover_chat()
         if self.chat['project_root'] != str(root):
             raise ValueError('Чат принадлежит другому проекту')
         if not params.get('resume'):
@@ -178,17 +297,21 @@ class TaskService:
         self.run_id = uuid.uuid4().hex
         self.stream_turn = None
         self.stream_buffer = ''
+        self.stream_text = ''
+        self.stream_persist_at = 0
         self.last_stream_emit = 0
         self.chat['model'] = self.config['model']
+        self.chat['active_run_id'] = self.run_id
         self.chat['messages'] = history + [{'role': 'user', 'content': prompt}]
+        self.chat['task_checkpoint'] = self.engine.task_snapshot()
         if self.chat.get('title') == 'Новый чат':
             self.chat['title'] = ' '.join(prompt.split())[:80]
-        save_chat(self.chat)
+        self._persist_chat()
         self.engine.chat.connect(self._chat_event)
         self.engine.text_delta.connect(self._text_delta)
         self.engine.log.connect(lambda text: self._event('log', text=text[:12000]))
         self.engine.progress.connect(lambda count, maximum: self._event('progress', count=count, maximum=maximum))
-        self.engine.task_updated.connect(lambda task: self._event('task', task=task))
+        self.engine.task_updated.connect(self._task_event)
         self.engine.change_event.connect(lambda change: self._event('change', change=change))
         self.engine.write_approval_requested.connect(self._request_approval)
         self.engine.conversation_updated.connect(self._save_messages)
@@ -199,8 +322,16 @@ class TaskService:
         return {'ok': True, 'run_id': self.run_id, 'chat_id': self.chat['id']}
 
     def _save_messages(self, messages):
-        self.chat['messages'] = messages
-        save_chat(self.chat)
+        with self.lock:
+            self._flush_text()
+            if self.draft_timer:
+                self.draft_timer.cancel()
+                self.draft_timer = None
+            self.stream_turn = None
+            self.stream_text = ''
+            self.chat['messages'] = messages
+            self.chat.pop('stream_draft', None)
+            self._persist_chat()
 
     def _run(self):
         try:
@@ -210,8 +341,22 @@ class TaskService:
         finally:
             with self.lock:
                 self._flush_text()
+                if self.draft_timer:
+                    self.draft_timer.cancel()
+                    self.draft_timer = None
                 self.approval = None
-                self._event('task_end')
+                try:
+                    task = self.engine.task_snapshot()
+                    if task and task.get('status') == 'running':
+                        task['status'] = 'paused'
+                        task['last_event'] = 'Исполнение прервано; проверьте сообщения об ошибках и продолжите задачу'
+                    saved_status = (self.chat.get('task_checkpoint') or {}).get('status')
+                    if task and saved_status != task.get('status'):
+                        self._task_event(task)
+                except Exception as exc:
+                    self._event('failed', text=f'Не удалось сохранить состояние задачи: {type(exc).__name__}: {exc}')
+                finally:
+                    self._event('task_end')
 
     def shutdown(self):
         self.cancel()
