@@ -56,7 +56,7 @@ class AgentEngine:
     def isInterruptionRequested(self):
         return self._interrupted.is_set()
 
-    def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None):
+    def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None, allow_tools=True):
         self._interrupted = threading.Event()
         self._client = None
         for name in self.event_names:
@@ -68,6 +68,7 @@ class AgentEngine:
         self.history = list(history or [])
         self.memory = dict(memory or {})
         self.auto_memory = bool(auto_memory)
+        self.allow_tools = bool(allow_tools)
         self._memory_tool_events = []
         self.settings = {**DEFAULT_SETTINGS, **(settings or {})}
         self._approval_lock = threading.Lock()
@@ -194,7 +195,9 @@ class AgentEngine:
         try:
             client = self._client = ModelClient(self.base_url, self.api_key, self._interrupted)
             system_prompt = SYSTEM_PROMPT
-            selected_skills = self.runtime.prepare() if self.runtime else []
+            if not self.allow_tools:
+                system_prompt = 'Ты полезный собеседник. Отвечай на языке пользователя. Это режим Chat: доступа к файлам, инструментам и выполнению команд нет. Не утверждай, что изучил или изменил файлы. Для работы с проектом предложи режим IDE.'
+            selected_skills = self.runtime.prepare() if self.runtime and self.allow_tools else []
             if selected_skills:
                 skill_text = "\n".join(f"- {s['title']}: {s['summary']}" for s in selected_skills)
                 system_prompt += "\n\nПодключённые навыки:\n" + skill_text
@@ -218,6 +221,8 @@ class AgentEngine:
             last_tool_signature = None
             repeated_tool_signature_count = 0
             continuation_attempts = 0
+            empty_response_attempts = 0
+            answer_recovery = ''
             action_request = self._looks_like_action_request(self.prompt)
             self._checkpoint('analysis', 'Агент анализирует задачу')
 
@@ -232,10 +237,11 @@ class AgentEngine:
                     stop_reason = "Остановлено пользователем."
                     break
                 # Keep the persisted transcript intact, but send a bounded, recent working context.
+                request_messages = messages + ([{'role': 'user', 'content': answer_recovery}] if answer_recovery else [])
                 if self.runtime:
-                    model_messages = self.runtime.working_context(messages, request_index)
+                    model_messages = self.runtime.working_context(request_messages, request_index)
                 else:
-                    model_messages = compact_live_messages(messages, max_chars=max_context_chars, keep_recent_rounds=12, request_index=request_index)
+                    model_messages = compact_live_messages(request_messages, max_chars=max_context_chars, keep_recent_rounds=12, request_index=request_index)
                 kwargs = dict(
                     model=self.model,
                     messages=model_messages,
@@ -245,7 +251,12 @@ class AgentEngine:
                     max_tokens=max_tokens,
                     stream=True,
                 )
-                if turn == 0 and self.force_tool:
+                if not self.allow_tools:
+                    kwargs.pop('tools')
+                    kwargs.pop('tool_choice')
+                elif answer_recovery:
+                    kwargs['tool_choice'] = 'none'
+                if turn == 0 and self.force_tool and self.allow_tools:
                     kwargs['tools'] = [tool for tool in TOOL_DEFINITIONS
                                        if tool['function']['name'] == self.force_tool]
                     if not kwargs['tools']:
@@ -256,6 +267,8 @@ class AgentEngine:
                 content_parts = []
                 stream = client.create(**kwargs)
                 tool_call_parts = {}
+                finish_reason = None
+                reasoning_seen = False
                 interrupted = False
                 try:
                     for chunk in stream:
@@ -266,6 +279,8 @@ class AgentEngine:
                         if not chunk.choices:
                             continue
                         delta = chunk.choices[0].delta
+                        finish_reason = chunk.choices[0].finish_reason or finish_reason
+                        reasoning_seen = reasoning_seen or bool(getattr(delta, 'reasoning_content', None))
                         if delta.content:
                             content_parts.append(delta.content)
                             self.text_delta.emit(turn, delta.content)
@@ -291,6 +306,21 @@ class AgentEngine:
 
                 content = "".join(content_parts).strip()
                 tool_calls = [tool_call_parts[index] for index in sorted(tool_call_parts)]
+                if (not content and not tool_calls) or (answer_recovery and tool_calls):
+                    content_parts = []
+                    self.log.emit(f'Пустой итог модели: finish_reason={finish_reason}, reasoning={reasoning_seen}')
+                    if empty_response_attempts >= 2:
+                        raise RuntimeError('Модель не вернула текстовый ответ после двух повторных запросов. Результаты инструментов сохранены. Проверьте настройки генерации сервера или выберите другую модель, затем продолжите задачу.')
+                    empty_response_attempts += 1
+                    answer_recovery = 'Предыдущий ответ не содержал итогового текста. Ответь на исходный запрос пользователя на основе уже полученных результатов. Не вызывай инструменты повторно. Дай краткий содержательный ответ, без внутренних рассуждений и обещаний выполнить работу позже.'
+                    if self._task:
+                        self._task['answer_retries'] = empty_response_attempts
+                    self._checkpoint(None, f'Получаю текстовый ответ повторно · {empty_response_attempts}/2')
+                    continue
+                if tool_calls and not self.allow_tools:
+                    raise RuntimeError('Модель предложила файловый инструмент в режиме Chat. Вызов не выполнен. Для работы с файлами используйте IDE.')
+                if not tool_calls:
+                    answer_recovery = ''
                 if content:
                     final = content
                     self.chat.emit("assistant", content)
@@ -303,7 +333,7 @@ class AgentEngine:
                     # Local models sometimes return a project summary or a progress note as if it
                     # were the final answer. For actionable requests, ask for a bounded completion
                     # check before ending the turn. This does not grant any additional tool access.
-                    if action_request and continuation_attempts < 2 and not self.isInterruptionRequested():
+                    if self.allow_tools and action_request and continuation_attempts < 2 and not self.isInterruptionRequested():
                         complete, reason = self._verify_task_completion(client, messages, max_tokens)
                         if not complete:
                             continuation_attempts += 1
@@ -455,7 +485,7 @@ class AgentEngine:
                 self.log.emit(stop_reason)
                 final = (final + "\n\n" if final else "") + stop_reason
             if not final:
-                final = "Модель завершила обработку без текстового ответа. Посмотри журнал вызовов инструментов."
+                raise RuntimeError('Модель не сформировала текстовый ответ. Задача сохранена для продолжения.')
             # Update long-term project memory in a separate, bounded model call. It receives no raw
             # file contents/tool results; only user intent, final answer, and tool metadata.
             if self.auto_memory and not self.isInterruptionRequested() and final and not stop_reason:

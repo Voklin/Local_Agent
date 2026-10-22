@@ -750,3 +750,19 @@ TS_NOTES.update({
     'apps/desktop/src/TaskProgress.tsx:TaskSnapshot': 'Тип полей checkpoint, используемых панелью плана и результатов.',
     'apps/desktop/src/TaskProgress.tsx:TaskProgress': 'Показывает посещённые/пропущенные этапы, последние операции, изменённые файлы, остановку и кнопку resume.',
 })
+FILE_NOTES['apps/desktop/src/VoicePanel.tsx'] = 'Подготовительный экран голосового ассистента: SVG-эскиз горничной, честные состояния отсутствующих STT/TTS и контракты будущей сессии; аудио пока не записывает.'
+TS_NOTES.update({
+    'switchMode': 'Переключает Chat/IDE/voice только в idle, сбрасывает выбранный UI-чат и загружает историю соответствующей области.',
+    'WorkspaceMode': 'Три пространства интерфейса: обычный разговор, работа с проектом и будущий голосовой ассистент.',
+    'VoiceSessionState': 'Будущие состояния аудиосессии: отключена, слушает, думает, говорит, ошибка; сейчас backend не реализован.',
+    'VoiceProfile': 'Контракт будущих настроек персоны, STT/TTS провайдеров и push-to-talk; пока не сохраняется и не используется как рабочая функция.',
+    'VoicePanel': 'Рисует эскиз горничной и карточки ещё не подключённых голосовых возможностей, предлагает перейти в Chat.',
+})
+TEST_PURPOSES.update({
+    'empty_after_tool_recovers_without_repeating_write': 'SSE с reasoning без content после Apply приводит к одному text-only повтору, без повторной записи и без служебного user в архиве.',
+    'permanently_empty_model_pauses_after_two_retries': 'Три пустых ответа после успешной записи дают paused/failed, сохраняют единственный tool result и файл.',
+    'chat_without_project_has_no_tools_and_separate_history': 'Глобальный Chat работает без папки, не передаёт tools и не смешивает историю с проектом.',
+    'chat_refuses_unsolicited_tool': 'Неожиданный tool от сервера в Chat отклоняется до approval/выполнения, задача приостанавливается.',
+})
+
+TEST_PURPOSES.update({'chat_scope_does_not_require_selected_folder': 'Bridge выбирает пустую область Chat без папки, а IDE требует проект.', 'unknown_mode_is_rejected': 'Bridge отклоняет voice и прочие неисполняемые режимы до сервиса.'})

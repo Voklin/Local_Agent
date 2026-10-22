@@ -56,13 +56,17 @@ def handle(method: str, params: dict) -> dict:
     if method == 'list_models':
         return tasks.models()
     if method in ('list_chats', 'new_chat', 'load_chat', 'start_task'):
-        if project_root is None:
+        mode = params.get('mode', 'ide')
+        if mode not in ('chat', 'ide'):
+            raise ValueError('Неизвестный режим работы')
+        scope = '' if mode == 'chat' else project_root
+        if scope is None:
             raise ValueError('Сначала выберите папку проекта')
         if method == 'list_chats':
-            return tasks.chats(project_root)
+            return tasks.chats(scope)
         if method in ('new_chat', 'load_chat'):
-            return tasks.select_chat(project_root, params.get('chat_id') if method == 'load_chat' else None)
-        return tasks.start(project_root, params)
+            return tasks.select_chat(scope, params.get('chat_id') if method == 'load_chat' else None)
+        return tasks.start(scope, params)
     if method == 'cancel_task':
         return tasks.cancel()
     if method == 'resolve_approval':

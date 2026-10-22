@@ -13,6 +13,7 @@
 - [apps/desktop/electron/preload.ts](#module-apps-desktop-electron-preload-ts)
 - [apps/desktop/src/App.tsx](#module-apps-desktop-src-app-tsx)
 - [apps/desktop/src/TaskProgress.tsx](#module-apps-desktop-src-taskprogress-tsx)
+- [apps/desktop/src/VoicePanel.tsx](#module-apps-desktop-src-voicepanel-tsx)
 - [apps/desktop/src/main.tsx](#module-apps-desktop-src-main-tsx)
 - [apps/desktop/src/vite-env.d.ts](#module-apps-desktop-src-vite-env-d-ts)
 - [apps/desktop/vite.config.ts](#module-apps-desktop-vite-config-ts)
@@ -213,7 +214,7 @@ getModelSettings()
 [Исходник](../../apps/desktop/electron/preload.ts#L11)
 
 ```typescript
-listChats()
+listChats(mode = 'ide')
 ```
 
 Получает чаты выбранного проекта.
@@ -223,7 +224,7 @@ listChats()
 [Исходник](../../apps/desktop/electron/preload.ts#L12)
 
 ```typescript
-newChat()
+newChat(mode = 'ide')
 ```
 
 Создаёт пустой чат проекта.
@@ -233,7 +234,7 @@ newChat()
 [Исходник](../../apps/desktop/electron/preload.ts#L13)
 
 ```typescript
-loadChat(chatId: string)
+loadChat(chatId: string, mode = 'ide')
 ```
 
 Загружает проверяемый ID чата.
@@ -243,7 +244,7 @@ loadChat(chatId: string)
 [Исходник](../../apps/desktop/electron/preload.ts#L14)
 
 ```typescript
-startTask(prompt: string, resume = false)
+startTask(prompt: string, resume = false, mode = 'ide')
 ```
 
 Посылает prompt и resume-флаг, получает принятие задачи.
@@ -296,7 +297,7 @@ React-состояние и представление проекта, наст�
 
 ### `FileItem`
 
-[Исходник](../../apps/desktop/src/App.tsx#L5)
+[Исходник](../../apps/desktop/src/App.tsx#L6)
 
 ```typescript
 type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
@@ -306,7 +307,7 @@ type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
 
 ### `Message`
 
-[Исходник](../../apps/desktop/src/App.tsx#L6)
+[Исходник](../../apps/desktop/src/App.tsx#L7)
 
 ```typescript
 type Message = { role: string; text: string; id?: string; streaming?: boolean };
@@ -316,7 +317,7 @@ type Message = { role: string; text: string; id?: string; streaming?: boolean };
 
 ### `ChatSummary`
 
-[Исходник](../../apps/desktop/src/App.tsx#L7)
+[Исходник](../../apps/desktop/src/App.tsx#L8)
 
 ```typescript
 type ChatSummary = { id: string; title: string };
@@ -326,7 +327,7 @@ type ChatSummary = { id: string; title: string };
 
 ### `App`
 
-[Исходник](../../apps/desktop/src/App.tsx#L10)
+[Исходник](../../apps/desktop/src/App.tsx#L11)
 
 ```typescript
 function App()
@@ -336,7 +337,7 @@ function App()
 
 ### `App.report`
 
-[Исходник](../../apps/desktop/src/App.tsx#L40)
+[Исходник](../../apps/desktop/src/App.tsx#L44)
 
 ```typescript
 function report(text: string)
@@ -346,7 +347,7 @@ function report(text: string)
 
 ### `App.showWarning`
 
-[Исходник](../../apps/desktop/src/App.tsx#L41)
+[Исходник](../../apps/desktop/src/App.tsx#L45)
 
 ```typescript
 function showWarning(text: string)
@@ -356,17 +357,17 @@ function showWarning(text: string)
 
 ### `App.refreshChats`
 
-[Исходник](../../apps/desktop/src/App.tsx#L45)
+[Исходник](../../apps/desktop/src/App.tsx#L49)
 
 ```typescript
-async function refreshChats()
+async function refreshChats(scope = modeRef.current)
 ```
 
 Запрашивает и обновляет список чатов.
 
 ### `App.refreshFiles`
 
-[Исходник](../../apps/desktop/src/App.tsx#L96)
+[Исходник](../../apps/desktop/src/App.tsx#L102)
 
 ```typescript
 async function refreshFiles(path = '.')
@@ -376,7 +377,7 @@ async function refreshFiles(path = '.')
 
 ### `App.chooseProject`
 
-[Исходник](../../apps/desktop/src/App.tsx#L100)
+[Исходник](../../apps/desktop/src/App.tsx#L106)
 
 ```typescript
 async function chooseProject()
@@ -384,9 +385,19 @@ async function chooseProject()
 
 Выбор проекта: UI → native dialog → проверяемый set_project.
 
+### `App.switchMode`
+
+[Исходник](../../apps/desktop/src/App.tsx#L116)
+
+```typescript
+async function switchMode(next: WorkspaceMode)
+```
+
+Переключает Chat/IDE/voice только в idle, сбрасывает выбранный UI-чат и загружает историю соответствующей области.
+
 ### `App.openFile`
 
-[Исходник](../../apps/desktop/src/App.tsx#L109)
+[Исходник](../../apps/desktop/src/App.tsx#L124)
 
 ```typescript
 async function openFile(item: FileItem)
@@ -396,7 +407,7 @@ async function openFile(item: FileItem)
 
 ### `App.selectChat`
 
-[Исходник](../../apps/desktop/src/App.tsx#L115)
+[Исходник](../../apps/desktop/src/App.tsx#L130)
 
 ```typescript
 async function selectChat(id?: string)
@@ -406,7 +417,7 @@ async function selectChat(id?: string)
 
 ### `App.configure`
 
-[Исходник](../../apps/desktop/src/App.tsx#L125)
+[Исходник](../../apps/desktop/src/App.tsx#L140)
 
 ```typescript
 async function configure()
@@ -416,7 +427,7 @@ async function configure()
 
 ### `App.saveSettings`
 
-[Исходник](../../apps/desktop/src/App.tsx#L129)
+[Исходник](../../apps/desktop/src/App.tsx#L144)
 
 ```typescript
 async function saveSettings()
@@ -426,7 +437,7 @@ async function saveSettings()
 
 ### `App.discoverModels`
 
-[Исходник](../../apps/desktop/src/App.tsx#L135)
+[Исходник](../../apps/desktop/src/App.tsx#L150)
 
 ```typescript
 async function discoverModels()
@@ -436,7 +447,7 @@ async function discoverModels()
 
 ### `App.sendPrompt`
 
-[Исходник](../../apps/desktop/src/App.tsx#L150)
+[Исходник](../../apps/desktop/src/App.tsx#L165)
 
 ```typescript
 async function sendPrompt(resume = false)
@@ -446,7 +457,7 @@ async function sendPrompt(resume = false)
 
 ### `App.decide`
 
-[Исходник](../../apps/desktop/src/App.tsx#L175)
+[Исходник](../../apps/desktop/src/App.tsx#L190)
 
 ```typescript
 async function decide(decision: string)
@@ -456,7 +467,7 @@ async function decide(decision: string)
 
 ### `App.cancel`
 
-[Исходник](../../apps/desktop/src/App.tsx#L184)
+[Исходник](../../apps/desktop/src/App.tsx#L199)
 
 ```typescript
 async function cancel()
@@ -514,6 +525,57 @@ function TaskProgress({ task, busy, onResume }: { task: TaskSnapshot; busy: bool
 
 Показывает посещённые/пропущенные этапы, последние операции, изменённые файлы, остановку и кнопку resume.
 
+<a id="module-apps-desktop-src-voicepanel-tsx"></a>
+
+## `apps/desktop/src/VoicePanel.tsx`
+
+Подготовительный экран голосового ассистента: SVG-эскиз горничной, честные состояния отсутствующих STT/TTS и контракты будущей сессии; аудио пока не записывает.
+
+### `WorkspaceMode`
+
+[Исходник](../../apps/desktop/src/VoicePanel.tsx#L3)
+
+```typescript
+export type WorkspaceMode = 'chat' | 'ide' | 'voice';
+```
+
+Три пространства интерфейса: обычный разговор, работа с проектом и будущий голосовой ассистент.
+
+### `VoiceSessionState`
+
+[Исходник](../../apps/desktop/src/VoicePanel.tsx#L5)
+
+```typescript
+export type VoiceSessionState = 'disconnected' | 'listening' | 'thinking' | 'speaking' | 'error';
+```
+
+Будущие состояния аудиосессии: отключена, слушает, думает, говорит, ошибка; сейчас backend не реализован.
+
+### `VoiceProfile`
+
+[Исходник](../../apps/desktop/src/VoicePanel.tsx#L6)
+
+```typescript
+export interface VoiceProfile {
+  persona: string;
+  transcriptionProvider: string | null;
+  speechProvider: string | null;
+  pushToTalk: boolean;
+}
+```
+
+Контракт будущих настроек персоны, STT/TTS провайдеров и push-to-talk; пока не сохраняется и не используется как рабочая функция.
+
+### `VoicePanel`
+
+[Исходник](../../apps/desktop/src/VoicePanel.tsx#L13)
+
+```typescript
+function VoicePanel({ onChat }: { onChat: () => void })
+```
+
+Рисует эскиз горничной и карточки ещё не подключённых голосовых возможностей, предлагает перейти в Chat.
+
 <a id="module-apps-desktop-src-main-tsx"></a>
 
 ## `apps/desktop/src/main.tsx`
@@ -547,9 +609,9 @@ interface Window { lca: {
   health: () => Promise<any>; chooseProject: () => Promise<any>;
   listFiles: (path?: string) => Promise<any>; readFile: (path: string) => Promise<any>; systemInfo: () => Promise<any>;
   configureModel: (config: {base_url: string; model: string; api_key: string}) => Promise<any>;
-  listModels: () => Promise<any>; listChats: () => Promise<any>; newChat: () => Promise<any>; loadChat: (id: string) => Promise<any>;
+  listModels: () => Promise<any>; listChats: (mode?: string) => Promise<any>; newChat: (mode?: string) => Promise<any>; loadChat: (id: string, mode?: string) => Promise<any>;
   getModelSettings: () => Promise<any>;
-  startTask: (prompt: string, resume?: boolean) => Promise<any>; cancelTask: () => Promise<any>;
+  startTask: (prompt: string, resume?: boolean, mode?: string) => Promise<any>; cancelTask: () => Promise<any>;
   resolveApproval: (run: string, approval: string, decision: string) => Promise<any>;
   onEvent: (callback: (event: CoreEvent) => void) => () => void;
 } }
@@ -679,7 +741,7 @@ encode(delta)
 
 ### `releaseModelText`
 
-[Исходник](../../tests/electron/smoke.cjs#L51)
+[Исходник](../../tests/electron/smoke.cjs#L54)
 
 ```typescript
 releaseModelText()
@@ -689,7 +751,7 @@ releaseModelText()
 
 ### `poll`
 
-[Исходник](../../tests/electron/smoke.cjs#L58)
+[Исходник](../../tests/electron/smoke.cjs#L61)
 
 ```typescript
 async function poll(win, expression)

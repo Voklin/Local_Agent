@@ -40,7 +40,10 @@ const model = http.createServer((req, res) => {
     }
     const encode = delta => 'data: ' + JSON.stringify({id:'test',object:'chat.completion.chunk',created:0,model:'smoke-model',choices:[{index:0,delta,finish_reason:null}]}) + '\n\n';
     res.writeHead(200, { 'Content-Type':'text/event-stream' });
-    if (modelMode === 'stall') {
+    if (!input.tools) {
+      assert.equal(input.tool_choice, undefined);
+      res.end(encode({content:'Standalone Chat reply'}) + 'data: [DONE]\n\n');
+    } else if (modelMode === 'stall') {
       res.write(encode({content:'Pending '}));
       res.on('close', () => { streamDisconnected = true; });
     } else if (input.messages.some(m => m.role === 'tool')) {
@@ -98,6 +101,7 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `!document.querySelector('[title="Отправить"]').disabled`);
       await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
       await poll(win, `!!document.querySelector('[role="dialog"]')`);
+      await win.webContents.executeJavaScript(`document.querySelector('.progress-toggle').click()`);
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-tools [data-status="awaiting_approval"]').textContent.includes('smoke.txt')`), true);
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-stages [aria-current="step"]').textContent.includes('Реализация')`), true);
       assert.equal(fs.existsSync(path.join(project, 'smoke.txt')), false);
@@ -165,10 +169,24 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `!!document.querySelector('.streaming-caret') && document.body.textContent.includes('Pending ')`);
       const stoppedAt = Date.now();
       await win.webContents.executeJavaScript(`document.querySelector('[title="Остановить"]').click()`);
-      await poll(win, `!document.querySelector('[title="Остановить"]') && document.querySelector('.task-card').textContent.includes('Приостановлена')`);
+      await poll(win, `!document.querySelector('[title="Остановить"]') && !!document.querySelector('.progress-toggle')`);
+      await win.webContents.executeJavaScript(`document.querySelector('.progress-toggle').click()`);
+      await poll(win, `document.querySelector('.task-card').textContent.includes('Приостановлена')`);
       assert.ok(Date.now() - stoppedAt < 3000, 'Stop should not wait for the model timeout');
       assert.equal(streamDisconnected, true);
       assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.streaming-caret')`), false);
+      await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:last-child').click()`);
+      await poll(win, `!!document.querySelector('.voice-panel')`);
+      fs.writeFileSync(path.join(testRoot, 'voice.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.voice-panel').textContent.includes('голос ещё не подключён')`), true);
+      await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:first-child').click()`);
+      await poll(win, `!!document.querySelector('.mode-chat') && !document.querySelector('.main-panel')`);
+      await win.webContents.executeJavaScript(`{ const input=document.querySelector('textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'chat without files'); input.dispatchEvent(new Event('input',{bubbles:true})); }`);
+      await poll(win, `!document.querySelector('[title="Отправить"]').disabled`);
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
+      await poll(win, `document.querySelector('.chat-messages').textContent.includes('Standalone Chat reply') && !document.querySelector('[title="Остановить"]')`);
+      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('[role="dialog"]')`), false);
+      fs.writeFileSync(path.join(testRoot, 'chat.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
       console.log('PASS: Electron approval and stale-diff conflict, incremental text without duplicate answer, persisted preferences, fast network cancellation');
       fs.writeFileSync(resultPath, JSON.stringify({status:'passed',project}, null, 2));
       clearTimeout(deadline); model.close(); app.quit();

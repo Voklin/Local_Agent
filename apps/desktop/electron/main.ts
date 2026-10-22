@@ -92,10 +92,10 @@ handle('project:read', (rel) => callBackend('read_file', { path: String(rel).sli
 handle('model:configure', (config) => callBackend('configure_model', { base_url: String(config?.base_url || '').slice(0, 2000), model: String(config?.model || '').slice(0, 300), api_key: String(config?.api_key || '').slice(0, 4000) }));
 handle('model:list', () => callBackend('list_models'));
 handle('model:settings', () => callBackend('get_model_settings'));
-handle('chat:list', () => callBackend('list_chats'));
-handle('chat:new', () => callBackend('new_chat'));
-handle('chat:load', (chatId) => callBackend('load_chat', { chat_id: chatId }));
-handle('task:start', (prompt, resume = false) => callBackend('start_task', { prompt: String(prompt).slice(0, 50001), resume: resume === true }));
+handle('chat:list', (mode = 'ide') => callBackend('list_chats', {mode}));
+handle('chat:new', (mode = 'ide') => callBackend('new_chat', {mode}));
+handle('chat:load', (chatId, mode = 'ide') => callBackend('load_chat', { chat_id: chatId, mode }));
+handle('task:start', (prompt, resume = false, mode = 'ide') => callBackend('start_task', { mode, prompt: String(prompt).slice(0, 50001), resume: resume === true }));
 handle('task:cancel', () => callBackend('cancel_task'));
 handle('task:approve', (runId, approvalId, decision) => callBackend('resolve_approval', { run_id: runId, approval_id: approvalId, decision }));
 handle('system:home', () => ({ home: os.homedir(), platform: process.platform }));

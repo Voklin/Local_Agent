@@ -45,6 +45,13 @@ class ModelHandler(BaseHTTPRequestHandler):
                 delta['tool_calls'][0]['index'] = 1
                 delta['tool_calls'].insert(0, {'index': 0, 'id': 'read-first', 'type': 'function',
                     'function': {'name': 'read_file', 'arguments': '{"path":"source.txt"}'}})
+        empty = getattr(self.server, 'empty_mode', '')
+        if empty and (not empty.startswith('after-tool') or any(m.get('role') == 'tool' for m in payload['messages'])):
+            delta = {'reasoning_content': 'private reasoning'}
+            if empty in ('recover', 'after-tool-recover') and payload.get('tool_choice') == 'none':
+                delta = {'content': 'Восстановленный ответ'}
+        elif not payload.get('tools') and not getattr(self.server, 'unexpected_tool', False):
+            delta = {'content': 'Ответ без папки'}
         chunk = {'id':'test', 'object':'chat.completion.chunk', 'created':0, 'model':'test-model',
                  'choices':[{'index':0,'delta':delta,'finish_reason':None}]}
         self.wfile.write(('data: ' + json.dumps(chunk) + '\n\ndata: [DONE]\n\n').encode())
@@ -105,6 +112,71 @@ class TaskServiceTests(unittest.TestCase):
 
     def resolve(self, approval, decision):
         return self.service.resolve_approval({**approval, 'decision':decision})
+
+    def test_empty_after_tool_recovers_without_repeating_write(self):
+        before = len(self.server.requests)
+        with patch.object(self.server, 'empty_mode', 'after-tool-recover', create=True):
+            approval = self.start()
+            self.resolve(approval, 'apply')
+            self.event('task_end')
+            self.service.thread.join(2)
+        saved = chat_store.load_chat(self.service.chat['id'])
+        self.assertEqual(saved['messages'][-1]['content'], 'Восстановленный ответ')
+        self.assertEqual(sum(m['role'] == 'tool' for m in saved['messages']), 1)
+        self.assertEqual(sum(m['role'] == 'user' for m in saved['messages']), 1)
+        requests = [r for r in self.server.requests[before:] if r.get('stream')]
+        self.assertEqual(len(requests), 3)
+        self.assertEqual(requests[-1]['tool_choice'], 'none')
+        self.assertEqual(saved['task_checkpoint']['status'], 'completed')
+
+    def test_permanently_empty_model_pauses_after_two_retries(self):
+        before = len(self.server.requests)
+        with patch.object(self.server, 'empty_mode', 'after-tool-permanent', create=True):
+            approval = self.start()
+            self.resolve(approval, 'apply')
+            seen = []
+            while True:
+                event = self.events.get(timeout=10)
+                seen.append(event)
+                if event['event'] == 'task_end':
+                    break
+            self.service.thread.join(2)
+        self.assertTrue(any(e['event'] == 'failed' and 'двух повторных' in e['text'] for e in seen))
+        saved = chat_store.load_chat(self.service.chat['id'])
+        self.assertEqual(saved['task_checkpoint']['status'], 'paused')
+        self.assertEqual(sum(m['role'] == 'tool' for m in saved['messages']), 1)
+        self.assertEqual(len([r for r in self.server.requests[before:] if r.get('stream')]), 4)
+        self.assertEqual((self.root / 'new.txt').read_text(), 'approved content')
+
+    def test_chat_without_project_has_no_tools_and_separate_history(self):
+        project_chat = self.service.select_chat(self.root)['chat']
+        self.service.select_chat('')
+        before = len(self.server.requests)
+        self.service.start('', {'prompt': 'hello'})
+        self.event('task_end')
+        self.service.thread.join(2)
+        request = self.server.requests[before]
+        self.assertNotIn('tools', request)
+        saved = chat_store.load_chat(self.service.chat['id'])
+        self.assertEqual(saved['project_root'], '')
+        self.assertEqual(saved['messages'][-1]['content'], 'Ответ без папки')
+        self.assertNotIn(project_chat['id'], [c['id'] for c in self.service.chats('')['chats']])
+        self.assertFalse((self.root / 'new.txt').exists())
+
+    def test_chat_refuses_unsolicited_tool(self):
+        self.service.select_chat('')
+        with patch.object(self.server, 'unexpected_tool', True, create=True):
+            self.service.start('', {'prompt': 'hello'})
+            seen = []
+            while True:
+                event = self.events.get(timeout=10)
+                seen.append(event)
+                if event['event'] == 'task_end':
+                    break
+            self.service.thread.join(2)
+        self.assertTrue(any(e['event'] == 'failed' and 'режиме Chat' in e['text'] for e in seen))
+        self.assertFalse(any(e['event'] == 'approval' for e in seen))
+        self.assertEqual(self.service.chat['task_checkpoint']['status'], 'paused')
 
     def test_apply_only_after_matching_approval_and_persist_history(self):
         approval = self.start()

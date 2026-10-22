@@ -48,6 +48,7 @@
 | [apps/desktop/package.json](../../apps/desktop/package.json) | Зависимости Electron/React и dev/build/typecheck-скрипты workspace. |
 | [apps/desktop/src/App.tsx](../../apps/desktop/src/App.tsx) | React-состояние и представление проекта, настроек, чата, потока, checkpoint и diff. |
 | [apps/desktop/src/TaskProgress.tsx](../../apps/desktop/src/TaskProgress.tsx) | Типизированная панель этапов, инструментов, результатов и продолжения задачи. |
+| [apps/desktop/src/VoicePanel.tsx](../../apps/desktop/src/VoicePanel.tsx) | Подготовительный экран голосового ассистента: SVG-эскиз горничной, честные состояния отсутствующих STT/TTS и контракты будущей сессии; аудио пока не записывает. |
 | [apps/desktop/src/main.tsx](../../apps/desktop/src/main.tsx) | Подключает CSS, создаёт React root и отображает App в StrictMode. |
 | [apps/desktop/src/style.css](../../apps/desktop/src/style.css) | Стили IDE-панелей, сообщений, формы, modal и индикатора streaming. |
 | [apps/desktop/src/vite-env.d.ts](../../apps/desktop/src/vite-env.d.ts) | Vite reference, CoreEvent и TypeScript-контракт Window.lca. |
@@ -73,6 +74,7 @@
 | [docs/13-learning-path.md](../../docs/13-learning-path.md) | Ручная учебная глава или исторический материал: 13. Учебный маршрут и словарь. |
 | [docs/14-windows-packaging.md](../../docs/14-windows-packaging.md) | Ручная учебная глава или исторический материал: 14. Windows-сборка со встроенным Python Core. |
 | [docs/15-task-progress.md](../../docs/15-task-progress.md) | Ручная учебная глава или исторический материал: 15. План задачи, инструменты и результаты. |
+| [docs/16-workspaces-and-answer-recovery.md](../../docs/16-workspaces-and-answer-recovery.md) | Ручная учебная глава или исторический материал: 16. Три режима и восстановление пустого ответа. |
 | [docs/README.md](../../docs/README.md) | Ручная учебная глава или исторический материал: LocalAgent: подробное руководство по проекту. |
 | [docs/WORK_PLAN.md](../../docs/WORK_PLAN.md) | Ручная учебная глава или исторический материал: План дальнейшей разработки LocalAgent. |
 | [docs/history/legacy-readme.md](../../docs/history/legacy-readme.md) | Ручная учебная глава или исторический материал: Исторические README до учебной документации. |

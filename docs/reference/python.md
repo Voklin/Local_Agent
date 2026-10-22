@@ -422,14 +422,14 @@ def isInterruptionRequested(self)
 [Исходник](../../agent/engine.py#L59)
 
 ```python
-def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None)
+def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None, allow_tools=True)
 ```
 
 Инициализирует состояние экземпляра AgentEngine; параметры показаны в сигнатуре, назначение описано у класса.
 
 ### `AgentEngine._checkpoint`
 
-[Исходник](../../agent/engine.py#L89)
+[Исходник](../../agent/engine.py#L90)
 
 ```python
 def _checkpoint(self, stage=None, event='')
@@ -439,7 +439,7 @@ def _checkpoint(self, stage=None, event='')
 
 ### `AgentEngine.task_snapshot`
 
-[Исходник](../../agent/engine.py#L99)
+[Исходник](../../agent/engine.py#L100)
 
 ```python
 def task_snapshot(self)
@@ -449,7 +449,7 @@ def task_snapshot(self)
 
 ### `AgentEngine.resolve_write_approval`
 
-[Исходник](../../agent/engine.py#L102)
+[Исходник](../../agent/engine.py#L103)
 
 ```python
 def resolve_write_approval(self, decision)
@@ -459,7 +459,7 @@ def resolve_write_approval(self, decision)
 
 ### `AgentEngine._ask_write_approval`
 
-[Исходник](../../agent/engine.py#L113)
+[Исходник](../../agent/engine.py#L114)
 
 ```python
 def _ask_write_approval(self, path, diff, exists)
@@ -469,7 +469,7 @@ def _ask_write_approval(self, path, diff, exists)
 
 ### `AgentEngine._emit_change`
 
-[Исходник](../../agent/engine.py#L135)
+[Исходник](../../agent/engine.py#L136)
 
 ```python
 def _emit_change(self, path, diff, exists, status, error='')
@@ -479,7 +479,7 @@ def _emit_change(self, path, diff, exists, status, error='')
 
 ### `AgentEngine._looks_like_action_request`
 
-[Исходник](../../agent/engine.py#L145)
+[Исходник](../../agent/engine.py#L146)
 
 ```python
 @staticmethod
@@ -490,7 +490,7 @@ def _looks_like_action_request(prompt)
 
 ### `AgentEngine._verify_task_completion`
 
-[Исходник](../../agent/engine.py#L155)
+[Исходник](../../agent/engine.py#L156)
 
 ```python
 def _verify_task_completion(self, client, messages, max_tokens)
@@ -500,7 +500,7 @@ def _verify_task_completion(self, client, messages, max_tokens)
 
 ### `AgentEngine.run`
 
-[Исходник](../../agent/engine.py#L191)
+[Исходник](../../agent/engine.py#L192)
 
 ```python
 def run(self)
@@ -2381,7 +2381,7 @@ Whitelist диспетчер RPC: состояние, проект, модель
 
 ### `main`
 
-[Исходник](../../core/python/bridge.py#L101)
+[Исходник](../../core/python/bridge.py#L105)
 
 ```python
 def main() -> None
@@ -2637,7 +2637,7 @@ def start(self, root: Path, params)
 
 ### `TaskService._save_messages`
 
-[Исходник](../../core/python/task_service.py#L327)
+[Исходник](../../core/python/task_service.py#L328)
 
 ```python
 def _save_messages(self, messages)
@@ -2647,7 +2647,7 @@ def _save_messages(self, messages)
 
 ### `TaskService._run`
 
-[Исходник](../../core/python/task_service.py#L339)
+[Исходник](../../core/python/task_service.py#L340)
 
 ```python
 def _run(self)
@@ -2657,7 +2657,7 @@ def _run(self)
 
 ### `TaskService.shutdown`
 
-[Исходник](../../core/python/task_service.py#L365)
+[Исходник](../../core/python/task_service.py#L366)
 
 ```python
 def shutdown(self)

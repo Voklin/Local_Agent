@@ -22,3 +22,5 @@
 Руководство не воспроизводит большие фрагменты внешних материалов. Его разбор поведения основан на LocalAgent; внешние ссылки нужны для углубления в язык и инструменты.
 
 Дополнительные материалы для сетевого discovery и атомарного создания: [HTTPX AsyncClient/stream](https://www.python-httpx.org/async/), [Python os.rename/os.link](https://docs.python.org/3.12/library/os.html#os.rename). Поведение rename отличается между Windows и POSIX; это учтено в tools.write_file.
+
+Визуальные ориентиры трёх пространств: [Hermes Agent от Nous Research](https://github.com/NousResearch/hermes-agent) и [документация интерфейса VS Code](https://code.visualstudio.com/docs/getstarted/userinterface). Это ориентиры компоновки; интеграция с этими продуктами не добавлена.

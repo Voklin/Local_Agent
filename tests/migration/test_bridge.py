@@ -1,6 +1,7 @@
 import importlib.util
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 BRIDGE = Path(__file__).resolve().parents[2] / 'core' / 'python' / 'bridge.py'
@@ -18,6 +19,18 @@ class BridgeTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
         bridge.project_root = None
+    def test_chat_scope_does_not_require_selected_folder(self):
+        bridge.project_root = None
+        with patch.object(bridge.tasks, 'chats', return_value={'ok': True}) as chats:
+            self.assertTrue(bridge.handle('list_chats', {'mode': 'chat'})['ok'])
+            chats.assert_called_once_with('')
+        with self.assertRaises(ValueError):
+            bridge.handle('list_chats', {'mode': 'ide'})
+
+    def test_unknown_mode_is_rejected(self):
+        with self.assertRaises(ValueError):
+            bridge.handle('new_chat', {'mode': 'voice'})
+
     def test_health(self):
         self.assertTrue(bridge.handle('health', {})['ok'])
     def test_list_and_read(self):
