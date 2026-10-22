@@ -1,6 +1,10 @@
 """Ручные объяснения для генерируемого справочника; код здесь не запускает агента."""
 
 FILE_NOTES = {
+    'requirements-build.txt': 'Точные Python-зависимости для Windows x64 freeze Core без Qt.',
+    'electron-builder.json': 'Allowlist приложения, extraResources Core и локальный NSIS installer без публикации.',
+    'tools/build_windows_core.py': 'PyInstaller onedir сборка Windows x64 Core с Python 3.12 и данными навыков.',
+    'tests/electron/packaged-smoke.mjs': 'CDP-проверка настоящего packaged exe с урезанным PATH, discovery и повторным запуском.',
     'agent/model_discovery.py': 'HTTPX-получение списка моделей с общим deadline, ограничением ответа и отменой сокета.',
     'tests/migration/test_model_discovery.py': 'HTTP-фикстура discovery: валидация ответа, медленный поток, общий deadline и отмена сокета.',
     'main.py': 'Точка входа сохранённого PySide6 GUI: QApplication, MainWindow, Qt event loop.',
@@ -16,7 +20,7 @@ FILE_NOTES = {
     'run-desktop.bat': 'Запуск npm dev; выбирает .venv Python, если LCA_PYTHON не задан.',
     '.gitignore': 'Исключает окружения, сборки, кэши, тестовые данные и секретный .env из Git.',
     '.gitattributes': 'Автоопределение текстовых файлов и нормализация переводов строк в Git.',
-    '.github/workflows/validate.yml': 'Windows CI: Python-тесты, npm ci, TypeScript/production build и проверка документации.',
+    '.github/workflows/validate.yml': 'Windows CI: Python/build/docs и отдельный job freeze/NSIS/packaged smoke с временным installer artifact.',
     'agent/__init__.py': 'Маркер Python-пакета agent; не запускает UI или модель.',
     'agent/chat_store.py': 'JSON-чаты и индекс истории вне папки проекта.',
     'agent/context_manager.py': 'Простой ограничитель рабочего контекста активного AgentRuntime.',
@@ -82,6 +86,7 @@ FILE_NOTES = {
 SYMBOL_NOTES = {}
 
 DEPENDENCY_NOTES = {
+    'electron-builder': 'Упаковка Electron, включение frozen Core и создание локального NSIS installer.',
     '@vitejs/plugin-react': 'Преобразование React/JSX и интеграция с dev-server Vite.',
     'concurrently': 'Параллельный запуск dev-сервера и Electron-команды.',
     'electron': 'Настольный runtime Chromium/Node и его TypeScript API.',
@@ -372,6 +377,7 @@ Main.mcp_connect.bad | Показывает ошибку эксперимент�
 ''')
 
 TEST_PURPOSES = {
+    'approved_write_and_preferences_survive_process_restart': 'Подтверждённая запись и настройки переживают рестарт bridge; ключ не попадает в JSON.',
     'unreadable_directory_is_not_reported_as_empty_catalog': 'Недоступный каталог чатов выдаёт ошибку вместо ложного пустого списка.',
     'missing_corrupt_and_stale_index_is_rebuilt_from_chat_files': 'Отсутствующий, повреждённый и устаревший индекс восстанавливается из канонических файлов.',
     'index_failure_does_not_lose_saved_transcript': 'Ошибка записи индекса не отменяет сохранение истории; повторный каталог исправляет кэш.',
@@ -708,3 +714,16 @@ _wait_cancelled | Наблюдает threading.Event через короткие
 _discover | Соревнуется запросом, отменой и общим timeout; всегда отменяет и закрывает незавершённые задачи.
 discover_models | Синхронная точка входа фонового worker, запускающая отдельный asyncio loop.
 ''')
+
+register('tools/build_windows_core.py', '''
+main | Проверяет Windows x64/Python 3.12 и вызывает PyInstaller с данными навыков, SDK и необходимым PEM runtime.
+''')
+TS_NOTES.update({
+    'diagnostic': 'Добавляет только lifecycle-диагностику в ограниченный main.log; ошибка I/O не блокирует приложение.',
+    'tests/electron/packaged-smoke.mjs:freePort': 'Резервирует свободный loopback-порт для тестового Chromium CDP.',
+    'tests/electron/packaged-smoke.mjs:connectPage': 'Ожидает file renderer настоящего exe и открывает WebSocket CDP с ограниченным временем.',
+    'tests/electron/packaged-smoke.mjs:evaluate': 'Последовательно исполняет одно тестовое выражение через CDP с тайм-аутом.',
+    'tests/electron/packaged-smoke.mjs:evaluate.receive': 'Сопоставляет CDP response с запросом и возвращает значение либо ошибку JavaScript.',
+    'tests/electron/packaged-smoke.mjs:run': 'Запускает packaged exe с изолированными данными/урезанным PATH и проверяет Core, настройки и нормальное закрытие.',
+    'tests/electron/packaged-smoke.mjs:main': 'Поднимает HTTP-фикстуру, дважды проверяет пакет и отсутствие ключа в настройках/диагностике.',
+})

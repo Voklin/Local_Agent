@@ -33,6 +33,7 @@
 - [core/python/bridge.py](#module-core-python-bridge-py)
 - [core/python/task_service.py](#module-core-python-task-service-py)
 - [main.py](#module-main-py)
+- [tools/build_windows_core.py](#module-tools-build-windows-core-py)
 - [tools/check_docs.py](#module-tools-check-docs-py)
 - [tools/doc_notes.py](#module-tools-doc-notes-py)
 - [tools/generate_code_reference.py](#module-tools-generate-code-reference-py)
@@ -2303,7 +2304,7 @@ JSON-lines вход процесса, dispatch команд, UI-файловый
 
 ### `emit`
 
-[Исходник](../../core/python/bridge.py#L14)
+[Исходник](../../core/python/bridge.py#L19)
 
 ```python
 def emit(message)
@@ -2313,7 +2314,7 @@ def emit(message)
 
 ### `resolve_inside`
 
-[Исходник](../../core/python/bridge.py#L25)
+[Исходник](../../core/python/bridge.py#L30)
 
 ```python
 def resolve_inside(relative: str) -> Path
@@ -2323,7 +2324,7 @@ def resolve_inside(relative: str) -> Path
 
 ### `handle`
 
-[Исходник](../../core/python/bridge.py#L35)
+[Исходник](../../core/python/bridge.py#L40)
 
 ```python
 def handle(method: str, params: dict) -> dict
@@ -2333,7 +2334,7 @@ Whitelist диспетчер RPC: состояние, проект, модель
 
 ### `main`
 
-[Исходник](../../core/python/bridge.py#L96)
+[Исходник](../../core/python/bridge.py#L101)
 
 ```python
 def main() -> None
@@ -2625,6 +2626,22 @@ def shutdown(self)
 
 Именованных классов/функций нет. Исполняемый entry point и константы описаны в главе о соответствующем слое.
 
+<a id="module-tools-build-windows-core-py"></a>
+
+## `tools/build_windows_core.py`
+
+PyInstaller onedir сборка Windows x64 Core с Python 3.12 и данными навыков.
+
+### `main`
+
+[Исходник](../../tools/build_windows_core.py#L9)
+
+```python
+def main()
+```
+
+Проверяет Windows x64/Python 3.12 и вызывает PyInstaller с данными навыков, SDK и необходимым PEM runtime.
+
 <a id="module-tools-check-docs-py"></a>
 
 ## `tools/check_docs.py`
@@ -2659,7 +2676,7 @@ def main()
 
 ### `register`
 
-[Исходник](../../tools/doc_notes.py#L99)
+[Исходник](../../tools/doc_notes.py#L104)
 
 ```python
 def register(module, text)

@@ -10,3 +10,6 @@ dist-electron/
 .test-data/
 .npm-cache/
 .venv-test/
+.venv-build/
+build/
+artifacts/

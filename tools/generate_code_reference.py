@@ -201,8 +201,8 @@ def render():
                 raise ValueError('Нет lock-версии или описания зависимости: ' + name)
             dependency_rows.append('| `' + name + '` | `' + section + '` | `' + requested + '` | `' + installed['version'] + '` | ' + DEPENDENCY_NOTES[name] + ' |')
     dependency_rows += ['', '## Python requirements', '',
-        'Это диапазоны установки, а не lock-файл Python. Qt требуется только для сохранённого GUI и соответствующих проверок. python-dotenv сохранён в полном наборе, но текущий main.py не загружает .env.', '']
-    for name in ('requirements-core.txt', 'requirements.txt'):
+        'requirements-core.txt и requirements.txt задают диапазоны установки; requirements-build.txt фиксирует точные версии сборочного окружения. Qt требуется только для сохранённого GUI и соответствующих проверок. python-dotenv сохранён в полном наборе, но текущий main.py не загружает .env.', '']
+    for name in ('requirements-core.txt', 'requirements.txt', 'requirements-build.txt'):
         dependency_rows += ['### `' + name + '`', '', '```text', (ROOT / name).read_text(encoding='utf-8').strip(), '```', '']
     documents['docs/reference/dependencies.md'] += '\n'.join(dependency_rows)
     documents['docs/reference/file-map.md'] += 'Перечислены файлы репозитория; зависимости, окружения и результаты сборки исключены правилами Git.\n\n' + '\n'.join(inventory) + '\n'

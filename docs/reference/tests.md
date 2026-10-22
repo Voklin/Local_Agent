@@ -141,7 +141,7 @@ def start_process(self)
 
 ### `BridgeProcessTests.read_output`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L39)
+[Исходник](../../tests/migration/test_bridge_process.py#L46)
 
 ```python
 def read_output(self)
@@ -151,7 +151,7 @@ def read_output(self)
 
 ### `BridgeProcessTests.stop_process`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L46)
+[Исходник](../../tests/migration/test_bridge_process.py#L53)
 
 ```python
 def stop_process(self, kill=False)
@@ -161,7 +161,7 @@ def stop_process(self, kill=False)
 
 ### `BridgeProcessTests.tearDown`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L62)
+[Исходник](../../tests/migration/test_bridge_process.py#L69)
 
 ```python
 def tearDown(self)
@@ -171,7 +171,7 @@ def tearDown(self)
 
 ### `BridgeProcessTests.start_crash_scenario`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L74)
+[Исходник](../../tests/migration/test_bridge_process.py#L81)
 
 ```python
 def start_crash_scenario(self, handler, mode=None)
@@ -181,7 +181,7 @@ def start_crash_scenario(self, handler, mode=None)
 
 ### `BridgeProcessTests.reopen_after_kill`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L86)
+[Исходник](../../tests/migration/test_bridge_process.py#L93)
 
 ```python
 def reopen_after_kill(self, chat_id)
@@ -191,7 +191,7 @@ def reopen_after_kill(self, chat_id)
 
 ### `BridgeProcessTests.test_process_kill_before_headers_recovers_user_request_and_paused_task`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L96)
+[Исходник](../../tests/migration/test_bridge_process.py#L103)
 
 ```python
 def test_process_kill_before_headers_recovers_user_request_and_paused_task(self)
@@ -199,9 +199,19 @@ def test_process_kill_before_headers_recovers_user_request_and_paused_task(self)
 
 Проверка: Реальный kill subprocess до HTTP-заголовков сохраняет запрос и paused при открытии.
 
+### `BridgeProcessTests.test_approved_write_and_preferences_survive_process_restart`
+
+[Исходник](../../tests/migration/test_bridge_process.py#L110)
+
+```python
+def test_approved_write_and_preferences_survive_process_restart(self)
+```
+
+Проверка: Подтверждённая запись и настройки переживают рестарт bridge; ключ не попадает в JSON.
+
 ### `BridgeProcessTests.test_process_kill_during_stream_recovers_partial_once`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L103)
+[Исходник](../../tests/migration/test_bridge_process.py#L124)
 
 ```python
 def test_process_kill_during_stream_recovers_partial_once(self)
@@ -211,7 +221,7 @@ def test_process_kill_during_stream_recovers_partial_once(self)
 
 ### `BridgeProcessTests.test_process_kill_during_approval_never_replays_permission`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L113)
+[Исходник](../../tests/migration/test_bridge_process.py#L134)
 
 ```python
 def test_process_kill_during_approval_never_replays_permission(self)
@@ -221,7 +231,7 @@ def test_process_kill_during_approval_never_replays_permission(self)
 
 ### `BridgeProcessTests.start_discovery_server`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L128)
+[Исходник](../../tests/migration/test_bridge_process.py#L149)
 
 ```python
 def start_discovery_server(self, mode)
@@ -231,7 +241,7 @@ def start_discovery_server(self, mode)
 
 ### `BridgeProcessTests.test_bridge_models_discovery_keeps_commands_responsive_and_pins_config`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L143)
+[Исходник](../../tests/migration/test_bridge_process.py#L164)
 
 ```python
 def test_bridge_models_discovery_keeps_commands_responsive_and_pins_config(self)
@@ -241,7 +251,7 @@ def test_bridge_models_discovery_keeps_commands_responsive_and_pins_config(self)
 
 ### `BridgeProcessTests.test_bridge_cancel_closes_discovery_socket`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L153)
+[Исходник](../../tests/migration/test_bridge_process.py#L174)
 
 ```python
 def test_bridge_cancel_closes_discovery_socket(self)
@@ -251,7 +261,7 @@ def test_bridge_cancel_closes_discovery_socket(self)
 
 ### `BridgeProcessTests.until`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L161)
+[Исходник](../../tests/migration/test_bridge_process.py#L182)
 
 ```python
 def until(self, predicate)
@@ -261,7 +271,7 @@ def until(self, predicate)
 
 ### `BridgeProcessTests.call`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L172)
+[Исходник](../../tests/migration/test_bridge_process.py#L193)
 
 ```python
 def call(self, method, **params)
@@ -271,7 +281,7 @@ def call(self, method, **params)
 
 ### `BridgeProcessTests.test_malformed_input_does_not_reuse_previous_request_id`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L179)
+[Исходник](../../tests/migration/test_bridge_process.py#L200)
 
 ```python
 def test_malformed_input_does_not_reuse_previous_request_id(self)
@@ -281,7 +291,7 @@ def test_malformed_input_does_not_reuse_previous_request_id(self)
 
 ### `BridgeProcessTests.test_bridge_remains_responsive_during_write_approval`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L188)
+[Исходник](../../tests/migration/test_bridge_process.py#L209)
 
 ```python
 def test_bridge_remains_responsive_during_write_approval(self)

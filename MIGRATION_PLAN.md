@@ -17,7 +17,7 @@
 
 ## Next milestones
 
-1. Add distributable Windows packaging with the Python Core bundled.
+1. Validate the bundled Windows Core and NSIS package in CI, then complete clean-machine install/upgrade/uninstall acceptance (see docs/14-windows-packaging.md).
 2. Integrate a credential store for optional API keys.
 3. Restore remaining editor and change-review features incrementally.
 

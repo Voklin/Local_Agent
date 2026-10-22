@@ -3,19 +3,32 @@ import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import path from 'node:path';
 import os from 'node:os';
+import fs from 'node:fs';
 
 let win: BrowserWindow | null = null;
 let backend: ChildProcessWithoutNullStreams | null = null;
 let requestId = 0;
 const pending = new Map<number, { resolve: (value: any) => void; timer: ReturnType<typeof setTimeout> }>();
+function diagnostic(message: string) {
+  try {
+    const directory = path.join(app.getPath('userData'), 'logs');
+    fs.mkdirSync(directory, { recursive: true });
+    const file = path.join(directory, 'main.log');
+    if (fs.existsSync(file) && fs.statSync(file).size > 1_000_000) fs.writeFileSync(file, '');
+    fs.appendFileSync(file, `${new Date().toISOString()} ${message}\n`, 'utf8');
+  } catch { /* Diagnostics must not prevent startup or shutdown. */ }
+}
 function publish(message: any) {
   if (win && !win.isDestroyed()) win.webContents.send('core:event', message);
 }
 function startBackend() {
   if (backend) return;
-  const root = app.isPackaged ? path.join(process.resourcesPath, 'core', 'python') : path.resolve(__dirname, '../../../core/python');
-  const python = process.env.LCA_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-  const child = spawn(python, ['-u', path.join(root, 'bridge.py')], { cwd: root, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+  const root = app.isPackaged ? path.join(process.resourcesPath, 'core') : path.resolve(__dirname, '../../../core/python');
+  const python = app.isPackaged ? path.join(root, 'lca-core.exe') : process.env.LCA_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
+  const env: NodeJS.ProcessEnv = { ...process.env, PYTHONIOENCODING: 'utf-8' };
+  if (app.isPackaged) { delete env.PYTHONHOME; delete env.PYTHONPATH; }
+  diagnostic(`core:start packaged=${app.isPackaged}`);
+  const child = spawn(python, app.isPackaged ? [] : ['-u', path.join(root, 'bridge.py')], { cwd: root, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env });
   backend = child;
   createInterface({ input: child.stdout }).on('line', (line) => {
     try {
@@ -35,8 +48,8 @@ function startBackend() {
     pending.clear();
     publish({ event: 'backend_stopped' });
   };
-  child.on('error', stopped);
-  child.on('exit', stopped);
+  child.on('error', (error: NodeJS.ErrnoException) => { diagnostic(`core:error code=${error.code || 'unknown'}`); stopped(); });
+  child.on('exit', (code, signal) => { diagnostic(`core:exit code=${code} signal=${signal}`); stopped(); });
   child.stdin.on('error', stopped);
 }
 function callBackend(method: string, params: Record<string, unknown> = {}) {
@@ -59,8 +72,8 @@ function createWindow() {
   win.webContents.on('did-start-loading', () => { if (backend) void callBackend('cancel_task'); });
   if (app.isPackaged) win.loadFile(path.join(__dirname, '../dist/index.html')); else win.loadURL('http://127.0.0.1:5173');
 }
-app.whenReady().then(() => { createWindow(); app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); }); });
-app.on('before-quit', () => { if (backend) { backend.stdin.end(); backend.kill(); } });
+app.whenReady().then(() => { diagnostic(`app:start version=${app.getVersion()} packaged=${app.isPackaged} platform=${process.platform} arch=${process.arch}`); createWindow(); app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); }); });
+app.on('before-quit', () => { diagnostic('app:quit'); if (backend) { backend.stdin.end(); backend.kill(); } });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 function handle(channel: string, handler: (...args: any[]) => any) {
   ipcMain.handle(channel, (event, ...args) => {

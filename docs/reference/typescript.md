@@ -15,6 +15,7 @@
 - [apps/desktop/src/main.tsx](#module-apps-desktop-src-main-tsx)
 - [apps/desktop/src/vite-env.d.ts](#module-apps-desktop-src-vite-env-d-ts)
 - [apps/desktop/vite.config.ts](#module-apps-desktop-vite-config-ts)
+- [tests/electron/packaged-smoke.mjs](#module-tests-electron-packaged-smoke-mjs)
 - [tests/electron/smoke.cjs](#module-tests-electron-smoke-cjs)
 - [tools/extract_ts_symbols.cjs](#module-tools-extract-ts-symbols-cjs)
 
@@ -50,9 +51,19 @@ fileName()
 
 Окно, Python-процесс, pending RPC, проверка sender и фиксированные IPC handlers.
 
+### `diagnostic`
+
+[Исходник](../../apps/desktop/electron/main.ts#L12)
+
+```typescript
+function diagnostic(message: string)
+```
+
+Добавляет только lifecycle-диагностику в ограниченный main.log; ошибка I/O не блокирует приложение.
+
 ### `publish`
 
-[Исходник](../../apps/desktop/electron/main.ts#L11)
+[Исходник](../../apps/desktop/electron/main.ts#L21)
 
 ```typescript
 function publish(message: any)
@@ -62,7 +73,7 @@ function publish(message: any)
 
 ### `startBackend`
 
-[Исходник](../../apps/desktop/electron/main.ts#L14)
+[Исходник](../../apps/desktop/electron/main.ts#L24)
 
 ```typescript
 function startBackend()
@@ -72,7 +83,7 @@ function startBackend()
 
 ### `startBackend.stopped`
 
-[Исходник](../../apps/desktop/electron/main.ts#L30)
+[Исходник](../../apps/desktop/electron/main.ts#L43)
 
 ```typescript
 stopped()
@@ -82,7 +93,7 @@ stopped()
 
 ### `callBackend`
 
-[Исходник](../../apps/desktop/electron/main.ts#L42)
+[Исходник](../../apps/desktop/electron/main.ts#L55)
 
 ```typescript
 function callBackend(method: string, params: Record<string, unknown> = {})
@@ -92,7 +103,7 @@ function callBackend(method: string, params: Record<string, unknown> = {})
 
 ### `createWindow`
 
-[Исходник](../../apps/desktop/electron/main.ts#L53)
+[Исходник](../../apps/desktop/electron/main.ts#L66)
 
 ```typescript
 function createWindow()
@@ -102,7 +113,7 @@ function createWindow()
 
 ### `handle`
 
-[Исходник](../../apps/desktop/electron/main.ts#L65)
+[Исходник](../../apps/desktop/electron/main.ts#L78)
 
 ```typescript
 function handle(channel: string, handler: (...args: any[]) => any)
@@ -502,6 +513,72 @@ interface Window { lca: {
 React-плагин, относительные assets, фиксированный локальный dev-порт и outDir.
 
 Нет именованных функций/типов: модуль выполняет конфигурацию, сборочный вызов или render entry. Анонимные callbacks описаны в учебных главах.
+
+<a id="module-tests-electron-packaged-smoke-mjs"></a>
+
+## `tests/electron/packaged-smoke.mjs`
+
+CDP-проверка настоящего packaged exe с урезанным PATH, discovery и повторным запуском.
+
+### `freePort`
+
+[Исходник](../../tests/electron/packaged-smoke.mjs#L10)
+
+```typescript
+async function freePort()
+```
+
+Резервирует свободный loopback-порт для тестового Chromium CDP.
+
+### `connectPage`
+
+[Исходник](../../tests/electron/packaged-smoke.mjs#L18)
+
+```typescript
+async function connectPage(port, child)
+```
+
+Ожидает file renderer настоящего exe и открывает WebSocket CDP с ограниченным временем.
+
+### `evaluate`
+
+[Исходник](../../tests/electron/packaged-smoke.mjs#L35)
+
+```typescript
+function evaluate(socket, expression)
+```
+
+Последовательно исполняет одно тестовое выражение через CDP с тайм-аутом.
+
+### `evaluate.receive`
+
+[Исходник](../../tests/electron/packaged-smoke.mjs#L38)
+
+```typescript
+receive(event)
+```
+
+Сопоставляет CDP response с запросом и возвращает значение либо ошибку JavaScript.
+
+### `run`
+
+[Исходник](../../tests/electron/packaged-smoke.mjs#L50)
+
+```typescript
+async function run(executable, directory, first, modelUrl)
+```
+
+Запускает packaged exe с изолированными данными/урезанным PATH и проверяет Core, настройки и нормальное закрытие.
+
+### `main`
+
+[Исходник](../../tests/electron/packaged-smoke.mjs#L87)
+
+```typescript
+async function main()
+```
+
+Поднимает HTTP-фикстуру, дважды проверяет пакет и отсутствие ключа в настройках/диагностике.
 
 <a id="module-tests-electron-smoke-cjs"></a>
 

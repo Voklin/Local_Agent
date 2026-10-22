@@ -6,7 +6,12 @@ import sys
 import threading
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+for stream in (sys.stdin, sys.stdout, sys.stderr):
+    if hasattr(stream, 'reconfigure'):
+        stream.reconfigure(encoding='utf-8')
+
+if not getattr(sys, 'frozen', False):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from core.python.task_service import TaskService
 
 output_lock = threading.Lock()

@@ -10,6 +10,7 @@
     "build": "npm --workspace apps/desktop run build",
     "typecheck": "npm --workspace apps/desktop run typecheck",
     "docs:generate": "python tools/generate_code_reference.py",
-    "docs:check": "python tools/check_docs.py"
+    "docs:check": "python tools/check_docs.py",
+    "package:win": "npm run build && electron-builder --config electron-builder.json --win --x64 --publish never"
   }
 }

@@ -11,7 +11,7 @@
 | Файл | Назначение |
 | --- | --- |
 | [.gitattributes](../../.gitattributes) | Автоопределение текстовых файлов и нормализация переводов строк в Git. |
-| [.github/workflows/validate.yml](../../.github/workflows/validate.yml) | Windows CI: Python-тесты, npm ci, TypeScript/production build и проверка документации. |
+| [.github/workflows/validate.yml](../../.github/workflows/validate.yml) | Windows CI: Python/build/docs и отдельный job freeze/NSIS/packaged smoke с временным installer artifact. |
 | [.gitignore](../../.gitignore) | Исключает окружения, сборки, кэши, тестовые данные и секретный .env из Git. |
 | [MIGRATION_PLAN.md](../../MIGRATION_PLAN.md) | Выполненные границы миграции и оставшиеся этапы. |
 | [README.md](../../README.md) | Краткий вход в проект, запуск и ссылка на учебное руководство. |
@@ -69,6 +69,7 @@
 | [docs/11-current-status.md](../../docs/11-current-status.md) | Ручная учебная глава или исторический материал: 11. Реальный статус и технический долг. |
 | [docs/12-development-guide.md](../../docs/12-development-guide.md) | Ручная учебная глава или исторический материал: 12. Как развивать проект и документацию. |
 | [docs/13-learning-path.md](../../docs/13-learning-path.md) | Ручная учебная глава или исторический материал: 13. Учебный маршрут и словарь. |
+| [docs/14-windows-packaging.md](../../docs/14-windows-packaging.md) | Ручная учебная глава или исторический материал: 14. Windows-сборка со встроенным Python Core. |
 | [docs/README.md](../../docs/README.md) | Ручная учебная глава или исторический материал: LocalAgent: подробное руководство по проекту. |
 | [docs/WORK_PLAN.md](../../docs/WORK_PLAN.md) | Ручная учебная глава или исторический материал: План дальнейшей разработки LocalAgent. |
 | [docs/history/legacy-readme.md](../../docs/history/legacy-readme.md) | Ручная учебная глава или исторический материал: Исторические README до учебной документации. |
@@ -79,9 +80,11 @@
 | [docs/reference/tests.md](../../docs/reference/tests.md) | Генерируемый документ: Справочник Python-тестов. |
 | [docs/reference/typescript.md](../../docs/reference/typescript.md) | Генерируемый документ: Справочник TypeScript и JavaScript. |
 | [docs/sources.md](../../docs/sources.md) | Ручная учебная глава или исторический материал: Официальные материалы для изучения. |
+| [electron-builder.json](../../electron-builder.json) | Allowlist приложения, extraResources Core и локальный NSIS installer без публикации. |
 | [main.py](../../main.py) | Точка входа сохранённого PySide6 GUI: QApplication, MainWindow, Qt event loop. |
 | [package-lock.json](../../package-lock.json) | Зафиксированное дерево npm-зависимостей; редактируется npm, а не вручную. |
 | [package.json](../../package.json) | Корневой npm workspace и делегирование dev/build/typecheck. |
+| [requirements-build.txt](../../requirements-build.txt) | Точные Python-зависимости для Windows x64 freeze Core без Qt. |
 | [requirements-core.txt](../../requirements-core.txt) | Диапазоны OpenAI SDK и отдельного HTTPX model discovery для ядра без Qt. |
 | [requirements.txt](../../requirements.txt) | Полное Python-окружение с PySide6 и сохранённой зависимостью python-dotenv. |
 | [run-desktop.bat](../../run-desktop.bat) | Запуск npm dev; выбирает .venv Python, если LCA_PYTHON не задан. |
@@ -90,6 +93,7 @@
 | [skills/debugging/SKILL.md](../../skills/debugging/SKILL.md) | Краткий навык debugging; SkillManager использует метаданные для выбора по prompt. |
 | [skills/project_analysis/SKILL.md](../../skills/project_analysis/SKILL.md) | Краткий навык project_analysis; SkillManager использует метаданные для выбора по prompt. |
 | [skills/testing/SKILL.md](../../skills/testing/SKILL.md) | Краткий навык testing; SkillManager использует метаданные для выбора по prompt. |
+| [tests/electron/packaged-smoke.mjs](../../tests/electron/packaged-smoke.mjs) | CDP-проверка настоящего packaged exe с урезанным PATH, discovery и повторным запуском. |
 | [tests/electron/smoke.cjs](../../tests/electron/smoke.cjs) | Скрытое настоящее Electron-окно: все слои, запись, поток, reload и Stop. |
 | [tests/migration/test_bridge.py](../../tests/migration/test_bridge.py) | Вызовы bridge.handle: health, файлы, traversal и запрет прямой записи. |
 | [tests/migration/test_bridge_process.py](../../tests/migration/test_bridge_process.py) | Реальный Python subprocess, malformed JSON, responsiveness и cancel при approval. |
@@ -109,6 +113,7 @@
 | [tests/test_runtime_architecture.py](../../tests/test_runtime_architecture.py) | Структура плана, skills, размер контекста и verifier. |
 | [tests/test_sandbox.py](../../tests/test_sandbox.py) | Обёртка запуска внутренней security self-test suite. |
 | [tests/test_task_store.py](../../tests/test_task_store.py) | Round-trip checkpoint, переход этапа, завершение и очистка. |
+| [tools/build_windows_core.py](../../tools/build_windows_core.py) | PyInstaller onedir сборка Windows x64 Core с Python 3.12 и данными навыков. |
 | [tools/check_docs.py](../../tools/check_docs.py) | Проверка локальных ссылок, source lines, покрытия аннотаций и актуальности каталога. |
 | [tools/doc_notes.py](../../tools/doc_notes.py) | Ручные назначения файлов и символов для справочников; не является runtime-модулем агента. |
 | [tools/extract_ts_symbols.cjs](../../tools/extract_ts_symbols.cjs) | TypeScript Compiler API: структурные объявления TS/JS без исполнения приложения. |

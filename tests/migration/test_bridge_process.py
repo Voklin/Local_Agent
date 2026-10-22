@@ -30,9 +30,16 @@ class BridgeProcessTests(unittest.TestCase):
         self.start_process()
 
     def start_process(self):
-        self.process = subprocess.Popen([sys.executable, '-u', str(BRIDGE)],
+        frozen = os.environ.get('LCA_TEST_CORE')
+        command = [str(Path(frozen).resolve(strict=True))] if frozen else [sys.executable, '-u', str(BRIDGE)]
+        env = {**os.environ, 'LOCALAPPDATA': self.temp.name, 'PYTHONIOENCODING': 'utf-8'}
+        if frozen:
+            env['PATH'] = str(Path(os.environ['SystemRoot']) / 'System32')
+            env.pop('PYTHONHOME', None)
+            env.pop('PYTHONPATH', None)
+        self.process = subprocess.Popen(command, cwd=self.root,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, encoding='utf-8', env={**os.environ, 'LOCALAPPDATA': self.temp.name, 'PYTHONIOENCODING':'utf-8'})
+            text=True, encoding='utf-8', env=env)
         self.reader = threading.Thread(target=self.read_output, daemon=True)
         self.reader.start()
 
@@ -99,6 +106,20 @@ class BridgeProcessTests(unittest.TestCase):
         recovered = self.reopen_after_kill(chat_id)
         self.assertEqual(recovered['task']['status'], 'paused')
         self.assertEqual(recovered['chat']['messages'], [{'role': 'user', 'content': 'hello'}])
+
+    def test_approved_write_and_preferences_survive_process_restart(self):
+        chat_id = self.start_crash_scenario(ModelHandler)
+        proposal = self.until(lambda r: r.get('event') == 'approval')
+        self.assertTrue(self.call('resolve_approval', run_id=proposal['run_id'], approval_id=proposal['approval_id'], decision='apply')['ok'])
+        self.until(lambda r: r.get('event') == 'task_end')
+        self.assertEqual((self.root / 'new.txt').read_text(encoding='utf-8'), 'approved content')
+        self.assertTrue(self.call('configure_model', base_url=f'http://127.0.0.1:{self.scenario_server.server_port}/v1', model='test-model', api_key='packaging-test-secret')['ok'])
+        recovered = self.reopen_after_kill(chat_id)
+        self.assertEqual(recovered['task']['status'], 'completed')
+        self.assertIn('new.txt', recovered['task']['modified_files'])
+        self.assertEqual(self.call('get_model_settings')['model'], 'test-model')
+        for file in Path(self.temp.name).rglob('*.json'):
+            self.assertNotIn('packaging-test-secret', file.read_text(encoding='utf-8'))
 
     def test_process_kill_during_stream_recovers_partial_once(self):
         chat_id = self.start_crash_scenario(SlowHandler, 'crash_stream')

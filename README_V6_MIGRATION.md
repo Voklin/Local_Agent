@@ -38,7 +38,7 @@ The server URL and selected model are saved outside the project and restored on 
 - Renderer isolation, narrow preload API, sender validation, and blocked external navigation/window creation.
 - Electron/Python failures are surfaced; after a Core failure choose the project again and reopen the saved chat.
 
-The PySide6 app needs the full `requirements.txt`. Qt is not required for Electron's Python Core. This is a development build; distributable packaging is still pending.
+The PySide6 app needs the full `requirements.txt`. Qt is not required for Electron's Python Core. The development setup above uses an external Python. A bundled Windows Core and local NSIS packaging are now available; see [Windows packaging](docs/14-windows-packaging.md). Clean-machine install/upgrade/uninstall acceptance remains pending.
 
 ## Validation
 
