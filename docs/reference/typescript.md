@@ -344,7 +344,7 @@ async function refreshChats()
 
 ### `App.refreshFiles`
 
-[Исходник](../../apps/desktop/src/App.tsx#L88)
+[Исходник](../../apps/desktop/src/App.tsx#L89)
 
 ```typescript
 async function refreshFiles(path = '.')
@@ -354,7 +354,7 @@ async function refreshFiles(path = '.')
 
 ### `App.chooseProject`
 
-[Исходник](../../apps/desktop/src/App.tsx#L92)
+[Исходник](../../apps/desktop/src/App.tsx#L93)
 
 ```typescript
 async function chooseProject()
@@ -364,7 +364,7 @@ async function chooseProject()
 
 ### `App.openFile`
 
-[Исходник](../../apps/desktop/src/App.tsx#L101)
+[Исходник](../../apps/desktop/src/App.tsx#L102)
 
 ```typescript
 async function openFile(item: FileItem)
@@ -374,7 +374,7 @@ async function openFile(item: FileItem)
 
 ### `App.selectChat`
 
-[Исходник](../../apps/desktop/src/App.tsx#L107)
+[Исходник](../../apps/desktop/src/App.tsx#L108)
 
 ```typescript
 async function selectChat(id?: string)
@@ -384,7 +384,7 @@ async function selectChat(id?: string)
 
 ### `App.configure`
 
-[Исходник](../../apps/desktop/src/App.tsx#L116)
+[Исходник](../../apps/desktop/src/App.tsx#L117)
 
 ```typescript
 async function configure()
@@ -394,7 +394,7 @@ async function configure()
 
 ### `App.saveSettings`
 
-[Исходник](../../apps/desktop/src/App.tsx#L120)
+[Исходник](../../apps/desktop/src/App.tsx#L121)
 
 ```typescript
 async function saveSettings()
@@ -404,7 +404,7 @@ async function saveSettings()
 
 ### `App.discoverModels`
 
-[Исходник](../../apps/desktop/src/App.tsx#L126)
+[Исходник](../../apps/desktop/src/App.tsx#L127)
 
 ```typescript
 async function discoverModels()
@@ -414,7 +414,7 @@ async function discoverModels()
 
 ### `App.sendPrompt`
 
-[Исходник](../../apps/desktop/src/App.tsx#L141)
+[Исходник](../../apps/desktop/src/App.tsx#L142)
 
 ```typescript
 async function sendPrompt(resume = false)
@@ -424,7 +424,7 @@ async function sendPrompt(resume = false)
 
 ### `App.decide`
 
-[Исходник](../../apps/desktop/src/App.tsx#L165)
+[Исходник](../../apps/desktop/src/App.tsx#L166)
 
 ```typescript
 async function decide(decision: string)
@@ -434,7 +434,7 @@ async function decide(decision: string)
 
 ### `App.cancel`
 
-[Исходник](../../apps/desktop/src/App.tsx#L174)
+[Исходник](../../apps/desktop/src/App.tsx#L175)
 
 ```typescript
 async function cancel()
@@ -541,7 +541,7 @@ encode(delta)
 
 ### `releaseModelText`
 
-[Исходник](../../tests/electron/smoke.cjs#L48)
+[Исходник](../../tests/electron/smoke.cjs#L51)
 
 ```typescript
 releaseModelText()
@@ -551,7 +551,7 @@ releaseModelText()
 
 ### `poll`
 
-[Исходник](../../tests/electron/smoke.cjs#L55)
+[Исходник](../../tests/electron/smoke.cjs#L58)
 
 ```typescript
 async function poll(win, expression)

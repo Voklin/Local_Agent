@@ -363,7 +363,6 @@ class AgentEngine:
                             memory_event["query"] = str(args.get("query", ""))[:160]
                             if self._task:
                                 self._task.setdefault('resume_state', {})['next_action'] = f'Обработать результат инструмента {name}'
-                                if name == 'write_file': self._task.setdefault('modified_files', []).append(str(args.get('path',''))[:240])
                             if name == "write_file":
                                 preview = preview_file_change(self.project_root, args.get("path", ""), args.get("content", ""))
                                 if not preview.get("ok"):
@@ -376,7 +375,10 @@ class AgentEngine:
                                     self._emit_change(preview["path"], preview["diff"], preview["exists"], "pending")
                                     decision = self._ask_write_approval(preview["path"], preview["diff"], preview["exists"])
                                     if decision == "apply":
-                                        result = execute_tool(name, args, self.project_root, self.settings, approved=True)
+                                        result = execute_tool(name, args, self.project_root, self.settings,
+                                                              approved=True, expected_snapshot=preview['snapshot'])
+                                        if result.get('ok') and self._task:
+                                            self._task.setdefault('modified_files', []).append(preview['path'])
                                         self._emit_change(preview["path"], preview["diff"], preview["exists"], "applied" if result.get("ok") else "error", result.get("error", ""))
                                     elif decision == "cancel":
                                         result = {"ok": False, "error": "User cancelled the proposed file change; no changes made", "code": "USER_CANCELLED"}

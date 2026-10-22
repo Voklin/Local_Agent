@@ -178,8 +178,8 @@ list_files | Перечисляет разрешённые файлы с фил�
 safe_relative | Возвращает относительное POSIX-представление пути для результатов tools.
 read_file | Читает UTF-8 файл не больше 120000 байт внутри корня.
 search_text | Ищет подстроку в UTF-8 файлах с пределами размера, глубины, числа совпадений и длины строки.
-preview_file_change | Проверяет предложение и строит unified diff, не записывая содержимое.
-write_file | Требует approved, повторно проверяет путь/overwrite и записывает файл через temporary+fsync+replace.
+preview_file_change | Строит unified diff и снимок SHA-256 исходных байтов/предлагаемого текста с нормализованным путём, не записывая файл.
+write_file | Требует approval и совпадающий снимок preview; дважды проверяет состояние, атомарно заменяет существующий файл или создаёт новый без перезаписи.
 execute_tool | Диспетчер четырёх функций; превращает ожидаемые ошибки в структурированный tool result.
 run_sandbox_self_test | Выполняет изолированный внутренний unittest-набор проверки файловой границы и возвращает сводку.
 run_sandbox_self_test.SandboxTests | Внутренняя suite временных project/outside каталогов; не пользовательский runtime-класс.
@@ -358,6 +358,14 @@ Main.mcp_connect.bad | Показывает ошибку эксперимент�
 ''')
 
 TEST_PURPOSES = {
+    'snapshot_is_required_and_model_cannot_supply_it': 'Модельные аргументы не могут подменить обязательный снимок подтверждения.',
+    'external_edit_after_preview_is_not_overwritten': 'Изменённый после diff файл не перезаписывается.',
+    'deleted_existing_file_requires_new_approval': 'Удаление существующего файла после preview требует нового согласия.',
+    'snapshot_binds_path_and_proposed_content': 'Снимок связан с конкретным путём и предлагаемым текстом.',
+    'byte_level_line_ending_change_invalidates_preview': 'Изменение CRLF/LF обнаруживается по исходным байтам.',
+    'second_snapshot_check_catches_edit_during_temp_write': 'Повторная проверка обнаруживает правку во время записи временного файла.',
+    'atomic_create_refuses_file_that_appears_after_final_check': 'Атомарное создание не затирает файл, появившийся после последней проверки.',
+    'matching_approval_refuses_new_external_file': 'Верный approval ID не разрешает запись поверх внешнего файла, появившегося после diff.',
     'archive_builder_keeps_all_turns_and_copies_nested_calls': 'Канонический builder сохраняет все ходы и независимо копирует вложенные tool calls.',
     'model_context_omits_unfinished_and_orphaned_tool_exchanges': 'Модель не получает незавершённые и осиротевшие tool calls/results.',
     'serialized_context_budget_keeps_current_request_and_tool_pairs': 'JSON-бюджет соблюдается с Unicode/экранированием при сохранении запроса и tool-пар.',
@@ -434,6 +442,7 @@ TEST_PURPOSES = {
 }
 
 TEST_HELPERS = {
+    'late_create': 'Имитирует создание внешнего файла непосредственно перед атомарным созданием агентом.',
     'setUp': 'Создаёт изолированные данные и подмены перед каждым тестом этого класса.',
     'tearDown': 'Закрывает ресурсы и удаляет временные данные после теста.',
     'setUpClass': 'Создаёт общую HTTP-фикстуру и её поток для класса тестов.',

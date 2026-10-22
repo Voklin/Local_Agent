@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import difflib
 import tempfile
+import hashlib
 from .security import AccessDenied, resolve_allowed_path
 
 MAX_READ_BYTES = 120_000
@@ -138,11 +139,15 @@ def preview_file_change(root, path, content):
     if exists and not target.is_file():
         return {"ok": False, "error": "Target exists but is not a regular file"}
     old = ""
+    original_bytes = b''
     if exists:
         if target.stat().st_size > MAX_READ_BYTES:
             return {"ok": False, "error": f"Existing file is too large to safely preview (limit {MAX_READ_BYTES} bytes)"}
         try:
-            old = target.read_text(encoding="utf-8")
+            original_bytes = target.read_bytes()
+            if len(original_bytes) > MAX_READ_BYTES:
+                return {"ok": False, "error": "Existing file grew beyond the preview limit"}
+            old = original_bytes.decode('utf-8')
         except UnicodeDecodeError:
             return {"ok": False, "error": "Existing file is not UTF-8 text; refusing to replace it"}
     diff = "".join(difflib.unified_diff(
@@ -150,16 +155,26 @@ def preview_file_change(root, path, content):
         fromfile=f"a/{target.relative_to(base).as_posix()}" if exists else "/dev/null",
         tofile=f"b/{target.relative_to(base).as_posix()}",
     ))
-    return {"ok": True, "path": target.relative_to(base).as_posix(), "exists": exists, "diff": diff or "(No textual changes)"}
+    relative = target.relative_to(base).as_posix()
+    snapshot = {'path': relative, 'exists': exists,
+                'sha256': hashlib.sha256(original_bytes).hexdigest() if exists else None,
+                'proposed_sha256': hashlib.sha256(content.encode('utf-8')).hexdigest()}
+    return {"ok": True, "path": relative, "exists": exists, "diff": diff or "(No textual changes)",
+            'snapshot': snapshot}
 
 
-def write_file(root, path, content, overwrite=False, *, approved=False):
+def write_file(root, path, content, overwrite=False, *, approved=False, expected_snapshot=None):
     """Write UTF-8 text atomically; deny by default unless the GUI explicitly approved."""
     if not approved:
         return {"ok": False, "error": "User approval is required before writing a file", "code": "APPROVAL_REQUIRED"}
+    if not isinstance(expected_snapshot, dict):
+        return {"ok": False, "error": "A matching preview snapshot is required", "code": "APPROVAL_SNAPSHOT_REQUIRED"}
     preview = preview_file_change(root, path, content)
     if not preview.get("ok"):
         return preview
+    if preview['snapshot'] != expected_snapshot:
+        return {'ok': False, 'code': 'FILE_CHANGED',
+                'error': 'Файл или предложение изменились после показа diff. Запись отменена; запросите новый diff и подтвердите его заново.'}
     if preview["exists"] and not overwrite:
         return {"ok": False, "error": "File already exists; set overwrite=true and obtain user approval before replacing it"}
     base = resolve_allowed_path(root)
@@ -178,11 +193,26 @@ def write_file(root, path, content, overwrite=False, *, approved=False):
             temp.flush()
             os.fsync(temp.fileno())
         # Resolve once more immediately before replace, guarding against path redirection.
-        resolve_allowed_path(root, target, must_exist=False)
+        current = preview_file_change(root, path, content)
+        if not current.get('ok') or current.get('snapshot') != expected_snapshot or resolve_allowed_path(root, path, must_exist=False) != target:
+            return {'ok': False, 'code': 'FILE_CHANGED',
+                    'error': 'Файл изменился перед записью. Обновите diff и подтвердите изменение заново.'}
         if target.exists() and not overwrite:
             return {"ok": False, "error": "File appeared during write; refusing to overwrite"}
-        os.replace(temp_name, target)
-        temp_name = None
+        if expected_snapshot['exists']:
+            os.replace(temp_name, target)
+            temp_name = None
+        else:
+            # Atomic create-only operation: never overwrite a file created after recheck.
+            try:
+                if os.name == 'nt':
+                    # Windows rename refuses an existing destination, unlike POSIX rename.
+                    os.rename(temp_name, target)
+                    temp_name = None
+                else:
+                    os.link(temp_name, target)
+            except FileExistsError:
+                return {'ok': False, 'code': 'FILE_CHANGED', 'error': 'Файл появился перед записью; требуется новый diff.'}
     finally:
         if temp_name and os.path.exists(temp_name):
             try: os.unlink(temp_name)
@@ -198,7 +228,7 @@ TOOL_DEFINITIONS = [
 ]
 
 
-def execute_tool(name, arguments, project_root, settings=None, *, approved=False):
+def execute_tool(name, arguments, project_root, settings=None, *, approved=False, expected_snapshot=None):
     """Single dispatch point: every file tool must enforce the selected root."""
     settings = settings or {}
     max_entries = int(settings.get("max_entries", 200))
@@ -213,7 +243,8 @@ def execute_tool(name, arguments, project_root, settings=None, *, approved=False
         if name == "write_file":
             if not approved:
                 return {"ok": False, "error": "User approval is required before writing a file", "code": "APPROVAL_REQUIRED"}
-            return write_file(project_root, arguments["path"], arguments["content"], bool(arguments.get("overwrite", False)), approved=approved)
+            return write_file(project_root, arguments["path"], arguments["content"], bool(arguments.get("overwrite", False)),
+                              approved=approved, expected_snapshot=expected_snapshot)
         return {"ok": False, "error": f"Unknown tool: {name}"}
     except AccessDenied as exc:
         return {"ok": False, "error": str(exc), "code": "ACCESS_DENIED"}

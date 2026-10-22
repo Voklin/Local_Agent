@@ -116,6 +116,7 @@ class TaskServiceTests(unittest.TestCase):
         saved = chat_store.load_chat(self.service.chat['id'])
         self.assertTrue(any(m.get('role') == 'tool' for m in saved['messages']))
         self.assertEqual(task_store.load_task(saved['id'])['status'], 'completed')
+        self.assertEqual(task_store.load_task(saved['id'])['modified_files'], ['new.txt'])
         self.assertEqual(self.service.select_chat(self.root, saved['id'])['chat']['messages'], saved['messages'])
 
     def test_long_archive_survives_model_compaction_and_service_restart(self):
@@ -164,6 +165,19 @@ class TaskServiceTests(unittest.TestCase):
         self.event('task_end')
         self.service.thread.join(2)
         self.assertFalse((self.root / 'new.txt').exists())
+        self.assertEqual(task_store.load_task(self.service.chat['id'])['modified_files'], [])
+
+    def test_matching_approval_refuses_new_external_file(self):
+        approval = self.start()
+        (self.root / 'new.txt').write_text('external edit', encoding='utf-8')
+        self.resolve(approval, 'apply')
+        self.event('task_end')
+        self.service.thread.join(2)
+        self.assertEqual((self.root / 'new.txt').read_text(), 'external edit')
+        saved = chat_store.load_chat(self.service.chat['id'])
+        results = [json.loads(m['content']) for m in saved['messages'] if m.get('role') == 'tool']
+        self.assertEqual(results[-1]['code'], 'FILE_CHANGED')
+        self.assertEqual(task_store.load_task(saved['id'])['modified_files'], [])
         with self.assertRaises(ValueError):
             self.resolve(approval, 'apply')
 

@@ -72,7 +72,8 @@ export default function App() {
       if (e.event === 'progress') setHealth(`Агент работает · инструменты ${e.count}/${e.maximum}`);
       if (e.event === 'approval') { setApproval(e); setDeciding(false); }
       if (e.event === 'change') {
-        report(`${e.change.status}: ${e.change.path}`);
+        report(`${e.change.status}: ${e.change.path}${e.change.error ? ': ' + e.change.error : ''}`);
+        if (e.change.status === 'error') setChat(c => [...c, {role: 'system', text: `${e.change.path}: ${e.change.error}`}]);
         if (e.change.status === 'applied' && e.change.path === selectedRef.current)
           void window.lca.readFile(selectedRef.current).then(r => { if (r.ok) setFileText(r.content); });
       }

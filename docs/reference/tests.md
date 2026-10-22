@@ -494,7 +494,7 @@ def test_apply_only_after_matching_approval_and_persist_history(self)
 
 ### `TaskServiceTests.test_long_archive_survives_model_compaction_and_service_restart`
 
-[Исходник](../../tests/migration/test_task_service.py#L121)
+[Исходник](../../tests/migration/test_task_service.py#L122)
 
 ```python
 def test_long_archive_survives_model_compaction_and_service_restart(self)
@@ -504,7 +504,7 @@ def test_long_archive_survives_model_compaction_and_service_restart(self)
 
 ### `TaskServiceTests.test_forced_tool_uses_single_definition_then_restores_auto`
 
-[Исходник](../../tests/migration/test_task_service.py#L148)
+[Исходник](../../tests/migration/test_task_service.py#L149)
 
 ```python
 def test_forced_tool_uses_single_definition_then_restores_auto(self)
@@ -514,7 +514,7 @@ def test_forced_tool_uses_single_definition_then_restores_auto(self)
 
 ### `TaskServiceTests.test_reject_does_not_write`
 
-[Исходник](../../tests/migration/test_task_service.py#L161)
+[Исходник](../../tests/migration/test_task_service.py#L162)
 
 ```python
 def test_reject_does_not_write(self)
@@ -522,9 +522,19 @@ def test_reject_does_not_write(self)
 
 Проверка: Отказ и устаревшее подтверждение не создают файл.
 
-### `TaskServiceTests.test_resume_preserves_task_and_recovery_marks_interrupted_task_paused`
+### `TaskServiceTests.test_matching_approval_refuses_new_external_file`
 
 [Исходник](../../tests/migration/test_task_service.py#L170)
+
+```python
+def test_matching_approval_refuses_new_external_file(self)
+```
+
+Проверка: Верный approval ID не разрешает запись поверх внешнего файла, появившегося после diff.
+
+### `TaskServiceTests.test_resume_preserves_task_and_recovery_marks_interrupted_task_paused`
+
+[Исходник](../../tests/migration/test_task_service.py#L184)
 
 ```python
 def test_resume_preserves_task_and_recovery_marks_interrupted_task_paused(self)
@@ -534,7 +544,7 @@ def test_resume_preserves_task_and_recovery_marks_interrupted_task_paused(self)
 
 ### `TaskServiceTests.test_new_prompt_after_pause_creates_new_task`
 
-[Исходник](../../tests/migration/test_task_service.py#L187)
+[Исходник](../../tests/migration/test_task_service.py#L201)
 
 ```python
 def test_new_prompt_after_pause_creates_new_task(self)
@@ -544,7 +554,7 @@ def test_new_prompt_after_pause_creates_new_task(self)
 
 ### `TaskServiceTests.test_cancel_while_waiting_pauses_task_and_unblocks_worker`
 
-[Исходник](../../tests/migration/test_task_service.py#L199)
+[Исходник](../../tests/migration/test_task_service.py#L213)
 
 ```python
 def test_cancel_while_waiting_pauses_task_and_unblocks_worker(self)
@@ -554,7 +564,7 @@ def test_cancel_while_waiting_pauses_task_and_unblocks_worker(self)
 
 ### `TaskServiceTests.test_busy_task_rejects_chat_and_configuration_changes`
 
-[Исходник](../../tests/migration/test_task_service.py#L208)
+[Исходник](../../tests/migration/test_task_service.py#L222)
 
 ```python
 def test_busy_task_rejects_chat_and_configuration_changes(self)
@@ -564,7 +574,7 @@ def test_busy_task_rejects_chat_and_configuration_changes(self)
 
 ### `TaskServiceTests.test_chats_are_scoped_to_project_and_ids_cannot_escape_store`
 
-[Исходник](../../tests/migration/test_task_service.py#L217)
+[Исходник](../../tests/migration/test_task_service.py#L231)
 
 ```python
 def test_chats_are_scoped_to_project_and_ids_cannot_escape_store(self)
@@ -574,7 +584,7 @@ def test_chats_are_scoped_to_project_and_ids_cannot_escape_store(self)
 
 ### `TaskServiceTests.test_models_and_configuration_do_not_return_key`
 
-[Исходник](../../tests/migration/test_task_service.py#L225)
+[Исходник](../../tests/migration/test_task_service.py#L239)
 
 ```python
 def test_models_and_configuration_do_not_return_key(self)
@@ -584,7 +594,7 @@ def test_models_and_configuration_do_not_return_key(self)
 
 ### `TaskServiceTests.test_missing_model_and_bad_url_are_rejected`
 
-[Исходник](../../tests/migration/test_task_service.py#L230)
+[Исходник](../../tests/migration/test_task_service.py#L244)
 
 ```python
 def test_missing_model_and_bad_url_are_rejected(self)
@@ -855,7 +865,7 @@ Preview без записи, explicit approval, overwrite и путь файла
 
 ### `FileEditingTests`
 
-[Исходник](../../tests/test_file_editing.py#L9)
+[Исходник](../../tests/test_file_editing.py#L10)
 
 ```python
 class FileEditingTests(unittest.TestCase)
@@ -865,7 +875,7 @@ class FileEditingTests(unittest.TestCase)
 
 ### `FileEditingTests.setUp`
 
-[Исходник](../../tests/test_file_editing.py#L10)
+[Исходник](../../tests/test_file_editing.py#L11)
 
 ```python
 def setUp(self)
@@ -875,7 +885,7 @@ def setUp(self)
 
 ### `FileEditingTests.tearDown`
 
-[Исходник](../../tests/test_file_editing.py#L18)
+[Исходник](../../tests/test_file_editing.py#L19)
 
 ```python
 def tearDown(self)
@@ -885,7 +895,7 @@ def tearDown(self)
 
 ### `FileEditingTests.test_preview_does_not_write`
 
-[Исходник](../../tests/test_file_editing.py#L21)
+[Исходник](../../tests/test_file_editing.py#L22)
 
 ```python
 def test_preview_does_not_write(self)
@@ -895,7 +905,7 @@ def test_preview_does_not_write(self)
 
 ### `FileEditingTests.test_write_file_denies_without_explicit_approval`
 
-[Исходник](../../tests/test_file_editing.py#L27)
+[Исходник](../../tests/test_file_editing.py#L28)
 
 ```python
 def test_write_file_denies_without_explicit_approval(self)
@@ -905,7 +915,7 @@ def test_write_file_denies_without_explicit_approval(self)
 
 ### `FileEditingTests.test_create_new_file`
 
-[Исходник](../../tests/test_file_editing.py#L33)
+[Исходник](../../tests/test_file_editing.py#L34)
 
 ```python
 def test_create_new_file(self)
@@ -915,7 +925,7 @@ def test_create_new_file(self)
 
 ### `FileEditingTests.test_existing_file_requires_overwrite_flag`
 
-[Исходник](../../tests/test_file_editing.py#L38)
+[Исходник](../../tests/test_file_editing.py#L40)
 
 ```python
 def test_existing_file_requires_overwrite_flag(self)
@@ -925,7 +935,7 @@ def test_existing_file_requires_overwrite_flag(self)
 
 ### `FileEditingTests.test_overwrite_existing_file`
 
-[Исходник](../../tests/test_file_editing.py#L43)
+[Исходник](../../tests/test_file_editing.py#L46)
 
 ```python
 def test_overwrite_existing_file(self)
@@ -935,7 +945,7 @@ def test_overwrite_existing_file(self)
 
 ### `FileEditingTests.test_outside_path_denied`
 
-[Исходник](../../tests/test_file_editing.py#L48)
+[Исходник](../../tests/test_file_editing.py#L52)
 
 ```python
 def test_outside_path_denied(self)
@@ -945,13 +955,93 @@ def test_outside_path_denied(self)
 
 ### `FileEditingTests.test_dispatch_write_requires_approval`
 
-[Исходник](../../tests/test_file_editing.py#L52)
+[Исходник](../../tests/test_file_editing.py#L56)
 
 ```python
 def test_dispatch_write_requires_approval(self)
 ```
 
 Проверка: Dispatcher также не обходит approval.
+
+### `FileEditingTests.test_snapshot_is_required_and_model_cannot_supply_it`
+
+[Исходник](../../tests/test_file_editing.py#L67)
+
+```python
+def test_snapshot_is_required_and_model_cannot_supply_it(self)
+```
+
+Проверка: Модельные аргументы не могут подменить обязательный снимок подтверждения.
+
+### `FileEditingTests.test_external_edit_after_preview_is_not_overwritten`
+
+[Исходник](../../tests/test_file_editing.py#L74)
+
+```python
+def test_external_edit_after_preview_is_not_overwritten(self)
+```
+
+Проверка: Изменённый после diff файл не перезаписывается.
+
+### `FileEditingTests.test_deleted_existing_file_requires_new_approval`
+
+[Исходник](../../tests/test_file_editing.py#L81)
+
+```python
+def test_deleted_existing_file_requires_new_approval(self)
+```
+
+Проверка: Удаление существующего файла после preview требует нового согласия.
+
+### `FileEditingTests.test_snapshot_binds_path_and_proposed_content`
+
+[Исходник](../../tests/test_file_editing.py#L88)
+
+```python
+def test_snapshot_binds_path_and_proposed_content(self)
+```
+
+Проверка: Снимок связан с конкретным путём и предлагаемым текстом.
+
+### `FileEditingTests.test_byte_level_line_ending_change_invalidates_preview`
+
+[Исходник](../../tests/test_file_editing.py#L95)
+
+```python
+def test_byte_level_line_ending_change_invalidates_preview(self)
+```
+
+Проверка: Изменение CRLF/LF обнаруживается по исходным байтам.
+
+### `FileEditingTests.test_second_snapshot_check_catches_edit_during_temp_write`
+
+[Исходник](../../tests/test_file_editing.py#L104)
+
+```python
+def test_second_snapshot_check_catches_edit_during_temp_write(self)
+```
+
+Проверка: Повторная проверка обнаруживает правку во время записи временного файла.
+
+### `FileEditingTests.test_atomic_create_refuses_file_that_appears_after_final_check`
+
+[Исходник](../../tests/test_file_editing.py#L113)
+
+```python
+def test_atomic_create_refuses_file_that_appears_after_final_check(self)
+```
+
+Проверка: Атомарное создание не затирает файл, появившийся после последней проверки.
+
+### `FileEditingTests.test_atomic_create_refuses_file_that_appears_after_final_check.late_create`
+
+[Исходник](../../tests/test_file_editing.py#L119)
+
+```python
+def late_create(source, destination)
+```
+
+Имитирует создание внешнего файла непосредственно перед атомарным созданием агентом.
 
 <a id="module-tests-test-limits-py"></a>
 

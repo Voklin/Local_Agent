@@ -44,10 +44,13 @@ const model = http.createServer((req, res) => {
       res.write(encode({content:'Pending '}));
       res.on('close', () => { streamDisconnected = true; });
     } else if (input.messages.some(m => m.role === 'tool')) {
+      if (modelMode === 'conflict') {
+        res.end(encode({content:'Conflict handled'}) + 'data: [DONE]\n\n'); return;
+      }
       res.write(encode({content:'Smoke '}));
       releaseModelText = () => res.end(encode({content:'completed'}) + 'data: [DONE]\n\n');
     } else {
-      res.end(encode({tool_calls:[{index:0,id:'smoke-call',type:'function',function:{name:'write_file',arguments:JSON.stringify({path:'smoke.txt',content:'verified',overwrite:false})}}]}) + 'data: [DONE]\n\n');
+      res.end(encode({tool_calls:[{index:0,id:'smoke-call',type:'function',function:{name:'write_file',arguments:JSON.stringify({path:modelMode === 'conflict' ? 'conflict.txt' : 'smoke.txt',content:'verified',overwrite:false})}}]}) + 'data: [DONE]\n\n');
     }
   });
 });
@@ -110,6 +113,21 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(fs.readFileSync(path.join(project, 'smoke.txt'), 'utf8'), 'verified');
       await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       fs.writeFileSync(path.join(testRoot, 'completed.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
+      modelMode = 'conflict';
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Новый чат"]').click()`);
+      await poll(win, `!document.querySelector('.task-card') && !document.querySelector('.chat-messages').textContent.includes('Smoke completed')`);
+      await win.webContents.executeJavaScript(`{
+        const input = document.querySelector('textarea');
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'hello conflict');
+        input.dispatchEvent(new Event('input', { bubbles:true }));
+      }`);
+      await poll(win, `!document.querySelector('[title="Отправить"]').disabled`);
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
+      await poll(win, `!!document.querySelector('[role="dialog"]')`);
+      fs.writeFileSync(path.join(project, 'conflict.txt'), 'external edit');
+      await win.webContents.executeJavaScript(`document.querySelector('.approval-actions .primary-button').click()`);
+      await poll(win, `!document.querySelector('[title="Остановить"]') && document.querySelector('.chat-messages').textContent.includes('запросите новый diff')`);
+      assert.equal(fs.readFileSync(path.join(project, 'conflict.txt'), 'utf8'), 'external edit');
       const saved = JSON.parse(fs.readFileSync(path.join(testRoot, 'LocalCodingAgent/model-preferences.json'), 'utf8'));
       assert.deepEqual(saved, {base_url:url, model:'smoke-model'});
       assert.equal(JSON.stringify(saved).includes('test-secret'), false);
@@ -138,7 +156,7 @@ app.on('browser-window-created', (_event, win) => {
       assert.ok(Date.now() - stoppedAt < 3000, 'Stop should not wait for the model timeout');
       assert.equal(streamDisconnected, true);
       assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.streaming-caret')`), false);
-      console.log('PASS: Electron file approval, incremental text without duplicate answer, persisted preferences, fast network cancellation');
+      console.log('PASS: Electron approval and stale-diff conflict, incremental text without duplicate answer, persisted preferences, fast network cancellation');
       fs.writeFileSync(resultPath, JSON.stringify({status:'passed',project}, null, 2));
       clearTimeout(deadline); model.close(); app.quit();
     } catch (error) {

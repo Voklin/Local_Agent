@@ -1561,7 +1561,7 @@ def finish_task(task, status='completed', reason='')
 
 ### `list_files`
 
-[Исходник](../../agent/tools.py#L11)
+[Исходник](../../agent/tools.py#L12)
 
 ```python
 def list_files(root, path='.', recursive=False, max_entries=200, max_depth=5)
@@ -1571,7 +1571,7 @@ def list_files(root, path='.', recursive=False, max_entries=200, max_depth=5)
 
 ### `safe_relative`
 
-[Исходник](../../agent/tools.py#L55)
+[Исходник](../../agent/tools.py#L56)
 
 ```python
 def safe_relative(target, base)
@@ -1581,7 +1581,7 @@ def safe_relative(target, base)
 
 ### `read_file`
 
-[Исходник](../../agent/tools.py#L60)
+[Исходник](../../agent/tools.py#L61)
 
 ```python
 def read_file(root, path)
@@ -1591,7 +1591,7 @@ def read_file(root, path)
 
 ### `search_text`
 
-[Исходник](../../agent/tools.py#L74)
+[Исходник](../../agent/tools.py#L75)
 
 ```python
 def search_text(root, query, path='.', case_sensitive=False, max_depth=5)
@@ -1601,37 +1601,37 @@ def search_text(root, query, path='.', case_sensitive=False, max_depth=5)
 
 ### `preview_file_change`
 
-[Исходник](../../agent/tools.py#L122)
+[Исходник](../../agent/tools.py#L123)
 
 ```python
 def preview_file_change(root, path, content)
 ```
 
-Проверяет предложение и строит unified diff, не записывая содержимое.
+Строит unified diff и снимок SHA-256 исходных байтов/предлагаемого текста с нормализованным путём, не записывая файл.
 
 ### `write_file`
 
-[Исходник](../../agent/tools.py#L156)
+[Исходник](../../agent/tools.py#L166)
 
 ```python
-def write_file(root, path, content, overwrite=False, *, approved=False)
+def write_file(root, path, content, overwrite=False, *, approved=False, expected_snapshot=None)
 ```
 
-Требует approved, повторно проверяет путь/overwrite и записывает файл через temporary+fsync+replace.
+Требует approval и совпадающий снимок preview; дважды проверяет состояние, атомарно заменяет существующий файл или создаёт новый без перезаписи.
 
 ### `execute_tool`
 
-[Исходник](../../agent/tools.py#L201)
+[Исходник](../../agent/tools.py#L231)
 
 ```python
-def execute_tool(name, arguments, project_root, settings=None, *, approved=False)
+def execute_tool(name, arguments, project_root, settings=None, *, approved=False, expected_snapshot=None)
 ```
 
 Диспетчер четырёх функций; превращает ожидаемые ошибки в структурированный tool result.
 
 ### `run_sandbox_self_test`
 
-[Исходник](../../agent/tools.py#L224)
+[Исходник](../../agent/tools.py#L255)
 
 ```python
 def run_sandbox_self_test()
@@ -1641,7 +1641,7 @@ def run_sandbox_self_test()
 
 ### `run_sandbox_self_test.SandboxTests`
 
-[Исходник](../../agent/tools.py#L229)
+[Исходник](../../agent/tools.py#L260)
 
 ```python
 class SandboxTests(unittest.TestCase)
@@ -1651,7 +1651,7 @@ class SandboxTests(unittest.TestCase)
 
 ### `run_sandbox_self_test.SandboxTests.setUp`
 
-[Исходник](../../agent/tools.py#L230)
+[Исходник](../../agent/tools.py#L261)
 
 ```python
 def setUp(self)
@@ -1661,7 +1661,7 @@ def setUp(self)
 
 ### `run_sandbox_self_test.SandboxTests.tearDown`
 
-[Исходник](../../agent/tools.py#L237)
+[Исходник](../../agent/tools.py#L268)
 
 ```python
 def tearDown(self)
@@ -1671,7 +1671,7 @@ def tearDown(self)
 
 ### `run_sandbox_self_test.SandboxTests.test_read_inside_allowed`
 
-[Исходник](../../agent/tools.py#L238)
+[Исходник](../../agent/tools.py#L269)
 
 ```python
 def test_read_inside_allowed(self)
@@ -1681,7 +1681,7 @@ def test_read_inside_allowed(self)
 
 ### `run_sandbox_self_test.SandboxTests.test_parent_traversal_denied`
 
-[Исходник](../../agent/tools.py#L239)
+[Исходник](../../agent/tools.py#L270)
 
 ```python
 def test_parent_traversal_denied(self)
@@ -1691,7 +1691,7 @@ def test_parent_traversal_denied(self)
 
 ### `run_sandbox_self_test.SandboxTests.test_absolute_outside_denied`
 
-[Исходник](../../agent/tools.py#L241)
+[Исходник](../../agent/tools.py#L272)
 
 ```python
 def test_absolute_outside_denied(self)
@@ -1701,7 +1701,7 @@ def test_absolute_outside_denied(self)
 
 ### `run_sandbox_self_test.SandboxTests.test_list_outside_denied`
 
-[Исходник](../../agent/tools.py#L243)
+[Исходник](../../agent/tools.py#L274)
 
 ```python
 def test_list_outside_denied(self)
@@ -1711,7 +1711,7 @@ def test_list_outside_denied(self)
 
 ### `run_sandbox_self_test.SandboxTests.test_search_outside_denied`
 
-[Исходник](../../agent/tools.py#L246)
+[Исходник](../../agent/tools.py#L277)
 
 ```python
 def test_search_outside_denied(self)
@@ -1721,7 +1721,7 @@ def test_search_outside_denied(self)
 
 ### `run_sandbox_self_test.SandboxTests.test_symlink_escape_denied`
 
-[Исходник](../../agent/tools.py#L249)
+[Исходник](../../agent/tools.py#L280)
 
 ```python
 def test_symlink_escape_denied(self)
