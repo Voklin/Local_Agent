@@ -2,7 +2,7 @@
 import re
 from pathlib import Path
 from urllib.parse import unquote
-from generate_code_reference import ROOT, render
+from generate_code_reference import ROOT, render, configure_console
 
 
 def check_links(files):
@@ -33,6 +33,7 @@ def check_links(files):
 
 def main():
     """Сопоставляет структурные справочники с AST и завершает проверку ошибкой при расхождении/битой ссылке."""
+    configure_console()
     expected = render()
     errors = []
     for name, content in expected.items():

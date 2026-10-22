@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from doc_notes import FILE_NOTES, SYMBOL_NOTES, TEST_PURPOSES, TEST_HELPERS, DESIGN_CLASSES, DESIGN_METHODS, TS_NOTES, DEPENDENCY_NOTES
 
@@ -19,6 +20,13 @@ OUTPUTS = {
     'docs/reference/design-reference.md': 'Справочник архивного эталона дизайна',
     'docs/reference/dependencies.md': 'Объявленные и зафиксированные зависимости',
 }
+
+
+def configure_console():
+    """Включает UTF-8 для диагностического вывода CLI, включая Windows с исходной кодировкой CP1252."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(encoding='utf-8')
 
 
 def git_executable():
@@ -203,6 +211,7 @@ def render():
 
 def main():
     """Записывает справочники либо с --check проверяет, совпадают ли они с текущим AST."""
+    configure_console()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='Только проверить актуальность без записи')
     args = parser.parse_args()

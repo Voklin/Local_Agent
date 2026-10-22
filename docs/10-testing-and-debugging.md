@@ -78,6 +78,7 @@ Workflow [validate.yml](../.github/workflows/validate.yml) использует 
 | После правки Python поведение старое | Дочерний процесс | Полностью перезапустить приложение |
 | Ошибка npm dependency tree | `package.json`, lock | Использовать согласованный lock и `npm ci`, не `latest` для случайной замены |
 | Тесты пишут в реальные данные | Константы stores | Установить изолированное `LOCALAPPDATA` до импорта или использовать patch |
+| Русский CLI-текст вызывает `UnicodeEncodeError` | Кодировка stdout/stderr в Windows | Документационные CLI явно включают UTF-8; проверено и при исходном `PYTHONIOENCODING=cp1252` |
 
 ## Безопасная учебная отладка
 

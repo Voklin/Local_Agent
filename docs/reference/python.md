@@ -2496,9 +2496,19 @@ def register(module, text)
 
 Извлекает объявления из Python/TypeScript AST и создаёт Markdown-каталоги.
 
+### `configure_console`
+
+[Исходник](../../tools/generate_code_reference.py#L25)
+
+```python
+def configure_console()
+```
+
+Включает UTF-8 для диагностического вывода CLI, включая Windows с исходной кодировкой CP1252.
+
 ### `git_executable`
 
-[Исходник](../../tools/generate_code_reference.py#L24)
+[Исходник](../../tools/generate_code_reference.py#L32)
 
 ```python
 def git_executable()
@@ -2508,7 +2518,7 @@ def git_executable()
 
 ### `repository_files`
 
-[Исходник](../../tools/generate_code_reference.py#L36)
+[Исходник](../../tools/generate_code_reference.py#L44)
 
 ```python
 def repository_files()
@@ -2518,7 +2528,7 @@ def repository_files()
 
 ### `file_description`
 
-[Исходник](../../tools/generate_code_reference.py#L44)
+[Исходник](../../tools/generate_code_reference.py#L52)
 
 ```python
 def file_description(name)
@@ -2528,7 +2538,7 @@ def file_description(name)
 
 ### `python_symbols`
 
-[Исходник](../../tools/generate_code_reference.py#L59)
+[Исходник](../../tools/generate_code_reference.py#L67)
 
 ```python
 def python_symbols(path)
@@ -2538,7 +2548,7 @@ def python_symbols(path)
 
 ### `python_symbols.visit`
 
-[Исходник](../../tools/generate_code_reference.py#L64)
+[Исходник](../../tools/generate_code_reference.py#L72)
 
 ```python
 def visit(node, scope=())
@@ -2548,7 +2558,7 @@ def visit(node, scope=())
 
 ### `symbol_description`
 
-[Исходник](../../tools/generate_code_reference.py#L88)
+[Исходник](../../tools/generate_code_reference.py#L96)
 
 ```python
 def symbol_description(file, symbol)
@@ -2558,7 +2568,7 @@ def symbol_description(file, symbol)
 
 ### `markdown_symbol`
 
-[Исходник](../../tools/generate_code_reference.py#L113)
+[Исходник](../../tools/generate_code_reference.py#L121)
 
 ```python
 def markdown_symbol(file, symbol, description, language)
@@ -2568,7 +2578,7 @@ def markdown_symbol(file, symbol, description, language)
 
 ### `module_anchor`
 
-[Исходник](../../tools/generate_code_reference.py#L123)
+[Исходник](../../tools/generate_code_reference.py#L131)
 
 ```python
 def module_anchor(file)
@@ -2578,7 +2588,7 @@ def module_anchor(file)
 
 ### `render`
 
-[Исходник](../../tools/generate_code_reference.py#L128)
+[Исходник](../../tools/generate_code_reference.py#L136)
 
 ```python
 def render()
@@ -2588,7 +2598,7 @@ def render()
 
 ### `main`
 
-[Исходник](../../tools/generate_code_reference.py#L204)
+[Исходник](../../tools/generate_code_reference.py#L212)
 
 ```python
 def main()
