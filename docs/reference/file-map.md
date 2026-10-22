@@ -69,6 +69,7 @@
 | [docs/12-development-guide.md](../../docs/12-development-guide.md) | Ручная учебная глава или исторический материал: 12. Как развивать проект и документацию. |
 | [docs/13-learning-path.md](../../docs/13-learning-path.md) | Ручная учебная глава или исторический материал: 13. Учебный маршрут и словарь. |
 | [docs/README.md](../../docs/README.md) | Ручная учебная глава или исторический материал: LocalAgent: подробное руководство по проекту. |
+| [docs/WORK_PLAN.md](../../docs/WORK_PLAN.md) | Ручная учебная глава или исторический материал: План дальнейшей разработки LocalAgent. |
 | [docs/history/legacy-readme.md](../../docs/history/legacy-readme.md) | Ручная учебная глава или исторический материал: Исторические README до учебной документации. |
 | [docs/reference/dependencies.md](../../docs/reference/dependencies.md) | Генерируемый документ: Объявленные и зафиксированные зависимости. |
 | [docs/reference/design-reference.md](../../docs/reference/design-reference.md) | Генерируемый документ: Справочник архивного эталона дизайна. |

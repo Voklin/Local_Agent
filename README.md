@@ -26,6 +26,7 @@ npm ci
 - [Данные и разрешения](docs/09-data-and-security.md).
 - [Тесты и диагностика](docs/10-testing-and-debugging.md).
 - [Готовые и незавершённые части](docs/11-current-status.md).
+- [План дальнейшей разработки](docs/WORK_PLAN.md).
 - [Как изменять проект и документацию](docs/12-development-guide.md).
 
 ```powershell
