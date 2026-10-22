@@ -51,7 +51,7 @@ class ChatRecoveryTests(unittest.TestCase):
             self.assertEqual(len(catalog['chats']), 1)
             self.assertTrue(catalog['warnings'])
         self.assertEqual(chat_store.read_chat_catalog()['warnings'], [])
-        self.assertEqual(json.loads(chat_store.INDEX_FILE.read_text())[0]['id'], chat['id'])
+        self.assertEqual(json.loads(chat_store.INDEX_FILE.read_text(encoding='utf-8'))[0]['id'], chat['id'])
 
     def test_corrupted_chat_is_reported_without_modifying_source(self):
         good = chat_store.create_chat(str(self.root), 'test')
