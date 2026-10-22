@@ -2,15 +2,16 @@
 from __future__ import annotations
 import json
 import threading
+import time
 import uuid
 from pathlib import Path
-from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from agent.engine import AgentEngine
 from agent.chat_store import create_chat, list_chats, load_chat, save_chat
 from agent.project_memory import load_project_memory
 from agent.task_store import clear_task, load_task, save_task
+from agent.model_preferences import load_preferences, save_preferences
 
 
 class TaskService:
@@ -23,7 +24,11 @@ class TaskService:
         self.approval = None
         self.chat = None
         self.run_id = None
-        self.config = {'base_url': 'http://127.0.0.1:1234/v1', 'model': '', 'api_key': ''}
+        self.config = {**load_preferences(), 'api_key': ''}
+        self.stream_turn = None
+        self.stream_buffer = ''
+        self.last_stream_emit = 0
+        self.stream_timer = None
 
     def idle(self):
         if self.thread and self.thread.is_alive():
@@ -31,14 +36,14 @@ class TaskService:
 
     def configure(self, params):
         self.idle()
-        base_url = str(params.get('base_url', '')).strip().rstrip('/')
-        parsed = urlparse(base_url)
-        if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
-            raise ValueError('Укажите HTTP(S) URL сервера, например http://127.0.0.1:1234/v1')
-        self.config = {'base_url': base_url, 'model': str(params.get('model', '')).strip()[:300],
+        preferences = save_preferences(params)
+        self.config = {**preferences,
                        'api_key': str(params.get('api_key', ''))[:4000]}
         # Keys stay in process memory, never in bridge responses or persisted chats.
-        return {'ok': True, 'base_url': base_url, 'model': self.config['model']}
+        return {'ok': True, **preferences}
+
+    def preferences(self):
+        return {'ok': True, 'base_url': self.config['base_url'], 'model': self.config['model']}
 
     def models(self):
         req = Request(self.config['base_url'] + '/models', headers={
@@ -74,6 +79,42 @@ class TaskService:
 
     def _event(self, kind, **data):
         self.emit({'event': kind, 'run_id': self.run_id, 'chat_id': self.chat['id'], **data})
+
+    def _flush_text(self):
+        if self.stream_timer:
+            self.stream_timer.cancel()
+            self.stream_timer = None
+        if self.stream_buffer:
+            self._event('text_delta', message_id=f'{self.run_id}:{self.stream_turn}', text=self.stream_buffer)
+            self.stream_buffer = ''
+            self.last_stream_emit = time.monotonic()
+
+    def _flush_scheduled(self, run_id):
+        with self.lock:
+            if self.run_id == run_id:
+                self._flush_text()
+
+    def _text_delta(self, turn, text):
+        with self.lock:
+            if self.stream_turn != turn:
+                self._flush_text()
+                self.stream_turn = turn
+            self.stream_buffer += text
+            elapsed = time.monotonic() - self.last_stream_emit
+            if len(self.stream_buffer) >= 2000 or elapsed >= 0.04:
+                self._flush_text()
+            elif self.stream_timer is None:
+                self.stream_timer = threading.Timer(0.04 - elapsed, self._flush_scheduled, (self.run_id,))
+                self.stream_timer.daemon = True
+                self.stream_timer.start()
+
+    def _chat_event(self, role, text):
+        with self.lock:
+            self._flush_text()
+            message_id = f'{self.run_id}:{self.stream_turn}' if role == 'assistant' and self.stream_turn is not None else None
+            self._event('chat', role=role, text=text, message_id=message_id)
+            if role == 'assistant':
+                self.stream_turn = None
 
     def _request_approval(self, path, diff, exists):
         with self.lock:
@@ -124,12 +165,16 @@ class TaskService:
         self.engine = self.engine_factory(**self.config, project_root=str(root), prompt=prompt,
             history=history, memory=load_project_memory(str(root)), task_id=self.chat['id'])
         self.run_id = uuid.uuid4().hex
+        self.stream_turn = None
+        self.stream_buffer = ''
+        self.last_stream_emit = 0
         self.chat['model'] = self.config['model']
         self.chat['messages'] = history + [{'role': 'user', 'content': prompt}]
         if self.chat.get('title') == 'Новый чат':
             self.chat['title'] = ' '.join(prompt.split())[:80]
         save_chat(self.chat)
-        self.engine.chat.connect(lambda role, text: self._event('chat', role=role, text=text))
+        self.engine.chat.connect(self._chat_event)
+        self.engine.text_delta.connect(self._text_delta)
         self.engine.log.connect(lambda text: self._event('log', text=text[:12000]))
         self.engine.progress.connect(lambda count, maximum: self._event('progress', count=count, maximum=maximum))
         self.engine.task_updated.connect(lambda task: self._event('task', task=task))
@@ -153,6 +198,7 @@ class TaskService:
             self._event('failed', text=f'{type(exc).__name__}: {exc}')
         finally:
             with self.lock:
+                self._flush_text()
                 self.approval = None
                 self._event('task_end')
 

@@ -22,6 +22,9 @@ app.setPath('userData', path.join(testRoot, 'electron-profile'));
 BrowserWindow.prototype.show = function () {}; // Keep the test window hidden.
 dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [project] });
 
+let modelMode = 'write';
+let releaseModelText = null;
+let streamDisconnected = false;
 const model = http.createServer((req, res) => {
   let raw = '';
   req.on('data', chunk => { raw += chunk; });
@@ -35,11 +38,17 @@ const model = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ id:'test',object:'chat.completion',created:0,model:'smoke-model',choices:[{index:0,message:{role:'assistant',content:'{}'},finish_reason:'stop'}] })); return;
     }
-    const delta = input.messages.some(m => m.role === 'tool') ? { content:'Smoke completed' } : {
-      tool_calls:[{index:0,id:'smoke-call',type:'function',function:{name:'write_file',arguments:JSON.stringify({path:'smoke.txt',content:'verified',overwrite:false})}}]
-    };
+    const encode = delta => 'data: ' + JSON.stringify({id:'test',object:'chat.completion.chunk',created:0,model:'smoke-model',choices:[{index:0,delta,finish_reason:null}]}) + '\n\n';
     res.writeHead(200, { 'Content-Type':'text/event-stream' });
-    res.end('data: ' + JSON.stringify({id:'test',object:'chat.completion.chunk',created:0,model:'smoke-model',choices:[{index:0,delta,finish_reason:null}]}) + '\n\ndata: [DONE]\n\n');
+    if (modelMode === 'stall') {
+      res.write(encode({content:'Pending '}));
+      res.on('close', () => { streamDisconnected = true; });
+    } else if (input.messages.some(m => m.role === 'tool')) {
+      res.write(encode({content:'Smoke '}));
+      releaseModelText = () => res.end(encode({content:'completed'}) + 'data: [DONE]\n\n');
+    } else {
+      res.end(encode({tool_calls:[{index:0,id:'smoke-call',type:'function',function:{name:'write_file',arguments:JSON.stringify({path:'smoke.txt',content:'verified',overwrite:false})}}]}) + 'data: [DONE]\n\n');
+    }
   });
 });
 
@@ -71,6 +80,11 @@ app.on('browser-window-created', (_event, win) => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input, ${JSON.stringify(url)});
         input.dispatchEvent(new Event('input', { bubbles:true }));
       }`);
+      await win.webContents.executeJavaScript(`{
+        const input = document.querySelector('input[type="password"]');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input, 'test-secret');
+        input.dispatchEvent(new Event('input', { bubbles:true }));
+      }`);
       await win.webContents.executeJavaScript(`document.querySelector('.model-settings button').click()`);
       await poll(win, `document.querySelector('input[list="model-names"]').value === 'smoke-model'`);
       await win.webContents.executeJavaScript(`{
@@ -86,11 +100,45 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       fs.writeFileSync(path.join(testRoot, 'approval.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
       await win.webContents.executeJavaScript(`document.querySelector('.approval-actions .primary-button').click()`);
+      await poll(win, `!!document.querySelector('.streaming-caret') && document.querySelector('.chat-messages').textContent.includes('Smoke ')`);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.chat-messages').textContent.includes('Smoke completed')`), false);
+      assert.equal(typeof releaseModelText, 'function');
+      releaseModelText();
       await poll(win, `document.body.textContent.includes('Smoke completed') && !document.querySelector('[title="Остановить"]')`);
+      assert.equal(await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.message-content')).filter(m => m.textContent === 'Smoke completed').length`), 1);
+      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.streaming-caret')`), false);
       assert.equal(fs.readFileSync(path.join(project, 'smoke.txt'), 'utf8'), 'verified');
       await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       fs.writeFileSync(path.join(testRoot, 'completed.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
-      console.log('PASS: real Electron UI -> IPC -> Python -> model -> diff approval -> file write');
+      const saved = JSON.parse(fs.readFileSync(path.join(testRoot, 'LocalCodingAgent/model-preferences.json'), 'utf8'));
+      assert.deepEqual(saved, {base_url:url, model:'smoke-model'});
+      assert.equal(JSON.stringify(saved).includes('test-secret'), false);
+      const reloaded = new Promise(resolve => win.webContents.once('did-finish-load', resolve));
+      win.webContents.reload();
+      await reloaded;
+      await poll(win, `document.querySelector('.agent-context').textContent.includes('smoke-model')`);
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Настройки модели"]').click()`);
+      await poll(win, `!!document.querySelector('.model-settings input')`);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.model-settings input').value`), url);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('input[type="password"]').value`), '');
+      await win.webContents.executeJavaScript(`document.querySelector('.project-pill').click()`);
+      await poll(win, `document.querySelector('.project-pill').textContent.includes(${JSON.stringify(path.basename(project))})`);
+      modelMode = 'stall';
+      await win.webContents.executeJavaScript(`{
+        const input = document.querySelector('textarea');
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'hello');
+        input.dispatchEvent(new Event('input', { bubbles:true }));
+      }`);
+      await poll(win, `!document.querySelector('[title="Отправить"]').disabled`);
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
+      await poll(win, `!!document.querySelector('.streaming-caret') && document.body.textContent.includes('Pending ')`);
+      const stoppedAt = Date.now();
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Остановить"]').click()`);
+      await poll(win, `!document.querySelector('[title="Остановить"]') && document.querySelector('.task-card').textContent.includes('Приостановлена')`);
+      assert.ok(Date.now() - stoppedAt < 3000, 'Stop should not wait for the model timeout');
+      assert.equal(streamDisconnected, true);
+      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.streaming-caret')`), false);
+      console.log('PASS: Electron file approval, incremental text without duplicate answer, persisted preferences, fast network cancellation');
       fs.writeFileSync(resultPath, JSON.stringify({status:'passed',project}, null, 2));
       clearTimeout(deadline); model.close(); app.quit();
     } catch (error) {

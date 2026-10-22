@@ -14,6 +14,7 @@ class AgentWorker(QThread):
     change_event = Signal(object)
     memory_updated = Signal(object)
     task_updated = Signal(object)
+    text_delta = Signal(int, str)
 
     def __init__(self, *args, **kwargs):
         super().__init__()

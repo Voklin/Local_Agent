@@ -21,7 +21,7 @@ npm ci
 3. Send a task in the agent panel.
 4. Review each proposed file diff and choose **Применить изменение**, **Отклонить изменение**, or **Отменить задачу**.
 
-The API key and model connection settings stay in process memory for the current session. Re-enter them after restarting the app or Python Core.
+The server URL and selected model are saved outside the project and restored on restart. Use **Сохранить настройки** after editing them, or **Загрузить модели** to discover and save a model. The API key stays only in process memory and must be re-entered after restarting.
 
 ## Available behavior
 
@@ -31,7 +31,8 @@ The API key and model connection settings stay in process memory for the current
 - Background tasks keep bridge commands responsive while waiting for the model or approval.
 - Chat history, project memory, and task checkpoints use the existing application stores outside project folders.
 - Chat history is filtered to the selected project. Paused tasks can be resumed; interrupted processes are detected when reopening a chat.
-- Stop requests cancel pending approval. An in-flight model request can take up to the existing 180-second network timeout to stop.
+- Assistant text appears incrementally while the model generates it. The final answer replaces the streaming bubble instead of duplicating it.
+- Stop requests cancel pending approval and active HTTP requests, including requests waiting for response headers or more stream data. The displayed partial answer and paused task are retained for recovery.
 - Renderer isolation, narrow preload API, sender validation, and blocked external navigation/window creation.
 - Electron/Python failures are surfaced; after a Core failure choose the project again and reopen the saved chat.
 
@@ -45,7 +46,7 @@ npm run build
 .\.venv\Scripts\python.exe -m unittest discover -s tests/migration -v
 ```
 
-The original tests include Qt adapter checks, so install `requirements.txt` to run every check. Migration tests use a local HTTP model fixture and do not require a running LM Studio server. They validate real streamed tool calls, explicit approvals, rejection, cancellation, chat persistence, task recovery, and the JSON-lines child process.
+The original tests include Qt adapter checks, so install `requirements.txt` to run every check. Migration tests use a local HTTP model fixture and do not require a running LM Studio server. They validate real streamed tool calls and text, explicit approvals, rejection, socket-level cancellation, chat persistence, task recovery, settings persistence without keys, and the JSON-lines child process.
 
 For the hidden real Electron smoke test, build the app, run `npm exec --workspace apps/desktop vite -- --host 127.0.0.1 --port 5173`, then in a second terminal set `LCA_PYTHON` and run:
 
@@ -53,4 +54,4 @@ For the hidden real Electron smoke test, build the app, run `npm exec --workspac
 .\node_modules\electron\dist\electron.exe tests/electron/smoke.cjs
 ```
 
-The smoke test uses a temporary project and local model fixture. It writes its result and screenshots under `.test-data/electron-smoke/`; it never uses a real project or model service.
+The smoke test checks file approval, incremental text without duplicate messages, settings restoration after a window reload, and stopping a stalled stream. It uses a temporary project and local model fixture. It writes its result and screenshots under `.test-data/electron-smoke/`; it never uses a real project or model service.

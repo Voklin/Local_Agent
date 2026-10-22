@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Bot, ChevronDown, Code2, FileCode2, Folder, FolderOpen, GitBranch, History, Play, Plus, Settings2, ShieldCheck, Square, SquareTerminal } from 'lucide-react';
 
 type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
-type Message = { role: string; text: string };
+type Message = { role: string; text: string; id?: string; streaming?: boolean };
 type ChatSummary = { id: string; title: string };
 const greeting: Message[] = [{role: 'assistant', text: 'Выберите папку проекта, укажите сервер и модель. Я могу изучать и изменять файлы проекта. Перед записью каждого файла вы увидите diff для подтверждения.'}];
 
@@ -28,6 +28,8 @@ export default function App() {
   const [apiKey, setApiKey] = useState('');
   const [models, setModels] = useState<string[]>([]);
   const [configuring, setConfiguring] = useState(false);
+  const [settingsReady, setSettingsReady] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const chatId = useRef('');
   const runId = useRef('');
   const active = useRef(false);
@@ -41,15 +43,28 @@ export default function App() {
   }
   useEffect(() => {
     window.lca.health().then(r => setHealth(r.ok ? 'Python Core подключён' : r.error)).catch(e => setHealth(String(e)));
+    window.lca.getModelSettings().then(r => {
+      if (r.ok) { setBaseUrl(r.base_url); setModel(r.model); }
+      else report(r.error);
+    }).catch(e => report(String(e))).finally(() => setSettingsReady(true));
     return window.lca.onEvent(e => {
       if (e.event === 'backend_stopped') {
         setHealth('Python Core остановлен. Выберите проект заново.');
-        setBusy(false); active.current = false; setApproval(null); setRoot(''); setFiles([]);
+        setBusy(false); setStopping(false); active.current = false; setApproval(null); setRoot(''); setFiles([]);
         setSelectedFile(''); selectedRef.current = ''; setProject('Выберите проект');
         chatId.current = ''; runId.current = ''; setTask(null); setChats([]); return;
       }
       if (e.chat_id !== chatId.current || (runId.current && e.run_id !== runId.current)) return;
-      if (e.event === 'chat') setChat(c => [...c, {role: e.role, text: e.text}]);
+      if (e.event === 'text_delta') setChat(c => {
+        const index = c.findIndex(m => m.id === e.message_id);
+        if (index < 0) return [...c, {role:'assistant', text:e.text, id:e.message_id, streaming:true}];
+        return c.map((m, i) => i === index ? {...m, text:m.text + e.text, streaming:true} : m);
+      });
+      if (e.event === 'chat') setChat(c => {
+        const index = e.message_id ? c.findIndex(m => m.id === e.message_id) : -1;
+        const message = {role:e.role, text:e.text, id:e.message_id, streaming:false};
+        return index < 0 ? [...c, message] : c.map((m, i) => i === index ? message : m);
+      });
       if (e.event === 'result') setChat(c => c.at(-1)?.role === 'user' ? [...c, {role:'assistant', text:e.text}] : c);
       if (e.event === 'log') report(e.text);
       if (e.event === 'failed') { setChat(c => [...c, {role: 'system', text: e.text}]); report(e.text); }
@@ -62,12 +77,13 @@ export default function App() {
           void window.lca.readFile(selectedRef.current).then(r => { if (r.ok) setFileText(r.content); });
       }
       if (e.event === 'task_end') {
-        setBusy(false); active.current = false; setApproval(null); runId.current = '';
+        setBusy(false); setStopping(false); active.current = false; setApproval(null); runId.current = '';
+        setChat(c => c.map(m => m.streaming ? {...m, streaming:false} : m));
         setHealth('Python Core подключён'); void refreshChats();
       }
     });
   }, []);
-  useEffect(() => { messagesEnd.current?.scrollIntoView({behavior: 'smooth'}); }, [chat]);
+  useEffect(() => { messagesEnd.current?.scrollIntoView({behavior: chat.at(-1)?.streaming ? 'instant' : 'smooth'}); }, [chat]);
 
   async function refreshFiles(path = '.') {
     const r = await window.lca.listFiles(path);
@@ -101,6 +117,12 @@ export default function App() {
     const r = await window.lca.configureModel({base_url: baseUrl, model, api_key: apiKey});
     if (!r.ok) throw new Error(r.error);
   }
+  async function saveSettings() {
+    setConfiguring(true);
+    try { await configure(); report('Адрес сервера и модель сохранены'); }
+    catch (e) { report(String(e)); }
+    finally { setConfiguring(false); }
+  }
   async function discoverModels() {
     setConfiguring(true);
     try {
@@ -108,16 +130,19 @@ export default function App() {
       const r = await window.lca.listModels();
       if (!r.ok) throw new Error(r.error);
       setModels(r.models);
-      if (!r.models.includes(model)) setModel(r.models[0] || '');
+      const chosen = r.models.includes(model) ? model : r.models[0] || '';
+      setModel(chosen);
+      const saved = await window.lca.configureModel({base_url:baseUrl, model:chosen, api_key:apiKey});
+      if (!saved.ok) throw new Error(saved.error);
       report(r.models.length ? `Найдено моделей: ${r.models.length}` : 'Сервер доступен, но список моделей пуст');
     } catch (e) { report(String(e)); }
     finally { setConfiguring(false); }
   }
   async function sendPrompt(resume = false) {
     const value = prompt.trim();
-    if (active.current || !root || !model || (!resume && !value)) return;
+    if (active.current || !settingsReady || !root || !model || (!resume && !value)) return;
     // Block repeated clicks before the first IPC round trip.
-    active.current = true; setBusy(true);
+    active.current = true; setBusy(true); setStopping(false);
     try {
       await configure();
       if (!chatId.current) {
@@ -147,9 +172,10 @@ export default function App() {
     } finally { setDeciding(false); }
   }
   async function cancel() {
+    setStopping(true);
     const r = await window.lca.cancelTask();
-    if (r.ok) { setApproval(null); report('Остановка запрошена. Ожидаем завершения запроса модели.'); }
-    else report(r.error);
+    if (r.ok) { setApproval(null); report('Остановка запрошена'); }
+    else { report(r.error); setStopping(false); }
   }
   const parent = directory.split(/[\\/]/).slice(0, -1).join('/') || '.';
   return <div className="app-shell">
@@ -160,11 +186,12 @@ export default function App() {
         {nav==='Explorer' && <div className="file-list">{directory!=='.'&&<button className="file-row" onClick={()=>refreshFiles(parent)}>..</button>}{files.map(f=><button key={f.path} className={`file-row ${selectedFile===f.path?'selected':''}`} onClick={()=>openFile(f)}>{f.kind==='directory'?<Folder size={15}/>:<FileCode2 size={15}/>}<span>{f.name}</span></button>)}{!root&&<div className="empty-small">Выберите папку проекта</div>}</div>}
         {nav==='History' && <div className="file-list"><button className="file-row" disabled={!root||busy} onClick={()=>selectChat()}><Plus size={15}/>Новый чат</button>{chats.map(c=><button className="file-row" key={c.id} disabled={busy} onClick={()=>selectChat(c.id)}><History size={15}/><span>{c.title}</span></button>)}</div>}
         {nav==='Models' && <form className="model-settings" onSubmit={e=>{e.preventDefault();void discoverModels();}}>
-          <label>URL сервера<input value={baseUrl} disabled={busy||configuring} onChange={e=>setBaseUrl(e.target.value)} placeholder="http://127.0.0.1:1234/v1"/></label>
-          <label>API-ключ (если требуется)<input type="password" autoComplete="off" value={apiKey} disabled={busy||configuring} onChange={e=>setApiKey(e.target.value)}/></label>
-          <button className="primary-button" disabled={busy||configuring}>{configuring?'Подключение…':'Загрузить модели'}</button>
-          <label>Имя модели<input list="model-names" value={model} disabled={busy||configuring} onChange={e=>setModel(e.target.value)} placeholder="Выберите или введите ID"/><datalist id="model-names">{models.map(m=><option value={m} key={m}/>)}</datalist></label>
-          <p>Настройки действуют в текущем сеансе. Ключ остаётся в памяти приложения.</p>
+          <label>URL сервера<input value={baseUrl} disabled={busy||configuring||!settingsReady} onChange={e=>setBaseUrl(e.target.value)} placeholder="http://127.0.0.1:1234/v1"/></label>
+          <label>API-ключ (если требуется)<input type="password" autoComplete="off" value={apiKey} disabled={busy||configuring||!settingsReady} onChange={e=>setApiKey(e.target.value)}/></label>
+          <button className="primary-button" disabled={busy||configuring||!settingsReady}>{configuring?'Подключение…':'Загрузить модели'}</button>
+          <label>Имя модели<input list="model-names" value={model} disabled={busy||configuring||!settingsReady} onChange={e=>setModel(e.target.value)} placeholder="Выберите или введите ID"/><datalist id="model-names">{models.map(m=><option value={m} key={m}/>)}</datalist></label>
+          <button type="button" className="primary-button" disabled={busy||configuring||!settingsReady} onClick={saveSettings}>Сохранить настройки</button>
+          <p>Адрес сервера и модель сохраняются между запусками. API-ключ остаётся только в памяти.</p>
         </form>}
         <div className="sidebar-footer"><div className="project-status"><GitBranch size={14}/><span>{root?'Локальный проект':'Проект не выбран'}</span></div></div>
       </aside>
@@ -172,8 +199,8 @@ export default function App() {
         <div className="bottom-panel"><div className="bottom-tabs"><span className="bottom-tab active"><SquareTerminal size={14}/>ВЫВОД</span></div><div className="output-log">{logs.length?logs.map((l,i)=><pre key={i}>{l}</pre>):<div className="output-line dim">События агента появятся здесь.</div>}</div></div>
       </main>
       <aside className="agent-panel"><div className="agent-heading"><div><Bot size={17}/><b>AI Agent</b></div><button className="icon-button" title="Новый чат" disabled={!root||busy} onClick={()=>selectChat()}><Plus size={16}/></button></div><div className="agent-context"><span className="context-chip"><Folder size={13}/>{project}</span><span className="context-chip">Модель: {model||'не выбрана'}</span>{task&&<div className="task-card"><b>{task.status==='paused'?'Приостановлена':task.status==='completed'?'Завершена':'Выполняется'}</b><span>{task.last_event}</span>{task.status==='paused'&&!busy&&<button onClick={()=>sendPrompt(true)}>Продолжить задачу</button>}</div>}</div>
-        <div className="chat-messages">{chat.map((m,i)=><div className={`message ${m.role}`} key={i}>{m.role==='assistant'&&<div className="avatar"><Bot size={14}/></div>}<div className="message-content">{m.text}</div></div>)}<div ref={messagesEnd}/></div>
-        <div className="composer"><textarea aria-label="Задача агенту" value={prompt} disabled={busy} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendPrompt();}}} placeholder={!root?'Сначала выберите проект':!model?'Укажите модель в настройках':'Опишите задачу…'}/><div className="composer-footer"><span>{busy?'Агент работает…':'Enter для отправки'}</span>{busy?<button className="send-button" title="Остановить" onClick={cancel}><Square size={14}/></button>:<button className="send-button" title="Отправить" onClick={()=>sendPrompt()} disabled={!prompt.trim()||!root||!model||configuring}><Play size={14}/></button>}</div></div><div className="agent-foot"><ShieldCheck size={13}/> Подтверждение перед записью</div>
+        <div className="chat-messages">{chat.map((m,i)=><div className={`message ${m.role}`} key={i}>{m.role==='assistant'&&<div className="avatar"><Bot size={14}/></div>}<div className="message-content">{m.text}{m.streaming&&<span className="streaming-caret" aria-label="Ответ генерируется">▍</span>}</div></div>)}<div ref={messagesEnd}/></div>
+        <div className="composer"><textarea aria-label="Задача агенту" value={prompt} disabled={busy} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendPrompt();}}} placeholder={!root?'Сначала выберите проект':!model?'Укажите модель в настройках':'Опишите задачу…'}/><div className="composer-footer"><span>{stopping?'Останавливаем…':busy?'Агент работает…':'Enter для отправки'}</span>{busy?<button className="send-button" title="Остановить" disabled={stopping} onClick={cancel}><Square size={14}/></button>:<button className="send-button" title="Отправить" onClick={()=>sendPrompt()} disabled={!prompt.trim()||!root||!model||configuring||!settingsReady}><Play size={14}/></button>}</div></div><div className="agent-foot"><ShieldCheck size={13}/> Подтверждение перед записью</div>
       </aside>
     </div><footer className="statusbar"><span><GitBranch size={12}/>{project}</span><span><ShieldCheck size={12}/>Файлы ограничены папкой проекта</span><span className="statusbar-right">Electron · React · Python</span></footer>
     {approval&&<div className="modal-backdrop"><section className="approval-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-title"><h2 id="approval-title">{approval.exists?'Изменение файла':'Новый файл'}: {approval.path}</h2><p>Проверьте изменения перед записью.</p><pre>{approval.diff||'Текстовых изменений нет'}</pre><div className="approval-actions"><button disabled={deciding} onClick={()=>decide('cancel')}>Отменить задачу</button><button disabled={deciding} onClick={()=>decide('reject')}>Отклонить изменение</button><button className="primary-button" disabled={deciding} onClick={()=>decide('apply')}>Применить изменение</button></div></section></div>}

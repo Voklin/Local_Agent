@@ -8,6 +8,7 @@ from .tools import TOOL_DEFINITIONS, execute_tool
 from .project_memory import format_memory_context, merge_memory_update, save_project_memory
 from .task_store import new_task, save_task, set_stage, finish_task, load_task
 from .runtime import AgentRuntime
+from .model_client import ModelClient
 
 SYSTEM_PROMPT = """Ты локальный помощник по программированию. Отвечай по-русски, если пользователь пишет по-русски.
 Для фактов о проекте используй инструменты, а не угадывай. Доступны только файлы внутри выбранной пользователем корневой директории.
@@ -43,16 +44,19 @@ class EventHook:
 class AgentEngine:
     event_names = ("chat", "log", "finished_text", "failed", "progress",
                    "write_approval_requested", "conversation_updated", "change_event",
-                   "memory_updated", "task_updated")
+                   "memory_updated", "task_updated", "text_delta")
 
     def requestInterruption(self):
         self._interrupted.set()
+        if self._client is not None:
+            self._client.cancel()
 
     def isInterruptionRequested(self):
         return self._interrupted.is_set()
 
     def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None):
         self._interrupted = threading.Event()
+        self._client = None
         for name in self.event_names:
             if not hasattr(self, name):
                 setattr(self, name, EventHook())
@@ -149,7 +153,7 @@ class AgentEngine:
             compact = []
             for item in self._memory_tool_events[-20:]:
                 compact.append({k: item.get(k) for k in ("tool", "path", "query", "ok", "error") if k in item})
-            response = client.chat.completions.create(
+            response = client.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": (
@@ -180,9 +184,10 @@ class AgentEngine:
             return True, "Проверка недоступна; завершаю без дополнительного цикла."
 
     def run(self):
+        messages = []
+        content_parts = []
         try:
-            from openai import OpenAI
-            client = OpenAI(base_url=self.base_url, api_key=self.api_key or "no-key", timeout=180, max_retries=0)
+            client = self._client = ModelClient(self.base_url, self.api_key, self._interrupted)
             system_prompt = SYSTEM_PROMPT
             selected_skills = self.runtime.prepare() if self.runtime else []
             if selected_skills:
@@ -236,8 +241,8 @@ class AgentEngine:
                 )
                 if turn == 0 and self.force_tool:
                     kwargs["tool_choice"] = {"type": "function", "function": {"name": self.force_tool}}
-                stream = client.chat.completions.create(**kwargs)
                 content_parts = []
+                stream = client.create(**kwargs)
                 tool_call_parts = {}
                 interrupted = False
                 try:
@@ -251,6 +256,7 @@ class AgentEngine:
                         delta = chunk.choices[0].delta
                         if delta.content:
                             content_parts.append(delta.content)
+                            self.text_delta.emit(turn, delta.content)
                             self.progress.emit(tool_calls_count, max_tool_calls)
                         for tc in (delta.tool_calls or []):
                             item = tool_call_parts.setdefault(tc.index, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
@@ -432,7 +438,7 @@ class AgentEngine:
                         "Если информации мало, сохраняй существующую память и меняй только обоснованные поля. "
                         "Кратко: максимум 30 элементов на список."
                     )
-                    response = client.chat.completions.create(
+                    response = client.create(
                         model=self.model,
                         messages=[{"role": "system", "content": memory_system},
                                   {"role": "user", "content": json.dumps(memory_payload, ensure_ascii=False)}],
@@ -455,6 +461,8 @@ class AgentEngine:
                 except Exception as memory_exc:
                     # Memory is optional; its failure must never fail a normal agent request.
                     self.log.emit(f"Память проекта не обновлена: {type(memory_exc).__name__}: {memory_exc}")
+            if self.isInterruptionRequested():
+                stop_reason = "Остановлено пользователем."
             if self._task:
                 if stop_reason:
                     self._task['status'] = 'paused'
@@ -468,6 +476,16 @@ class AgentEngine:
             self.finished_text.emit(final)
         except Exception as exc:
             if self.isInterruptionRequested():
+                if self._task:
+                    self._task['status'] = 'paused'
+                    self._task['stop_reason'] = 'Остановлено пользователем.'
+                    self._checkpoint(None, 'Остановлено пользователем.')
+                # Preserve text already shown, but never incomplete tool-call fragments.
+                partial = ''.join(content_parts).strip()
+                if partial:
+                    messages.append({'role': 'assistant', 'content': partial})
+                if messages:
+                    self.conversation_updated.emit(messages[1:])
                 self.chat.emit("system", "Остановлено пользователем.")
                 self.finished_text.emit("Остановлено пользователем.")
             else:
@@ -476,3 +494,10 @@ class AgentEngine:
                     self._task['stop_reason'] = f'{type(exc).__name__}: {exc}'
                     self.task_updated.emit(save_task(self._task))
                 self.failed.emit(f"{type(exc).__name__}: {exc}")
+        finally:
+            if self._client is not None:
+                try:
+                    self._client.close()
+                except Exception as close_error:
+                    self.log.emit(f"Закрытие соединения модели: {type(close_error).__name__}")
+                self._client = None

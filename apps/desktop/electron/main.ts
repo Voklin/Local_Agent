@@ -78,6 +78,7 @@ handle('project:list', (rel = '.') => callBackend('list_files', { path: String(r
 handle('project:read', (rel) => callBackend('read_file', { path: String(rel).slice(0, 1000) }));
 handle('model:configure', (config) => callBackend('configure_model', { base_url: String(config?.base_url || '').slice(0, 2000), model: String(config?.model || '').slice(0, 300), api_key: String(config?.api_key || '').slice(0, 4000) }));
 handle('model:list', () => callBackend('list_models'));
+handle('model:settings', () => callBackend('get_model_settings'));
 handle('chat:list', () => callBackend('list_chats'));
 handle('chat:new', () => callBackend('new_chat'));
 handle('chat:load', (chatId) => callBackend('load_chat', { chat_id: chatId }));

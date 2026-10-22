@@ -46,6 +46,8 @@ def handle(method: str, params: dict) -> dict:
         return {'ok': True, 'root': str(root), 'name': root.name}
     if method == 'configure_model':
         return tasks.configure(params)
+    if method == 'get_model_settings':
+        return tasks.preferences()
     if method == 'list_models':
         return tasks.models()
     if method in ('list_chats', 'new_chat', 'load_chat', 'start_task'):

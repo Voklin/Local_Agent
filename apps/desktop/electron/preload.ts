@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('lca', {
   systemInfo: () => ipcRenderer.invoke('system:home'),
   configureModel: (config: { base_url: string; model: string; api_key: string }) => ipcRenderer.invoke('model:configure', config),
   listModels: () => ipcRenderer.invoke('model:list'),
+  getModelSettings: () => ipcRenderer.invoke('model:settings'),
   listChats: () => ipcRenderer.invoke('chat:list'),
   newChat: () => ipcRenderer.invoke('chat:new'),
   loadChat: (chatId: string) => ipcRenderer.invoke('chat:load', chatId),

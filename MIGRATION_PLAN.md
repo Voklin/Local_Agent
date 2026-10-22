@@ -9,15 +9,17 @@
 - `core/python/task_service.py` owns threaded execution, model configuration, project chats, checkpoints, cancellation, and correlated write approvals.
 - Chat, task, and project-memory stores remain outside the selected project.
 - Per-write Apply / Reject / Cancel UI preserves the existing preview and approval semantics.
+- Incremental text events update one message per model turn; final responses replace their streaming message.
+- Async model HTTP requests can be cancelled before headers, during SSE, and during the optional memory update.
+- Non-secret model preferences survive app restarts; API keys remain in process memory.
 - Main-process and renderer TypeScript checks are part of the build.
 - Python unit/integration tests and a hidden real Electron smoke test cover the migration.
 
 ## Next milestones
 
 1. Add distributable Windows packaging with the Python Core bundled.
-2. Persist non-secret model preferences and integrate a credential store for optional API keys.
-3. Improve streaming text presentation and immediate cancellation of network requests.
-4. Restore remaining editor and change-review features incrementally.
+2. Integrate a credential store for optional API keys.
+3. Restore remaining editor and change-review features incrementally.
 
 ## Security constraints
 

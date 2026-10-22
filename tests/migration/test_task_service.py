@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from core.python.task_service import TaskService
-from agent import chat_store, project_memory, task_store
+from agent import chat_store, project_memory, task_store, model_preferences
 
 
 class ModelHandler(BaseHTTPRequestHandler):
@@ -68,7 +68,8 @@ class TaskServiceTests(unittest.TestCase):
         self.patches = [patch.object(chat_store, 'CHAT_DIR', store / 'chats'),
             patch.object(chat_store, 'INDEX_FILE', store / 'chats/index.json'),
             patch.object(task_store, 'TASK_DIR', store / 'tasks'),
-            patch.object(project_memory, 'MEMORY_DIR', store / 'memory')]
+            patch.object(project_memory, 'MEMORY_DIR', store / 'memory'),
+            patch.object(model_preferences, 'PREFERENCES_FILE', store / 'model-preferences.json')]
         for p in self.patches:
             p.start()
         self.events = queue.Queue()
