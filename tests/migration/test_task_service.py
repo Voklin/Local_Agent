@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from core.python.task_service import TaskService
+from agent.engine import AgentEngine
 from agent import chat_store, project_memory, task_store, model_preferences
 
 
@@ -116,6 +117,46 @@ class TaskServiceTests(unittest.TestCase):
         self.assertTrue(any(m.get('role') == 'tool' for m in saved['messages']))
         self.assertEqual(task_store.load_task(saved['id'])['status'], 'completed')
         self.assertEqual(self.service.select_chat(self.root, saved['id'])['chat']['messages'], saved['messages'])
+
+    def test_long_archive_survives_model_compaction_and_service_restart(self):
+        chat = self.service.select_chat(self.root)['chat']
+        history = []
+        for i in range(20):
+            history.extend([{'role': 'user', 'content': f'old-{i}'},
+                            {'role': 'assistant', 'content': 'answer-' + str(i) + 'x' * 5000}])
+        history.extend([
+            {'role': 'assistant', 'content': None, 'tool_calls': [{'id': 'old-tool', 'type': 'function',
+                'function': {'name': 'read_file', 'arguments': '{"path":"example.txt"}'}}]},
+            {'role': 'tool', 'tool_call_id': 'old-tool', 'content': 'full output ' + 'x' * 30000}])
+        chat['messages'] = history
+        chat_store.save_chat(chat)
+        before = len(self.server.requests)
+        self.service.start(self.root, {'prompt': 'hello followup'})
+        self.event('task_end')
+        self.service.thread.join(2)
+        saved = chat_store.load_chat(chat['id'])
+        self.assertEqual(saved['messages'][:len(history)], history)
+        self.assertEqual(saved['messages'][len(history)], {'role': 'user', 'content': 'hello followup'})
+        request = next(r for r in self.server.requests[before:] if r.get('stream'))
+        self.assertLess(len(request['messages']), len(saved['messages']))
+        self.assertLessEqual(len(json.dumps(request['messages'], ensure_ascii=False)), 80000)
+        self.service.shutdown()
+        self.service = TaskService(self.events.put)
+        reopened = self.service.select_chat(self.root, chat['id'])['chat']
+        self.assertEqual(reopened['messages'], saved['messages'])
+
+    def test_forced_tool_uses_single_definition_then_restores_auto(self):
+        before = len(self.server.requests)
+        self.service.engine_factory = lambda **kwargs: AgentEngine(force_tool='write_file', **kwargs)
+        approval = self.start()
+        self.resolve(approval, 'apply')
+        self.event('task_end')
+        self.service.thread.join(2)
+        requests = [r for r in self.server.requests[before:] if r.get('stream')]
+        self.assertEqual(requests[0]['tool_choice'], 'required')
+        self.assertEqual([t['function']['name'] for t in requests[0]['tools']], ['write_file'])
+        self.assertEqual(requests[1]['tool_choice'], 'auto')
+        self.assertGreater(len(requests[1]['tools']), 1)
 
     def test_reject_does_not_write(self):
         approval = self.start()

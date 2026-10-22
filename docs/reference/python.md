@@ -158,17 +158,17 @@ def title_from_messages(messages: list[dict[str, Any]]) -> str
 
 ### `ContextManager`
 
-[Исходник](../../agent/context_manager.py#L5)
+[Исходник](../../agent/context_manager.py#L8)
 
 ```python
 class ContextManager
 ```
 
-Простой builder активного runtime-контекста: system, недавние сообщения и метаданные.
+Единый builder модельного контекста с сохранением обязательных запросов и целых tool-пар.
 
 ### `ContextManager.__init__`
 
-[Исходник](../../agent/context_manager.py#L6)
+[Исходник](../../agent/context_manager.py#L9)
 
 ```python
 def __init__(self, max_chars=80000, recent_rounds=12)
@@ -178,13 +178,13 @@ def __init__(self, max_chars=80000, recent_rounds=12)
 
 ### `ContextManager.build`
 
-[Исходник](../../agent/context_manager.py#L8)
+[Исходник](../../agent/context_manager.py#L13)
 
 ```python
-def build(self, messages, task=None, skills=None)
+def build(self, messages, task=None, skills=None, request_index=None)
 ```
 
-Берёт хвост сообщений, добавляет состояние задачи/skills и сокращает содержимое; tool-пары отдельно не группирует.
+Добавляет task/skills к копии system prompt и вызывает общий compact_live_messages с жёстким JSON-бюджетом.
 
 <a id="module-agent-conversation-py"></a>
 
@@ -194,7 +194,7 @@ def build(self, messages, task=None, skills=None)
 
 ### `_message_size`
 
-[Исходник](../../agent/conversation.py#L15)
+[Исходник](../../agent/conversation.py#L16)
 
 ```python
 def _message_size(message)
@@ -204,7 +204,7 @@ def _message_size(message)
 
 ### `_bounded_turn`
 
-[Исходник](../../agent/conversation.py#L22)
+[Исходник](../../agent/conversation.py#L23)
 
 ```python
 def _bounded_turn(turn)
@@ -214,7 +214,7 @@ def _bounded_turn(turn)
 
 ### `select_recent_history`
 
-[Исходник](../../agent/conversation.py#L38)
+[Исходник](../../agent/conversation.py#L39)
 
 ```python
 def select_recent_history(history, max_chars=MAX_CONTEXT_CHARS, max_turns=MAX_CONTEXT_TURNS)
@@ -224,43 +224,53 @@ def select_recent_history(history, max_chars=MAX_CONTEXT_CHARS, max_turns=MAX_CO
 
 ### `build_messages`
 
-[Исходник](../../agent/conversation.py#L81)
+[Исходник](../../agent/conversation.py#L82)
 
 ```python
 def build_messages(history, prompt)
 ```
 
-Добавляет новый user prompt к выбранной недавней истории.
+Глубоко копирует полную каноническую историю и добавляет новый запрос; сокращение выполняется только перед HTTP.
+
+### `_complete_units`
+
+[Исходник](../../agent/conversation.py#L89)
+
+```python
+def _complete_units(messages)
+```
+
+Копирует завершённые tool-пары и обычные сообщения; исключает незавершённые и осиротевшие tool-сообщения из проекции.
 
 ### `compact_live_messages`
 
-[Исходник](../../agent/conversation.py#L88)
+[Исходник](../../agent/conversation.py#L122)
 
 ```python
-def compact_live_messages(messages, max_chars=80000, keep_recent_rounds=10)
+def compact_live_messages(messages, max_chars=80000, keep_recent_rounds=10, request_index=None)
 ```
 
 Сокращает текущий модельный контекст, группируя assistant tool calls и их результаты.
 
 ### `compact_live_messages.flatten`
 
-[Исходник](../../agent/conversation.py#L120)
+[Исходник](../../agent/conversation.py#L144)
 
 ```python
-def flatten(items)
+def flatten()
 ```
 
 Собирает system-сообщение и группы сообщений в плоский список.
 
-### `compact_live_messages.total`
+### `compact_live_messages.size`
 
-[Исходник](../../agent/conversation.py#L124)
+[Исходник](../../agent/conversation.py#L147)
 
 ```python
-def total(items)
+def size()
 ```
 
-Считает символьный размер выбранных групп для ограничения контекста.
+Измеряет точную длину сериализованного JSON текущего модельного контекста.
 
 <a id="module-agent-editor-io-py"></a>
 
@@ -1299,7 +1309,7 @@ def prepare(self)
 [Исходник](../../agent/runtime.py#L26)
 
 ```python
-def working_context(self, messages)
+def working_context(self, messages, request_index=None)
 ```
 
 Передаёт сообщения, task и выбранные skills в ContextManager.

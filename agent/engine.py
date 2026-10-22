@@ -198,6 +198,7 @@ class AgentEngine:
                 system_prompt += "\n\n" + memory_context
             messages = [{"role": "system", "content": system_prompt}]
             messages.extend(build_messages(self.history, self.prompt))
+            request_index = len(messages) - 1
             final = ""
             tool_calls_count = 0
             consecutive_errors = 0
@@ -227,9 +228,9 @@ class AgentEngine:
                     break
                 # Keep the persisted transcript intact, but send a bounded, recent working context.
                 if self.runtime:
-                    model_messages = self.runtime.working_context(messages)
+                    model_messages = self.runtime.working_context(messages, request_index)
                 else:
-                    model_messages = compact_live_messages(messages, max_chars=max_context_chars, keep_recent_rounds=12)
+                    model_messages = compact_live_messages(messages, max_chars=max_context_chars, keep_recent_rounds=12, request_index=request_index)
                 kwargs = dict(
                     model=self.model,
                     messages=model_messages,
@@ -240,7 +241,13 @@ class AgentEngine:
                     stream=True,
                 )
                 if turn == 0 and self.force_tool:
-                    kwargs["tool_choice"] = {"type": "function", "function": {"name": self.force_tool}}
+                    kwargs['tools'] = [tool for tool in TOOL_DEFINITIONS
+                                       if tool['function']['name'] == self.force_tool]
+                    if not kwargs['tools']:
+                        raise ValueError('Неизвестный обязательный инструмент')
+                    # A single allowed tool plus required also works with local servers
+                    # that do not implement the named-object tool_choice variant.
+                    kwargs['tool_choice'] = 'required'
                 content_parts = []
                 stream = client.create(**kwargs)
                 tool_call_parts = {}
@@ -270,6 +277,10 @@ class AgentEngine:
                 finally:
                     stream.close()
                 if interrupted or self.isInterruptionRequested():
+                    partial = ''.join(content_parts).strip()
+                    if partial:
+                        messages.append({'role': 'assistant', 'content': partial})
+                    content_parts = []
                     stop_reason = "Остановлено пользователем."
                     break
 
@@ -282,6 +293,8 @@ class AgentEngine:
                     self._checkpoint('verification', 'Проверка результата и завершённости задачи')
                     if content:
                         messages.append({"role": "assistant", "content": content})
+                    content_parts = []
+                    self.conversation_updated.emit(messages[1:])
                     # Local models sometimes return a project summary or a progress note as if it
                     # were the final answer. For actionable requests, ask for a bounded completion
                     # check before ending the turn. This does not grant any additional tool access.
@@ -304,6 +317,7 @@ class AgentEngine:
                     break
 
                 messages.append({"role": "assistant", "content": content or None, "tool_calls": tool_calls})
+                content_parts = []
                 hit_limit = False
                 for call in tool_calls:
                     if self.isInterruptionRequested():
@@ -385,7 +399,8 @@ class AgentEngine:
                     memory_event["ok"] = bool(result.get("ok"))
                     if result.get("error"):
                         memory_event["error"] = str(result.get("error"))[:240]
-                    messages.append({"role": "tool", "tool_call_id": call["id"], "content": pretty[:20000]})
+                    messages.append({"role": "tool", "tool_call_id": call["id"], "content": pretty})
+                    self.conversation_updated.emit(messages[1:])
                     if repeated_call_detected:
                         hit_limit = True
                         break
@@ -475,17 +490,17 @@ class AgentEngine:
             self.conversation_updated.emit(messages[1:])
             self.finished_text.emit(final)
         except Exception as exc:
+            partial = ''.join(content_parts).strip()
+            if partial:
+                messages.append({'role': 'assistant', 'content': partial})
+            if messages:
+                self.conversation_updated.emit(messages[1:])
             if self.isInterruptionRequested():
                 if self._task:
                     self._task['status'] = 'paused'
                     self._task['stop_reason'] = 'Остановлено пользователем.'
                     self._checkpoint(None, 'Остановлено пользователем.')
                 # Preserve text already shown, but never incomplete tool-call fragments.
-                partial = ''.join(content_parts).strip()
-                if partial:
-                    messages.append({'role': 'assistant', 'content': partial})
-                if messages:
-                    self.conversation_updated.emit(messages[1:])
                 self.chat.emit("system", "Остановлено пользователем.")
                 self.finished_text.emit("Остановлено пользователем.")
             else:

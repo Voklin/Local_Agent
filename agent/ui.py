@@ -300,7 +300,7 @@ class MainWindow(QMainWindow):
         self.model_name=self.model_combo.currentText()
         self.settings.setValue("connection/model",self.model_name)
         self.worker=AgentWorker(self.base_url,self.api_key or "no-key",self.model_name,self.project_root,prompt,None,
-            settings=dict(DEFAULT_SETTINGS),history=self.history,memory=load_project_memory(self.project_root),
+            settings=dict(DEFAULT_SETTINGS),history=self.history[:-1],memory=load_project_memory(self.project_root),
             auto_memory=True,task_id=self.chat_id)
         self.worker.chat.connect(self._on_chat)
         self.worker.log.connect(self._log)

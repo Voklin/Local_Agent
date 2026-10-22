@@ -1,9 +1,62 @@
 """Conversation history regression tests. Run: python -m unittest discover -s tests -v"""
 import unittest
+import json
+from copy import deepcopy
+from agent.context_manager import ContextManager
 from agent.conversation import build_messages, select_recent_history, compact_live_messages
 
 
 class ConversationHistoryTests(unittest.TestCase):
+    def test_archive_builder_keeps_all_turns_and_copies_nested_calls(self):
+        history = [{'role': 'user', 'content': str(i)} for i in range(30)]
+        history.append({'role': 'assistant', 'tool_calls': [{'id': 'one', 'function': {'arguments': '{}'}}]})
+        messages = build_messages(history, 'new request')
+        self.assertEqual(messages[:-1], history)
+        messages[-2]['tool_calls'][0]['function']['arguments'] = 'changed'
+        self.assertEqual(history[-1]['tool_calls'][0]['function']['arguments'], '{}')
+
+    def test_model_context_omits_unfinished_and_orphaned_tool_exchanges(self):
+        messages = [
+            {'role': 'system', 'content': 'system'},
+            {'role': 'user', 'content': 'old'},
+            {'role': 'assistant', 'tool_calls': [{'id': 'a'}, {'id': 'b'}]},
+            {'role': 'tool', 'tool_call_id': 'a', 'content': 'partial'},
+            {'role': 'user', 'content': 'current'},
+            {'role': 'tool', 'tool_call_id': 'orphan', 'content': 'orphan'},
+            {'role': 'assistant', 'tool_calls': [{'id': 'c'}, {'id': 'd'}]},
+            {'role': 'tool', 'tool_call_id': 'c', 'content': 'one'},
+            {'role': 'tool', 'tool_call_id': 'd', 'content': 'two'},
+        ]
+        original = deepcopy(messages)
+        context = ContextManager().build(messages)
+        self.assertEqual([m['tool_call_id'] for m in context if m['role'] == 'tool'], ['c', 'd'])
+        self.assertEqual(messages, original)
+
+    def test_serialized_context_budget_keeps_current_request_and_tool_pairs(self):
+        messages = [{'role': 'system', 'content': 'system'}, {'role': 'user', 'content': 'current request'}]
+        messages += [{'role': 'assistant', 'content': None, 'tool_calls': [{'id': 'one', 'function': {'name': 'read_file', 'arguments': '{}'}}]},
+                     {'role': 'tool', 'tool_call_id': 'one', 'content': '\"\nПривет' * 4000}]
+        original = deepcopy(messages)
+        context = ContextManager(max_chars=1200).build(messages)
+        self.assertLessEqual(len(json.dumps(context, ensure_ascii=False)), 1200)
+        self.assertEqual(context[1], messages[1])
+        self.assertEqual(context[-2]['tool_calls'][0]['id'], context[-1]['tool_call_id'])
+        self.assertEqual(messages, original)
+
+    def test_oversized_mandatory_instructions_fail_without_truncation(self):
+        messages = [{'role': 'system', 'content': 'system' * 1000}, {'role': 'user', 'content': 'task'}]
+        with self.assertRaises(ValueError):
+            ContextManager(max_chars=500).build(messages)
+        self.assertEqual(len(messages[0]['content']), 6000)
+
+    def test_current_run_request_survives_internal_continuation(self):
+        messages = [{'role': 'system', 'content': 'system'}, {'role': 'user', 'content': 'old chat'},
+                    {'role': 'user', 'content': 'current task'}]
+        messages += [{'role': 'assistant', 'content': 'step'} for _ in range(20)]
+        messages += [{'role': 'user', 'content': 'internal continuation'}]
+        result = compact_live_messages(messages, keep_recent_rounds=2, request_index=2)
+        self.assertEqual([m['content'] for m in result if m['role'] == 'user'], ['current task', 'internal continuation'])
+
     def test_followup_keeps_previous_user_and_assistant_messages(self):
         history = [
             {"role": "user", "content": "Предложи изменение функции greet."},

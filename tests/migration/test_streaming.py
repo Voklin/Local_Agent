@@ -106,7 +106,7 @@ class StreamingTests(unittest.TestCase):
         self.engine = AgentEngine(f'http://127.0.0.1:{self.server.server_port}/v1', '', 'test-model',
             str(self.root), 'hello', task_id='stream-test', auto_memory=auto_memory)
         self.engine.text_delta.connect(lambda turn, text: self.deltas.put((turn, text)))
-        self.engine.conversation_updated.connect(lambda messages: self.messages.extend(messages))
+        self.engine.conversation_updated.connect(lambda messages: setattr(self, 'messages', list(messages)))
         self.engine.failed.connect(self.failures.append)
         self.thread = threading.Thread(target=self.engine.run, daemon=True)
         self.thread.start()

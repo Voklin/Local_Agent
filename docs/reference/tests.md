@@ -362,7 +362,7 @@ HTTP-фикстура и реальный engine: apply/reject/cancel, чаты,
 
 ### `ModelHandler`
 
-[Исходник](../../tests/migration/test_task_service.py#L15)
+[Исходник](../../tests/migration/test_task_service.py#L16)
 
 ```python
 class ModelHandler(BaseHTTPRequestHandler)
@@ -372,7 +372,7 @@ class ModelHandler(BaseHTTPRequestHandler)
 
 ### `ModelHandler.log_message`
 
-[Исходник](../../tests/migration/test_task_service.py#L16)
+[Исходник](../../tests/migration/test_task_service.py#L17)
 
 ```python
 def log_message(self, *_args)
@@ -382,7 +382,7 @@ def log_message(self, *_args)
 
 ### `ModelHandler.do_GET`
 
-[Исходник](../../tests/migration/test_task_service.py#L19)
+[Исходник](../../tests/migration/test_task_service.py#L20)
 
 ```python
 def do_GET(self)
@@ -392,7 +392,7 @@ def do_GET(self)
 
 ### `ModelHandler.do_POST`
 
-[Исходник](../../tests/migration/test_task_service.py#L25)
+[Исходник](../../tests/migration/test_task_service.py#L26)
 
 ```python
 def do_POST(self)
@@ -402,7 +402,7 @@ def do_POST(self)
 
 ### `TaskServiceTests`
 
-[Исходник](../../tests/migration/test_task_service.py#L49)
+[Исходник](../../tests/migration/test_task_service.py#L50)
 
 ```python
 class TaskServiceTests(unittest.TestCase)
@@ -412,7 +412,7 @@ class TaskServiceTests(unittest.TestCase)
 
 ### `TaskServiceTests.setUpClass`
 
-[Исходник](../../tests/migration/test_task_service.py#L51)
+[Исходник](../../tests/migration/test_task_service.py#L52)
 
 ```python
 @classmethod
@@ -423,7 +423,7 @@ def setUpClass(cls)
 
 ### `TaskServiceTests.tearDownClass`
 
-[Исходник](../../tests/migration/test_task_service.py#L58)
+[Исходник](../../tests/migration/test_task_service.py#L59)
 
 ```python
 @classmethod
@@ -434,7 +434,7 @@ def tearDownClass(cls)
 
 ### `TaskServiceTests.setUp`
 
-[Исходник](../../tests/migration/test_task_service.py#L63)
+[Исходник](../../tests/migration/test_task_service.py#L64)
 
 ```python
 def setUp(self)
@@ -444,7 +444,7 @@ def setUp(self)
 
 ### `TaskServiceTests.tearDown`
 
-[Исходник](../../tests/migration/test_task_service.py#L79)
+[Исходник](../../tests/migration/test_task_service.py#L80)
 
 ```python
 def tearDown(self)
@@ -454,7 +454,7 @@ def tearDown(self)
 
 ### `TaskServiceTests.event`
 
-[Исходник](../../tests/migration/test_task_service.py#L85)
+[Исходник](../../tests/migration/test_task_service.py#L86)
 
 ```python
 def event(self, name)
@@ -464,7 +464,7 @@ def event(self, name)
 
 ### `TaskServiceTests.start`
 
-[Исходник](../../tests/migration/test_task_service.py#L93)
+[Исходник](../../tests/migration/test_task_service.py#L94)
 
 ```python
 def start(self)
@@ -474,7 +474,7 @@ def start(self)
 
 ### `TaskServiceTests.resolve`
 
-[Исходник](../../tests/migration/test_task_service.py#L101)
+[Исходник](../../tests/migration/test_task_service.py#L102)
 
 ```python
 def resolve(self, approval, decision)
@@ -484,7 +484,7 @@ def resolve(self, approval, decision)
 
 ### `TaskServiceTests.test_apply_only_after_matching_approval_and_persist_history`
 
-[Исходник](../../tests/migration/test_task_service.py#L104)
+[Исходник](../../tests/migration/test_task_service.py#L105)
 
 ```python
 def test_apply_only_after_matching_approval_and_persist_history(self)
@@ -492,9 +492,29 @@ def test_apply_only_after_matching_approval_and_persist_history(self)
 
 Проверка: Запись происходит после совпавших run/proposal ID, а история и завершение сохраняются.
 
+### `TaskServiceTests.test_long_archive_survives_model_compaction_and_service_restart`
+
+[Исходник](../../tests/migration/test_task_service.py#L121)
+
+```python
+def test_long_archive_survives_model_compaction_and_service_restart(self)
+```
+
+Проверка: Длинная история сохраняется целиком после реального HTTP tool loop и повторного открытия сервиса.
+
+### `TaskServiceTests.test_forced_tool_uses_single_definition_then_restores_auto`
+
+[Исходник](../../tests/migration/test_task_service.py#L148)
+
+```python
+def test_forced_tool_uses_single_definition_then_restores_auto(self)
+```
+
+Проверка: Первый запрос ограничен одним required-инструментом, следующие используют auto и полный набор.
+
 ### `TaskServiceTests.test_reject_does_not_write`
 
-[Исходник](../../tests/migration/test_task_service.py#L120)
+[Исходник](../../tests/migration/test_task_service.py#L161)
 
 ```python
 def test_reject_does_not_write(self)
@@ -504,7 +524,7 @@ def test_reject_does_not_write(self)
 
 ### `TaskServiceTests.test_resume_preserves_task_and_recovery_marks_interrupted_task_paused`
 
-[Исходник](../../tests/migration/test_task_service.py#L129)
+[Исходник](../../tests/migration/test_task_service.py#L170)
 
 ```python
 def test_resume_preserves_task_and_recovery_marks_interrupted_task_paused(self)
@@ -514,7 +534,7 @@ def test_resume_preserves_task_and_recovery_marks_interrupted_task_paused(self)
 
 ### `TaskServiceTests.test_new_prompt_after_pause_creates_new_task`
 
-[Исходник](../../tests/migration/test_task_service.py#L146)
+[Исходник](../../tests/migration/test_task_service.py#L187)
 
 ```python
 def test_new_prompt_after_pause_creates_new_task(self)
@@ -524,7 +544,7 @@ def test_new_prompt_after_pause_creates_new_task(self)
 
 ### `TaskServiceTests.test_cancel_while_waiting_pauses_task_and_unblocks_worker`
 
-[Исходник](../../tests/migration/test_task_service.py#L158)
+[Исходник](../../tests/migration/test_task_service.py#L199)
 
 ```python
 def test_cancel_while_waiting_pauses_task_and_unblocks_worker(self)
@@ -534,7 +554,7 @@ def test_cancel_while_waiting_pauses_task_and_unblocks_worker(self)
 
 ### `TaskServiceTests.test_busy_task_rejects_chat_and_configuration_changes`
 
-[Исходник](../../tests/migration/test_task_service.py#L167)
+[Исходник](../../tests/migration/test_task_service.py#L208)
 
 ```python
 def test_busy_task_rejects_chat_and_configuration_changes(self)
@@ -544,7 +564,7 @@ def test_busy_task_rejects_chat_and_configuration_changes(self)
 
 ### `TaskServiceTests.test_chats_are_scoped_to_project_and_ids_cannot_escape_store`
 
-[Исходник](../../tests/migration/test_task_service.py#L176)
+[Исходник](../../tests/migration/test_task_service.py#L217)
 
 ```python
 def test_chats_are_scoped_to_project_and_ids_cannot_escape_store(self)
@@ -554,7 +574,7 @@ def test_chats_are_scoped_to_project_and_ids_cannot_escape_store(self)
 
 ### `TaskServiceTests.test_models_and_configuration_do_not_return_key`
 
-[Исходник](../../tests/migration/test_task_service.py#L184)
+[Исходник](../../tests/migration/test_task_service.py#L225)
 
 ```python
 def test_models_and_configuration_do_not_return_key(self)
@@ -564,7 +584,7 @@ def test_models_and_configuration_do_not_return_key(self)
 
 ### `TaskServiceTests.test_missing_model_and_bad_url_are_rejected`
 
-[Исходник](../../tests/migration/test_task_service.py#L189)
+[Исходник](../../tests/migration/test_task_service.py#L230)
 
 ```python
 def test_missing_model_and_bad_url_are_rejected(self)
@@ -633,7 +653,7 @@ def test_create_save_load_rename_delete(self)
 
 ### `ConversationHistoryTests`
 
-[Исходник](../../tests/test_conversation_history.py#L6)
+[Исходник](../../tests/test_conversation_history.py#L9)
 
 ```python
 class ConversationHistoryTests(unittest.TestCase)
@@ -641,9 +661,59 @@ class ConversationHistoryTests(unittest.TestCase)
 
 Тестовый класс/фикстура: Выбор истории и сокращение tool outputs/пар в conversation.py.
 
+### `ConversationHistoryTests.test_archive_builder_keeps_all_turns_and_copies_nested_calls`
+
+[Исходник](../../tests/test_conversation_history.py#L10)
+
+```python
+def test_archive_builder_keeps_all_turns_and_copies_nested_calls(self)
+```
+
+Проверка: Канонический builder сохраняет все ходы и независимо копирует вложенные tool calls.
+
+### `ConversationHistoryTests.test_model_context_omits_unfinished_and_orphaned_tool_exchanges`
+
+[Исходник](../../tests/test_conversation_history.py#L18)
+
+```python
+def test_model_context_omits_unfinished_and_orphaned_tool_exchanges(self)
+```
+
+Проверка: Модель не получает незавершённые и осиротевшие tool calls/results.
+
+### `ConversationHistoryTests.test_serialized_context_budget_keeps_current_request_and_tool_pairs`
+
+[Исходник](../../tests/test_conversation_history.py#L35)
+
+```python
+def test_serialized_context_budget_keeps_current_request_and_tool_pairs(self)
+```
+
+Проверка: JSON-бюджет соблюдается с Unicode/экранированием при сохранении запроса и tool-пар.
+
+### `ConversationHistoryTests.test_oversized_mandatory_instructions_fail_without_truncation`
+
+[Исходник](../../tests/test_conversation_history.py#L46)
+
+```python
+def test_oversized_mandatory_instructions_fail_without_truncation(self)
+```
+
+Проверка: Обязательные инструкции не обрезаются молча при превышении бюджета.
+
+### `ConversationHistoryTests.test_current_run_request_survives_internal_continuation`
+
+[Исходник](../../tests/test_conversation_history.py#L52)
+
+```python
+def test_current_run_request_survives_internal_continuation(self)
+```
+
+Проверка: Исходный запрос текущего запуска сохраняется рядом с внутренним продолжением.
+
 ### `ConversationHistoryTests.test_followup_keeps_previous_user_and_assistant_messages`
 
-[Исходник](../../tests/test_conversation_history.py#L7)
+[Исходник](../../tests/test_conversation_history.py#L60)
 
 ```python
 def test_followup_keeps_previous_user_and_assistant_messages(self)
@@ -653,7 +723,7 @@ def test_followup_keeps_previous_user_and_assistant_messages(self)
 
 ### `ConversationHistoryTests.test_tool_call_and_tool_result_are_preserved`
 
-[Исходник](../../tests/test_conversation_history.py#L18)
+[Исходник](../../tests/test_conversation_history.py#L71)
 
 ```python
 def test_tool_call_and_tool_result_are_preserved(self)
@@ -663,7 +733,7 @@ def test_tool_call_and_tool_result_are_preserved(self)
 
 ### `ConversationHistoryTests.test_empty_history_starts_cleanly`
 
-[Исходник](../../tests/test_conversation_history.py#L29)
+[Исходник](../../tests/test_conversation_history.py#L82)
 
 ```python
 def test_empty_history_starts_cleanly(self)
@@ -673,7 +743,7 @@ def test_empty_history_starts_cleanly(self)
 
 ### `ConversationHistoryTests.test_old_turns_are_trimmed_but_recent_confirmation_context_remains`
 
-[Исходник](../../tests/test_conversation_history.py#L33)
+[Исходник](../../tests/test_conversation_history.py#L86)
 
 ```python
 def test_old_turns_are_trimmed_but_recent_confirmation_context_remains(self)
@@ -683,7 +753,7 @@ def test_old_turns_are_trimmed_but_recent_confirmation_context_remains(self)
 
 ### `ConversationHistoryTests.test_live_compaction_preserves_system_original_request_and_recent_tool_pair`
 
-[Исходник](../../tests/test_conversation_history.py#L50)
+[Исходник](../../tests/test_conversation_history.py#L103)
 
 ```python
 def test_live_compaction_preserves_system_original_request_and_recent_tool_pair(self)
@@ -693,7 +763,7 @@ def test_live_compaction_preserves_system_original_request_and_recent_tool_pair(
 
 ### `ConversationHistoryTests.test_tool_results_are_bounded_without_dropping_tool_call_pair`
 
-[Исходник](../../tests/test_conversation_history.py#L66)
+[Исходник](../../tests/test_conversation_history.py#L119)
 
 ```python
 def test_tool_results_are_bounded_without_dropping_tool_call_pair(self)

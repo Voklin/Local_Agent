@@ -23,9 +23,9 @@ class AgentRuntime:
         self.task['selected_skills']=[s['id'] for s in selected]
         self.task['runtime_version']='5.7'
         return selected
-    def working_context(self,messages):
+    def working_context(self,messages,request_index=None):
         selected=[x for x in self.skills.discover() if x['id'] in self.task.get('selected_skills',[])]
-        return self.context.build(messages,self.task,selected)
+        return self.context.build(messages,self.task,selected,request_index)
     def checkpoint(self,event):
         self.task['last_event']=str(event)[:500]
         return self.task

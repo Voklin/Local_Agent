@@ -5,6 +5,7 @@ recent turns is sent to the model, avoiding repeated replay of the entire chat f
 """
 from __future__ import annotations
 import json
+from copy import deepcopy
 
 MAX_CONTEXT_CHARS = 30000
 MAX_CONTEXT_TURNS = 8
@@ -79,61 +80,105 @@ def select_recent_history(history, max_chars=MAX_CONTEXT_CHARS, max_turns=MAX_CO
 
 
 def build_messages(history, prompt):
-    """Build a request from recent bounded context plus the new user message."""
-    messages = select_recent_history(history)
+    """Copy the full transcript and append the new request; compact only before HTTP."""
+    messages = deepcopy([m for m in (history or []) if isinstance(m, dict)])
     messages.append({"role": "user", "content": prompt})
     return messages
 
 
-def compact_live_messages(messages, max_chars=80000, keep_recent_rounds=10):
-    """Bound a live agent run's context while preserving the original request and valid tool pairs.
+def _complete_units(messages):
+    """Copy complete tool exchanges; omit orphaned/unfinished exchanges from model context."""
+    units = []
+    index = 0
+    while index < len(messages):
+        start = index
+        message = deepcopy(messages[index])
+        index += 1
+        role = message.get("role")
+        if role not in ("user", "assistant"):
+            continue
+        unit = [message]
+        calls = message.get("tool_calls") if role == "assistant" else None
+        if calls:
+            ids = [call.get("id") for call in calls if isinstance(call, dict)]
+            valid = len(ids) == len(calls) and all(isinstance(i, str) and i for i in ids) and len(set(ids)) == len(ids)
+            expected = set(ids) if valid else set()
+            seen = set()
+            while index < len(messages) and messages[index].get("role") == "tool":
+                result = deepcopy(messages[index])
+                index += 1
+                call_id = result.get("tool_call_id")
+                if not isinstance(call_id, str) or call_id not in expected or call_id in seen:
+                    valid = False
+                if isinstance(call_id, str):
+                    seen.add(call_id)
+                unit.append(result)
+            if not valid or seen != expected:
+                continue
+        units.append((start, unit))
+    return units
 
-    Unlike the persisted chat transcript, this is a model-facing working context. Old completed
-    tool rounds can be summarized as metadata and removed when the budget is exceeded.
+
+def compact_live_messages(messages, max_chars=80000, keep_recent_rounds=10, request_index=None):
+    """Build a bounded JSON message list without mutating the complete transcript.
+
+    Preserve system instructions, the current request and newest user message. Tool calls
+    and results are indivisible. If mandatory instructions/arguments alone exceed the
+    budget, raise before HTTP rather than sending an invalid or silently changed request.
     """
     if not messages:
         return []
-    system = [dict(messages[0])] if messages[0].get("role") == "system" else []
-    body = [dict(m) for m in messages[1:] if isinstance(m, dict)] if system else [dict(m) for m in messages if isinstance(m, dict)]
-    first_user = next((dict(m) for m in body if m.get("role") == "user"), None)
-    # Group assistant tool-call messages with their tool results as indivisible units.
-    units = []
-    i = 0
-    while i < len(body):
-        msg = body[i]
-        unit = [msg]
-        i += 1
-        if msg.get("role") == "assistant" and msg.get("tool_calls"):
-            expected = {tc.get("id") for tc in msg.get("tool_calls", []) if tc.get("id")}
-            while i < len(body) and body[i].get("role") == "tool" and body[i].get("tool_call_id") in expected:
-                unit.append(body[i]); expected.discard(body[i].get("tool_call_id")); i += 1
-                if not expected:
-                    break
-        units.append(unit)
-    # Always keep initial request and recent units. Tool outputs are shortened before pruning.
-    for unit in units:
-        for msg in unit:
-            if msg.get("role") == "tool" and isinstance(msg.get("content"), str):
-                content = msg["content"]
-                if len(content) > 10000:
-                    msg["content"] = content[:10000] + f"\n[… результат сокращён в рабочем контексте; полная история сохранена, длина {len(content)} символов …]"
-    def flatten(items):
-        return system + [m for unit in items for m in unit]
-    recent = units[-max(1, int(keep_recent_rounds)):]
-    # Ensure the original request remains available even when older units are discarded.
-    def total(items):
-        return sum(_message_size(m) for m in flatten(items))
-    while len(recent) > 1 and total(recent) > max(12000, int(max_chars)):
-        recent.pop(0)
-    result = flatten(recent)
-    if first_user and not any(m is first_user or (m.get("role") == "user" and m.get("content") == first_user.get("content")) for m in result):
-        result.insert(len(system), first_user)
-    # If the original prompt plus latest round still exceeds budget, keep the latest complete
-    # tool round and a clipped copy of the initial request rather than sending unbounded history.
-    if total(recent) > max(12000, int(max_chars)) and first_user:
-        for m in result:
-            if m.get("role") == "user" and m.get("content") == first_user.get("content"):
-                content = str(m.get("content", ""))
-                m["content"] = content[:6000] + ("\n[… исходный запрос сокращён только в контексте модели …]" if len(content) > 6000 else "")
-                break
-    return result
+    limit = max(256, int(max_chars))
+    system = [deepcopy(messages[0])] if messages[0].get("role") == "system" else []
+    units = _complete_units(messages)
+    user_indexes = [start for start, unit in units if unit[0].get("role") == "user"]
+    latest_user = user_indexes[-1] if user_indexes else None
+    if request_index not in user_indexes:
+        request_index = latest_user
+    protected = {i for i in (request_index, latest_user) if i is not None}
+    if units:
+        protected.add(units[-1][0])
+    recent = {start for start, _ in units[-max(1, int(keep_recent_rounds)):]}
+    selected = [item for item in units if item[0] in protected or item[0] in recent]
+
+    def flatten():
+        return system + [message for _, unit in selected for message in unit]
+
+    def size():
+        return len(json.dumps(flatten(), ensure_ascii=False))
+
+    # Bound individual tool outputs in the projection, never in the persisted transcript.
+    for _, unit in selected:
+        for message in unit:
+            if message.get("role") == "tool" and isinstance(message.get("content"), str):
+                if len(message["content"]) > 10000:
+                    message["content"] = message["content"][:10000] + "\n[Вывод сокращён для модели]"
+    while size() > limit:
+        removable = next((i for i, (start, _) in enumerate(selected) if start not in protected), None)
+        if removable is None:
+            break
+        selected.pop(removable)
+    # JSON escaping and message metadata count towards the limit. Binary search a prefix
+    # instead of assuming that one character of content equals one serialized character.
+    candidates = [m for _, unit in selected for m in unit
+                  if m.get("role") in ("tool", "assistant") and isinstance(m.get("content"), str)]
+    for message in sorted(candidates, key=lambda m: len(m["content"]), reverse=True):
+        if size() <= limit:
+            break
+        original = message["content"]
+        marker = "[Сокращено для модели]"
+        message["content"] = marker
+        if size() > limit:
+            continue
+        low, high = 0, len(original)
+        while low < high:
+            middle = (low + high + 1) // 2
+            message["content"] = original[:middle] + marker
+            if size() <= limit:
+                low = middle
+            else:
+                high = middle - 1
+        message["content"] = original[:low] + marker
+    if size() > limit:
+        raise ValueError("Контекст обязательных инструкций, запроса или аргументов инструментов превышает лимит. Увеличьте max_context_chars или сократите запрос.")
+    return flatten()

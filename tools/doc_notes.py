@@ -117,14 +117,15 @@ register('agent/conversation.py', '''
 _message_size | Оценивает размер сериализованного сообщения в символах, не токенах модели.
 _bounded_turn | Копирует ход и обрезает объёмные tool outputs, оставляя структуру сообщений.
 select_recent_history | Выбирает недавние целые пользовательские ходы с ограничением объёма и количества.
-build_messages | Добавляет новый user prompt к выбранной недавней истории.
+build_messages | Глубоко копирует полную каноническую историю и добавляет новый запрос; сокращение выполняется только перед HTTP.
 compact_live_messages | Сокращает текущий модельный контекст, группируя assistant tool calls и их результаты.
 compact_live_messages.flatten | Собирает system-сообщение и группы сообщений в плоский список.
-compact_live_messages.total | Считает символьный размер выбранных групп для ограничения контекста.
+compact_live_messages.size | Измеряет точную длину сериализованного JSON текущего модельного контекста.
+_complete_units | Копирует завершённые tool-пары и обычные сообщения; исключает незавершённые и осиротевшие tool-сообщения из проекции.
 ''')
 register('agent/context_manager.py', '''
-ContextManager | Простой builder активного runtime-контекста: system, недавние сообщения и метаданные.
-ContextManager.build | Берёт хвост сообщений, добавляет состояние задачи/skills и сокращает содержимое; tool-пары отдельно не группирует.
+ContextManager | Единый builder модельного контекста с сохранением обязательных запросов и целых tool-пар.
+ContextManager.build | Добавляет task/skills к копии system prompt и вызывает общий compact_live_messages с жёстким JSON-бюджетом.
 ''')
 register('agent/editor_io.py', '''
 read_project_text | Проверяет путь, существование и размер, затем возвращает Path и UTF-8 текст.
@@ -357,6 +358,13 @@ Main.mcp_connect.bad | Показывает ошибку эксперимент�
 ''')
 
 TEST_PURPOSES = {
+    'archive_builder_keeps_all_turns_and_copies_nested_calls': 'Канонический builder сохраняет все ходы и независимо копирует вложенные tool calls.',
+    'model_context_omits_unfinished_and_orphaned_tool_exchanges': 'Модель не получает незавершённые и осиротевшие tool calls/results.',
+    'serialized_context_budget_keeps_current_request_and_tool_pairs': 'JSON-бюджет соблюдается с Unicode/экранированием при сохранении запроса и tool-пар.',
+    'oversized_mandatory_instructions_fail_without_truncation': 'Обязательные инструкции не обрезаются молча при превышении бюджета.',
+    'current_run_request_survives_internal_continuation': 'Исходный запрос текущего запуска сохраняется рядом с внутренним продолжением.',
+    'long_archive_survives_model_compaction_and_service_restart': 'Длинная история сохраняется целиком после реального HTTP tool loop и повторного открытия сервиса.',
+    'forced_tool_uses_single_definition_then_restores_auto': 'Первый запрос ограничен одним required-инструментом, следующие используют auto и полный набор.',
     'approval_decisions_are_explicit': 'Решения apply/reject/cancel явно доходят до Qt-адаптера движка.',
     'create_save_load_rename_delete': 'Полный жизненный цикл записи чата и индекса.',
     'followup_keeps_previous_user_and_assistant_messages': 'Повторный запрос сохраняет недавний контекст диалога.',
