@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('lca', {
   chooseProject: () => ipcRenderer.invoke('project:choose'),
   listFiles: (relativePath = '.') => ipcRenderer.invoke('project:list', relativePath),
   readFile: (relativePath: string) => ipcRenderer.invoke('project:read', relativePath),
+  searchProject: (params: unknown) => ipcRenderer.invoke('project:search', params),
+  cancelProjectSearch: () => ipcRenderer.invoke('project:cancel-search'),
   editorRead: (path: string) => ipcRenderer.invoke('editor:read', path),
   editorPreview: (path: string, content: string, revision: unknown) => ipcRenderer.invoke('editor:preview', path, content, revision),
   editorResolve: (proposalId: string, decision: string) => ipcRenderer.invoke('editor:resolve', proposalId, decision),

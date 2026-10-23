@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, ChevronDown, Code2, FileCode2, Folder, FolderOpen, GitBranch, History, Play, Plus, Settings2, ShieldCheck, Square, SquareTerminal } from 'lucide-react';
+import { Bot, ChevronDown, Code2, FileCode2, Folder, FolderOpen, GitBranch, History, Play, Plus, Settings2, ShieldCheck, Square, SquareTerminal, Search } from 'lucide-react';
+import { ProjectSearch } from './ProjectSearch';
 import { EditorPanel, type EditorHandle } from './EditorPanel';
 import { ModelSettings, defaultGeneration, type GenerationSettings } from './ModelSettings';
 import { VoicePanel, type WorkspaceMode } from './VoicePanel';
@@ -22,6 +23,8 @@ export default function App() {
   const editorRef = useRef<EditorHandle>(null);
   const [health, setHealth] = useState('Подключение к Python Core…');
   const [prompt, setPrompt] = useState('');
+  const [quickOpen,setQuickOpen]=useState(false);
+  const [searchFocus,setSearchFocus]=useState(0);
   const [nav, setNav] = useState('History');
   const [chat, setChat] = useState<Message[]>([{role:'assistant', text:'Чем займёмся? Здесь можно общаться с локальной моделью без подключения папки. Для работы с проектом переключитесь в IDE.'}]);
   const [chats, setChats] = useState<ChatSummary[]>([]);
@@ -101,6 +104,25 @@ export default function App() {
   }, []);
   useEffect(() => { messagesEnd.current?.scrollIntoView({behavior: chat.at(-1)?.streaming ? 'instant' : 'smooth'}); }, [chat]);
 
+  useEffect(()=>{
+    function shortcuts(event:KeyboardEvent) {
+      if (!(event.ctrlKey||event.metaKey) || document.querySelector('[role="dialog"]')) return;
+      if(event.key.toLowerCase()==='p' || (event.shiftKey&&event.key.toLowerCase()==='f')) {
+        event.preventDefault();
+        const quick=event.key.toLowerCase()==='p';
+        setQuickOpen(quick); setNav('Search');setSearchFocus(n=>n+1);
+      }
+    }
+    window.addEventListener('keydown',shortcuts);
+    return ()=>window.removeEventListener('keydown',shortcuts);
+  },[]);
+  async function openSearchFile(path:string,line:number) {
+    setQuickOpen(false);
+    if(modeRef.current!=='ide') await switchMode('ide');
+    setNav('Search');
+    const opened=await editorRef.current?.open(path,line);
+    if(opened){setSelectedFile(opened);selectedRef.current=opened;}
+  }
   async function refreshFiles(path = '.') {
     const r = await window.lca.listFiles(path);
     if (r.ok) { setFiles(r.items); setDirectory(path); } else report(r.error);
@@ -186,10 +208,12 @@ export default function App() {
   }
   const parent = directory.split(/[\\/]/).slice(0, -1).join('/') || '.';
   return <div className={`app-shell mode-${mode}`}>
+    {quickOpen&&<div className="search-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setQuickOpen(false);}}><ProjectSearch root={root} visible quick focus={searchFocus} onClose={()=>setQuickOpen(false)} onOpen={(path,line)=>void openSearchFile(path,line)}/></div>}
     <header className="topbar"><div className="brand"><div className="brand-mark"><Code2 size={18}/></div><span>LOCAL<b>AGENT</b></span><span className="version">v6.0</span></div><button className="project-pill" onClick={chooseProject} disabled={busy}><FolderOpen size={15}/>{project}<ChevronDown size={14}/></button><div className="mode-tabs" role="tablist" aria-label="Режим работы">{(['chat','ide','voice'] as WorkspaceMode[]).map(m=><button role="tab" aria-selected={mode===m} disabled={busy} className={mode===m?'selected':''} key={m} onClick={()=>void switchMode(m)}>{m==='chat'?'Chat':m==='ide'?'IDE':'Ассистент'}</button>)}</div><div className="top-spacer"/><span className="status">{health}</span><button className="icon-button" title="Настройки модели" onClick={()=>setSettingsOpen(true)}><Settings2 size={17}/></button></header>
     <div className="workarea">
-      <nav className="activity-bar">{[{id:'Explorer',icon:Folder},{id:'History',icon:History},{id:'Models',icon:Settings2}].map(x=><button key={x.id} className={(x.id==='Models'?settingsOpen:nav===x.id)?'active':''} onClick={()=>x.id==='Models'?setSettingsOpen(true):setNav(x.id)} title={x.id}><x.icon size={19}/></button>)}</nav>
-      <aside className="sidebar"><div className="side-heading"><span>{nav==='History'?'ИСТОРИЯ ЧАТОВ':nav==='Models'?'НАСТРОЙКИ МОДЕЛИ':'ФАЙЛЫ ПРОЕКТА'}</span><button onClick={()=>nav==='History'?refreshChats():refreshFiles(directory)} title="Обновить"><ChevronDown size={15}/></button></div>
+      <nav className="activity-bar">{[{id:'Explorer',icon:Folder},{id:'Search',icon:Search},{id:'History',icon:History},{id:'Models',icon:Settings2}].map(x=><button key={x.id} className={(x.id==='Models'?settingsOpen:nav===x.id)?'active':''} onClick={()=>x.id==='Models'?setSettingsOpen(true):setNav(x.id)} title={x.id}><x.icon size={19}/></button>)}</nav>
+      <aside className="sidebar"><div className="side-heading"><span>{nav==='History'?'ИСТОРИЯ ЧАТОВ':nav==='Search'?'ПОИСК ПО ПРОЕКТУ':nav==='Models'?'НАСТРОЙКИ МОДЕЛИ':'ФАЙЛЫ ПРОЕКТА'}</span><button onClick={()=>nav==='History'?refreshChats():refreshFiles(directory)} title="Обновить"><ChevronDown size={15}/></button></div>
+        <ProjectSearch root={root} visible={nav==='Search'&&!quickOpen} quick={false} focus={searchFocus} onClose={()=>setNav('Explorer')} onOpen={(path,line)=>void openSearchFile(path,line)}/>
         {nav==='Explorer' && <div className="file-list">{directory!=='.'&&<button className="file-row" onClick={()=>refreshFiles(parent)}>..</button>}{files.map(f=><button key={f.path} className={`file-row ${selectedFile===f.path?'selected':''}`} onClick={()=>openFile(f)}>{f.kind==='directory'?<Folder size={15}/>:<FileCode2 size={15}/>}<span>{f.name}</span></button>)}{!root&&<div className="empty-small">Выберите папку проекта</div>}</div>}
         {nav==='History' && <div className="file-list"><button className="file-row" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={15}/>Новый чат</button>{chats.map(c=><button className="file-row" key={c.id} disabled={busy} onClick={()=>selectChat(c.id)}><History size={15}/><span>{c.title}</span></button>)}</div>}
         <div className="sidebar-footer"><div className="project-status"><GitBranch size={14}/><span>{root?'Локальный проект':'Проект не выбран'}</span></div></div>

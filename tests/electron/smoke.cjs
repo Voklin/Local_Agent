@@ -106,6 +106,20 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript(`document.querySelector('.editor-find button').click()`);
       assert.equal(await win.webContents.executeJavaScript(`{const input=document.querySelector('.editor-input'); input.value.slice(input.selectionStart,input.selectionEnd)}`),'second');
       await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      await win.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'f',ctrlKey:true,shiftKey:true,bubbles:true}))`);
+      await poll(win, `!!document.querySelector('[aria-label="Текст поиска по проекту"]')`);
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Текст поиска по проекту"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'second');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      await win.webContents.executeJavaScript(`document.querySelector('.sidebar .project-search form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
+      await poll(win, `document.querySelectorAll('.search-results button').length===1`);
+      await win.webContents.executeJavaScript(`document.querySelector('.search-results button').click()`);
+      await poll(win, `document.querySelector('.editor-status').textContent.includes('Ln 2, Col 1')`);
+      await win.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'p',ctrlKey:true,bubbles:true}))`);
+      await poll(win, `!!document.querySelector('.quick-open input')`);
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('.quick-open input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'editor-b');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      await poll(win, `document.querySelectorAll('.quick-open .search-results button').length===1`);
+      await win.webContents.executeJavaScript(`document.querySelector('.quick-open form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
+      await poll(win, `!document.querySelector('.quick-open') && document.querySelector('.editor-input').value.includes('print(1)')`);
+      await win.webContents.executeJavaScript(`document.querySelector('.editor-tabs [title="editor-a.txt"]').click()`);
       fs.writeFileSync(path.join(testRoot,'editor.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
 
       await win.webContents.executeJavaScript(`{const input=document.querySelector('.editor-input'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'my draft'); input.dispatchEvent(new Event('input',{bubbles:true}));}`);

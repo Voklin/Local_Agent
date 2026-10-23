@@ -350,3 +350,19 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .editor-status span:last-child { margin-left: auto; text-align: right; }
 .editor-notice { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 10px 14px; color: #dcbda4; background: #302730; border-top: 1px solid #58454d; line-height: 1.6; font-size: 11px; overflow-wrap: anywhere; }
 .editor-approval { z-index: 110; }
+
+.project-search {padding:12px;min-height:0;overflow:auto;flex:1;color:var(--text)}
+.project-search form {display:flex;flex-wrap:wrap;gap:8px}
+.project-search input:not([type=checkbox]) {width:100%;min-width:0;padding:8px;background:var(--surface-inset);color:var(--text);border:1px solid var(--line);border-radius:5px}
+.project-search label {font-size:12px;display:flex;align-items:center;gap:5px}
+.project-search form button {display:flex;align-items:center;gap:5px;padding:6px 10px;background:var(--surface-soft);border:1px solid var(--line);border-radius:4px;color:var(--text)}
+.search-notice {font-size:11px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
+.search-results {display:flex;flex-direction:column;gap:4px}
+.search-results button {text-align:left;padding:8px;background:var(--surface);border:1px solid transparent;border-radius:4px;color:var(--text);overflow:hidden}
+.search-results button:hover,.search-results button.selected {background:var(--surface-soft);border-color:var(--accent)}
+.search-results b,.search-results span {display:block;overflow-wrap:anywhere;font-size:12px;white-space:pre-wrap}
+.search-results span {margin-top:5px;color:var(--muted);font-family:monospace}
+.search-overlay {position:fixed;inset:0;background:#0008;z-index:150;display:flex;justify-content:center;align-items:flex-start;padding-top:70px}
+.quick-open {width:620px;max-width:90vw;max-height:70vh;flex:none;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 20px 70px #0009}
+.search-heading {display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.search-heading button {background:none;border:0;color:inherit}

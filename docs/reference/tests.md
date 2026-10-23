@@ -25,6 +25,7 @@
 - [tests/test_model_manager.py](#module-tests-test-model-manager-py)
 - [tests/test_model_preferences.py](#module-tests-test-model-preferences-py)
 - [tests/test_project_memory.py](#module-tests-test-project-memory-py)
+- [tests/test_project_search.py](#module-tests-test-project-search-py)
 - [tests/test_runtime_architecture.py](#module-tests-test-runtime-architecture-py)
 - [tests/test_sandbox.py](#module-tests-test-sandbox-py)
 - [tests/test_task_activity.py](#module-tests-test-task-activity-py)
@@ -232,9 +233,19 @@ def reopen_after_kill(self, chat_id)
 
 Убивает тестовый subprocess, запускает новый и открывает сохранённый чат.
 
-### `BridgeProcessTests.test_process_kill_before_headers_recovers_user_request_and_paused_task`
+### `BridgeProcessTests.test_project_search_requires_root_and_does_not_block_bridge`
 
 [Исходник](../../tests/migration/test_bridge_process.py#L105)
+
+```python
+def test_project_search_requires_root_and_does_not_block_bridge(self)
+```
+
+Проверка: Настоящий bridge требует root, возвращает строку поиска и остаётся доступен health/cancel.
+
+### `BridgeProcessTests.test_process_kill_before_headers_recovers_user_request_and_paused_task`
+
+[Исходник](../../tests/migration/test_bridge_process.py#L115)
 
 ```python
 def test_process_kill_before_headers_recovers_user_request_and_paused_task(self)
@@ -244,7 +255,7 @@ def test_process_kill_before_headers_recovers_user_request_and_paused_task(self)
 
 ### `BridgeProcessTests.test_approved_write_and_preferences_survive_process_restart`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L112)
+[Исходник](../../tests/migration/test_bridge_process.py#L122)
 
 ```python
 def test_approved_write_and_preferences_survive_process_restart(self)
@@ -254,7 +265,7 @@ def test_approved_write_and_preferences_survive_process_restart(self)
 
 ### `BridgeProcessTests.test_process_kill_during_stream_recovers_partial_once`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L126)
+[Исходник](../../tests/migration/test_bridge_process.py#L136)
 
 ```python
 def test_process_kill_during_stream_recovers_partial_once(self)
@@ -264,7 +275,7 @@ def test_process_kill_during_stream_recovers_partial_once(self)
 
 ### `BridgeProcessTests.test_process_kill_during_approval_never_replays_permission`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L149)
+[Исходник](../../tests/migration/test_bridge_process.py#L159)
 
 ```python
 def test_process_kill_during_approval_never_replays_permission(self)
@@ -274,7 +285,7 @@ def test_process_kill_during_approval_never_replays_permission(self)
 
 ### `BridgeProcessTests.start_discovery_server`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L165)
+[Исходник](../../tests/migration/test_bridge_process.py#L175)
 
 ```python
 def start_discovery_server(self, mode)
@@ -284,7 +295,7 @@ def start_discovery_server(self, mode)
 
 ### `BridgeProcessTests.test_bridge_models_discovery_keeps_commands_responsive_and_pins_config`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L180)
+[Исходник](../../tests/migration/test_bridge_process.py#L190)
 
 ```python
 def test_bridge_models_discovery_keeps_commands_responsive_and_pins_config(self)
@@ -294,7 +305,7 @@ def test_bridge_models_discovery_keeps_commands_responsive_and_pins_config(self)
 
 ### `BridgeProcessTests.test_draft_probe_keeps_bridge_responsive_and_can_be_cancelled`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L190)
+[Исходник](../../tests/migration/test_bridge_process.py#L200)
 
 ```python
 def test_draft_probe_keeps_bridge_responsive_and_can_be_cancelled(self)
@@ -304,7 +315,7 @@ def test_draft_probe_keeps_bridge_responsive_and_can_be_cancelled(self)
 
 ### `BridgeProcessTests.test_bridge_cancel_closes_discovery_socket`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L211)
+[Исходник](../../tests/migration/test_bridge_process.py#L221)
 
 ```python
 def test_bridge_cancel_closes_discovery_socket(self)
@@ -314,7 +325,7 @@ def test_bridge_cancel_closes_discovery_socket(self)
 
 ### `BridgeProcessTests.until`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L219)
+[Исходник](../../tests/migration/test_bridge_process.py#L229)
 
 ```python
 def until(self, predicate)
@@ -324,7 +335,7 @@ def until(self, predicate)
 
 ### `BridgeProcessTests.call`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L230)
+[Исходник](../../tests/migration/test_bridge_process.py#L240)
 
 ```python
 def call(self, method, **params)
@@ -334,7 +345,7 @@ def call(self, method, **params)
 
 ### `BridgeProcessTests.test_malformed_input_does_not_reuse_previous_request_id`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L237)
+[Исходник](../../tests/migration/test_bridge_process.py#L247)
 
 ```python
 def test_malformed_input_does_not_reuse_previous_request_id(self)
@@ -344,7 +355,7 @@ def test_malformed_input_does_not_reuse_previous_request_id(self)
 
 ### `BridgeProcessTests.test_bridge_remains_responsive_during_write_approval`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L246)
+[Исходник](../../tests/migration/test_bridge_process.py#L256)
 
 ```python
 def test_bridge_remains_responsive_during_write_approval(self)
@@ -2064,6 +2075,102 @@ def test_clear_only_clears_memory_file(self)
 ```
 
 Проверка: Очистка памяти не удаляет другие данные.
+
+<a id="module-tests-test-project-search-py"></a>
+
+## `tests/test_project_search.py`
+
+Поиск: Unicode, фильтры, лимиты, пропуски бинарных файлов, отмена и single-flight.
+
+### `ProjectSearchTests`
+
+[Исходник](../../tests/test_project_search.py#L10)
+
+```python
+class ProjectSearchTests(unittest.TestCase)
+```
+
+Тестовый класс/фикстура: Поиск: Unicode, фильтры, лимиты, пропуски бинарных файлов, отмена и single-flight.
+
+### `ProjectSearchTests.setUp`
+
+[Исходник](../../tests/test_project_search.py#L11)
+
+```python
+def setUp(self)
+```
+
+Создаёт изолированные данные и подмены перед каждым тестом этого класса.
+
+### `ProjectSearchTests.tearDown`
+
+[Исходник](../../tests/test_project_search.py#L17)
+
+```python
+def tearDown(self)
+```
+
+Закрывает ресурсы и удаляет временные данные после теста.
+
+### `ProjectSearchTests.test_literal_text_line_case_and_path_filter`
+
+[Исходник](../../tests/test_project_search.py#L20)
+
+```python
+def test_literal_text_line_case_and_path_filter(self)
+```
+
+Проверка: Unicode пути, literal matching, номера строк, регистр и маска файлов.
+
+### `ProjectSearchTests.test_files_ignored_binary_encoding_size_and_result_limits`
+
+[Исходник](../../tests/test_project_search.py#L28)
+
+```python
+def test_files_ignored_binary_encoding_size_and_result_limits(self)
+```
+
+Проверка: Игнорируемые каталоги, NUL/encoding/размер, быстрый поиск путей и truncated results.
+
+### `ProjectSearchTests.test_cancel_time_and_budget_are_reported`
+
+[Исходник](../../tests/test_project_search.py#L43)
+
+```python
+def test_cancel_time_and_budget_are_reported(self)
+```
+
+Проверка: Отмена, deadline, file/byte budget и строгая валидация параметров.
+
+### `ProjectSearchTests.test_symlink_cannot_expand_search_scope`
+
+[Исходник](../../tests/test_project_search.py#L52)
+
+```python
+def test_symlink_cannot_expand_search_scope(self)
+```
+
+Проверка: Внешний symlink не читается; при отсутствии Windows privilege тест явно skipped.
+
+### `ProjectSearchTests.test_worker_cancellation_single_flight_and_invalid_root_recovery`
+
+[Исходник](../../tests/test_project_search.py#L59)
+
+```python
+def test_worker_cancellation_single_flight_and_invalid_root_recovery(self)
+```
+
+Проверка: Busy worker не допускает второй поиск, отменяется, неверный root не оставляет busy навсегда.
+
+### `ProjectSearchTests.test_worker_cancellation_single_flight_and_invalid_root_recovery.slow`
+
+[Исходник](../../tests/test_project_search.py#L61)
+
+```python
+def slow(root, params, cancelled)
+```
+
+Управляемая barrier-фикстура поискового worker для детерминированной проверки отмены.
 
 <a id="module-tests-test-runtime-architecture-py"></a>
 

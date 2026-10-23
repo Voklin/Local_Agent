@@ -102,6 +102,16 @@ class BridgeProcessTests(unittest.TestCase):
         self.assertTrue(result['ok'], result)
         return result
 
+    def test_project_search_requires_root_and_does_not_block_bridge(self):
+        self.assertFalse(self.call('search_project',query='needle')['ok'])
+        (self.root/'search.txt').write_text('first\nneedle here\n',encoding='utf-8')
+        self.assertTrue(self.call('set_project',root=str(self.root))['ok'])
+        result=self.call('search_project',query='needle')
+        self.assertTrue(result['ok'],result)
+        self.assertEqual(result['matches'][0]['line'],2)
+        self.assertTrue(self.call('health')['ok'])
+        self.assertTrue(self.call('cancel_project_search')['ok'])
+
     def test_process_kill_before_headers_recovers_user_request_and_paused_task(self):
         chat_id = self.start_crash_scenario(SlowHandler, 'before_headers')
         self.assertTrue(self.scenario_server.waiting.wait(10))

@@ -865,3 +865,37 @@ TS_NOTES['apps/desktop/src/EditorPanel.tsx:EditorPanel.decide'] = 'Потреб�
 TS_NOTES['decide'] = 'Передаёт явное решение по текущему approval агента, защищая от повторных кликов.'
 TS_NOTES['hasDirty'] = 'Читает актуальные editor tabs через ref для проверки unsaved перед нативной сменой проекта.'
 TS_NOTES['dialog.showMessageBox'] = 'В Electron smoke подменяет нативное подтверждение несохранённых изменений управляемым ответом Cancel/Discard.'
+
+FILE_NOTES.update({
+ 'core/python/project_search.py':'Ограниченный read-only поиск текста и путей с отменяемым отдельным worker.',
+ 'apps/desktop/src/ProjectSearch.tsx':'Боковой поиск и Ctrl+P: один IPC-запрос за раз, отмена и защита от устаревших результатов.',
+ 'tests/test_project_search.py':'Поиск: Unicode, фильтры, лимиты, пропуски бинарных файлов, отмена и single-flight.',
+})
+SYMBOL_NOTES.update({
+ 'core/python/project_search.py:search_project':'Обходит выбранный корень без symlink-переходов; возвращает literal text matches или пути в пределах времени/байтов/числа файлов.',
+ 'core/python/project_search.py:search_project.stop':'Проверяет cooperative cancellation и deadline, устанавливает честный статус неполного результата.',
+ 'core/python/project_search.py:ProjectSearchService':'Владеет одним отменяемым daemon worker; stdin JSON bridge остаётся доступен для других команд.',
+ 'core/python/project_search.py:ProjectSearchService.start':'Фиксирует валидный корень/параметры и запускает worker; отклоняет параллельный поиск.',
+ 'core/python/project_search.py:ProjectSearchService.start.run_search':'Выполняет поиск, преобразует исключение в ответ и освобождает busy до отправки результата.',
+ 'core/python/project_search.py:ProjectSearchService.cancel':'Устанавливает event отмены только поискового worker.',
+ 'core/python/project_search.py:ProjectSearchService.shutdown':'Запрашивает отмену и ограниченно ожидает собственный поток.',
+})
+TS_NOTES.update({
+ 'apps/desktop/src/ProjectSearch.tsx:Match':'Найденный относительный путь, номер строки и ограниченный текстовый preview.',
+ 'apps/desktop/src/ProjectSearch.tsx:Props':'Корень, видимость, режим quick open и переход в editor.',
+ 'ProjectSearch':'Единая форма text/files с bounded результатами, явной отменой и клавиатурным выбором.',
+ 'apps/desktop/src/ProjectSearch.tsx:ProjectSearch.search':'Последовательно отменяет предыдущий запрос, отправляет новый и применяет только актуальный ticket/root.',
+ 'apps/desktop/src/ProjectSearch.tsx:ProjectSearch.cancel':'Инвалидирует результаты и запрашивает отмену собственного поиска.',
+ 'openSearchFile':'Переходит в IDE и открывает результат на нужной строке, сохраняя sidebar поиска.',
+ 'searchProject':'Вызывает фиксированный read-only IPC поиска с текстом/маской/регистром.',
+ 'cancelProjectSearch':'Отменяет поиск независимо от остановки агента.',
+})
+TEST_PURPOSES.update({
+ 'literal_text_line_case_and_path_filter':'Unicode пути, literal matching, номера строк, регистр и маска файлов.',
+ 'files_ignored_binary_encoding_size_and_result_limits':'Игнорируемые каталоги, NUL/encoding/размер, быстрый поиск путей и truncated results.',
+ 'cancel_time_and_budget_are_reported':'Отмена, deadline, file/byte budget и строгая валидация параметров.',
+ 'symlink_cannot_expand_search_scope':'Внешний symlink не читается; при отсутствии Windows privilege тест явно skipped.',
+ 'worker_cancellation_single_flight_and_invalid_root_recovery':'Busy worker не допускает второй поиск, отменяется, неверный root не оставляет busy навсегда.',
+ 'project_search_requires_root_and_does_not_block_bridge':'Настоящий bridge требует root, возвращает строку поиска и остаётся доступен health/cancel.',
+})
+TEST_HELPERS['slow']='Управляемая barrier-фикстура поискового worker для детерминированной проверки отмены.'

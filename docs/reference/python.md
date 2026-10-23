@@ -34,6 +34,7 @@
 - [agent/worker.py](#module-agent-worker-py)
 - [core/python/bridge.py](#module-core-python-bridge-py)
 - [core/python/editor_service.py](#module-core-python-editor-service-py)
+- [core/python/project_search.py](#module-core-python-project-search-py)
 - [core/python/task_service.py](#module-core-python-task-service-py)
 - [main.py](#module-main-py)
 - [tools/build_windows_core.py](#module-tools-build-windows-core-py)
@@ -2399,7 +2400,7 @@ JSON-lines вход процесса, dispatch команд, UI-файловый
 
 ### `emit`
 
-[Исходник](../../core/python/bridge.py#L20)
+[Исходник](../../core/python/bridge.py#L21)
 
 ```python
 def emit(message)
@@ -2409,7 +2410,7 @@ def emit(message)
 
 ### `resolve_inside`
 
-[Исходник](../../core/python/bridge.py#L32)
+[Исходник](../../core/python/bridge.py#L34)
 
 ```python
 def resolve_inside(relative: str) -> Path
@@ -2419,7 +2420,7 @@ def resolve_inside(relative: str) -> Path
 
 ### `handle`
 
-[Исходник](../../core/python/bridge.py#L42)
+[Исходник](../../core/python/bridge.py#L44)
 
 ```python
 def handle(method: str, params: dict) -> dict
@@ -2429,7 +2430,7 @@ Whitelist диспетчер RPC: состояние, проект, модель
 
 ### `main`
 
-[Исходник](../../core/python/bridge.py#L121)
+[Исходник](../../core/python/bridge.py#L126)
 
 ```python
 def main() -> None
@@ -2502,6 +2503,92 @@ def resolve(self, root, params)
 ```
 
 Проверяет ID/root/решение, потребляет proposal и выполняет Apply с повторной проверкой snapshot; Reject/Cancel не пишут.
+
+<a id="module-core-python-project-search-py"></a>
+
+## `core/python/project_search.py`
+
+Ограниченный read-only поиск текста и путей с отменяемым отдельным worker.
+
+### `search_project`
+
+[Исходник](../../core/python/project_search.py#L13)
+
+```python
+def search_project(root, params, cancelled=None, *, timeout=3, max_files=15000, max_bytes=10000000)
+```
+
+Обходит выбранный корень без symlink-переходов; возвращает literal text matches или пути в пределах времени/байтов/числа файлов.
+
+### `search_project.stop`
+
+[Исходник](../../core/python/project_search.py#L38)
+
+```python
+def stop()
+```
+
+Проверяет cooperative cancellation и deadline, устанавливает честный статус неполного результата.
+
+### `ProjectSearchService`
+
+[Исходник](../../core/python/project_search.py#L118)
+
+```python
+class ProjectSearchService
+```
+
+Владеет одним отменяемым daemon worker; stdin JSON bridge остаётся доступен для других команд.
+
+### `ProjectSearchService.__init__`
+
+[Исходник](../../core/python/project_search.py#L119)
+
+```python
+def __init__(self)
+```
+
+Инициализирует состояние экземпляра ProjectSearchService; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `ProjectSearchService.start`
+
+[Исходник](../../core/python/project_search.py#L125)
+
+```python
+def start(self, root, params, respond)
+```
+
+Фиксирует валидный корень/параметры и запускает worker; отклоняет параллельный поиск.
+
+### `ProjectSearchService.start.run_search`
+
+[Исходник](../../core/python/project_search.py#L134)
+
+```python
+def run_search()
+```
+
+Выполняет поиск, преобразует исключение в ответ и освобождает busy до отправки результата.
+
+### `ProjectSearchService.cancel`
+
+[Исходник](../../core/python/project_search.py#L146)
+
+```python
+def cancel(self)
+```
+
+Устанавливает event отмены только поискового worker.
+
+### `ProjectSearchService.shutdown`
+
+[Исходник](../../core/python/project_search.py#L150)
+
+```python
+def shutdown(self)
+```
+
+Запрашивает отмену и ограниченно ожидает собственный поток.
 
 <a id="module-core-python-task-service-py"></a>
 

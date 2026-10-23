@@ -108,6 +108,8 @@ async function confirmEditorDiscard() {
   const result = await dialog.showMessageBox(win, {type:'warning', title:'Несохранённые изменения', message:'В редакторе есть несохранённые изменения.', detail:'Если продолжить, эти черновики будут потеряны. Сначала сохраните их через просмотр diff.', buttons:['Отмена','Не сохранять'], defaultId:0, cancelId:0, noLink:true});
   return {discard:result.response === 1};
 }
+handle('project:search', (params) => callBackend('search_project', {mode:params?.mode,query:params?.query,pattern:params?.pattern,case_sensitive:params?.case_sensitive,limit:params?.limit}));
+handle('project:cancel-search', () => callBackend('cancel_project_search'));
 handle('editor:read', (path) => callBackend('editor_read', {path:String(path).slice(0,1000)}));
 handle('editor:preview', (path, content, revision) => callBackend('editor_preview', {path:String(path).slice(0,1000), content, revision}));
 handle('editor:resolve', (proposalId, decision) => callBackend('editor_resolve', {proposal_id:proposalId, decision}));

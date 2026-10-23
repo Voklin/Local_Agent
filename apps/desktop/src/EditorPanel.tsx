@@ -160,9 +160,9 @@ export const EditorPanel = forwardRef<EditorHandle,EditorProps>(function EditorP
   }
   useEffect(()=>{
     function shortcuts(event:KeyboardEvent) {
-      if (!props.visible || !current || document.querySelector('[role="dialog"]') || !(event.ctrlKey||event.metaKey)) return;
+      if (!props.visible || !current || document.querySelector('[role="dialog"], .search-overlay') || !(event.ctrlKey||event.metaKey)) return;
       if(event.key.toLowerCase()==='s') {event.preventDefault();void save();}
-      if(event.key.toLowerCase()==='f') {event.preventDefault();setFindOpen(true);setTimeout(()=>findInput.current?.focus(),0);}
+      if(!event.shiftKey && event.key.toLowerCase()==='f') {event.preventDefault();setFindOpen(true);setTimeout(()=>findInput.current?.focus(),0);}
       if(event.key.toLowerCase()==='g') {event.preventDefault();setFindOpen(true);setLineInput(String(position.line));setTimeout(()=>{jumpInput.current?.focus();jumpInput.current?.select();},0);}
       if(event.shiftKey && event.key.toLowerCase()==='r') {event.preventDefault();void reload();}
     }

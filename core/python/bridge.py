@@ -14,6 +14,7 @@ if not getattr(sys, 'frozen', False):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from core.python.task_service import TaskService
 from core.python.editor_service import EditorService
+from core.python.project_search import ProjectSearchService
 
 output_lock = threading.Lock()
 
@@ -24,6 +25,7 @@ def emit(message):
 
 tasks = TaskService(emit)
 editor = EditorService()
+project_search = ProjectSearchService()
 
 MAX_READ_BYTES = 1_000_000
 MAX_ENTRIES = 1000
@@ -48,6 +50,7 @@ def handle(method: str, params: dict) -> dict:
         root = Path(str(params.get('root', ''))).expanduser().resolve(strict=True)
         if not root.is_dir():
             raise ValueError('Выбранный путь не является папкой')
+        project_search.cancel()
         project_root = root
         editor.clear()
         tasks.chat = None
@@ -83,6 +86,8 @@ def handle(method: str, params: dict) -> dict:
         if editor.pending:
             raise ValueError('Сначала завершите подтверждение изменения в редакторе')
         return tasks.start(scope, params)
+    if method == 'cancel_project_search':
+        return project_search.cancel()
     if method == 'cancel_task':
         return tasks.cancel()
     if method == 'resolve_approval':
@@ -133,11 +138,17 @@ def main() -> None:
             if method == 'test_model':
                 tasks.start_model_probe(req.get('params') or None, lambda result, request_id=req_id: emit({'id': request_id, **result}))
                 continue
+            if method == 'search_project':
+                if project_root is None:
+                    raise ValueError('Сначала выберите папку проекта')
+                project_search.start(project_root, req.get('params') or {}, lambda result, request_id=req_id: emit({'id': request_id, **result}))
+                continue
             result = handle(method, req.get('params') or {})
             response = {'id': req_id, **result}
         except Exception as exc:
             response = {'id': req_id, 'ok': False, 'error': str(exc)[:500]}
         emit(response)
+    project_search.shutdown()
     tasks.shutdown()
 
 if __name__ == '__main__':
