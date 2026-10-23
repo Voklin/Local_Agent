@@ -17,6 +17,7 @@ from core.python.editor_service import EditorService
 from core.python.project_search import ProjectSearchService
 from core.python.runtime_service import RuntimeService
 from core.python.memory_service import read_memory, write_memory
+from core.python.speech_service import SpeechService
 
 output_lock = threading.Lock()
 
@@ -29,6 +30,7 @@ tasks = TaskService(emit)
 editor = EditorService()
 project_search = ProjectSearchService()
 runtime = RuntimeService()
+speech = SpeechService()
 
 MAX_READ_BYTES = 1_000_000
 MAX_ENTRIES = 1000
@@ -46,6 +48,14 @@ def resolve_inside(relative: str) -> Path:
 
 def handle(method: str, params: dict) -> dict:
     global project_root
+    if method == 'voice_status':
+        return speech.status()
+    if method == 'voice_refresh':
+        return speech.refresh()
+    if method == 'voice_speak':
+        return speech.speak(params)
+    if method == 'voice_stop':
+        return speech.stop()
     if method in ('runtime_start', 'runtime_stop'):
         tasks.idle()
         return runtime.start(params) if method == 'runtime_start' else runtime.stop()
@@ -89,9 +99,9 @@ def handle(method: str, params: dict) -> dict:
         return tasks.cancel_model_setup()
     if method in ('list_chats', 'new_chat', 'load_chat', 'rename_chat', 'start_task'):
         mode = params.get('mode', 'ide')
-        if mode not in ('chat', 'ide'):
+        if mode not in ('chat', 'ide', 'voice'):
             raise ValueError('Неизвестный режим работы')
-        scope = '' if mode == 'chat' else project_root
+        scope = '' if mode in ('chat','voice') else project_root
         if scope is None:
             raise ValueError('Сначала выберите папку проекта')
         if method == 'rename_chat':
@@ -165,7 +175,12 @@ def main() -> None:
         except Exception as exc:
             response = {'id': req_id, 'ok': False, 'error': str(exc)[:500]}
         emit(response)
+    project_search.cancel()
+    speech.stop()
+    runtime.stop()
+    tasks.cancel()
     project_search.shutdown()
+    speech.shutdown()
     runtime.shutdown()
     tasks.shutdown()
 

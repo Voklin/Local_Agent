@@ -344,7 +344,7 @@ class TaskService:
         history = list(self.chat.get('messages', []))
         self.engine = self.engine_factory(**self.config, project_root=str(root), prompt=prompt,
             history=history, memory=load_project_memory(str(root)) if root else {},
-            auto_memory=bool(root), allow_tools=bool(root), task_id=self.chat['id'])
+            auto_memory=bool(root), allow_tools=bool(root), companion=params.get('mode')=='voice', task_id=self.chat['id'])
         self.run_id = uuid.uuid4().hex
         self.stream_turn = None
         self.stream_buffer = ''

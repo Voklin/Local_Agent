@@ -102,6 +102,15 @@ class TaskServiceTests(unittest.TestCase):
             if event['event'] == name:
                 return event
 
+    def test_voice_persona_uses_chat_scope_without_file_tools(self):
+        self.service.start('',{'prompt':'Привет','mode':'voice'})
+        self.event('task_end')
+        request=self.server.requests[-1]
+        self.assertNotIn('tools',request)
+        self.assertIn('Мия',request['messages'][0]['content'])
+        self.assertEqual(self.service.chat['project_root'],'')
+        self.assertFalse(self.service.engine.auto_memory)
+
     def test_rename_preserves_messages_and_scope_and_active_title(self):
         chat=self.service.select_chat('')['chat']
         result=self.service.rename('',{'chat_id':chat['id'],'title':'Личный разговор'})

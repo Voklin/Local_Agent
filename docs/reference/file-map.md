@@ -56,7 +56,7 @@
 | [apps/desktop/src/ModelSettings.tsx](../../apps/desktop/src/ModelSettings.tsx) | Модальное окно draft-настроек: endpoint, ключ, список моделей, тест ответа, генерация, лимиты, сохранение и focus trap. |
 | [apps/desktop/src/ProjectSearch.tsx](../../apps/desktop/src/ProjectSearch.tsx) | Боковой поиск и Ctrl+P: один IPC-запрос за раз, отмена и защита от устаревших результатов. |
 | [apps/desktop/src/TaskProgress.tsx](../../apps/desktop/src/TaskProgress.tsx) | Типизированная панель этапов, инструментов, результатов и продолжения задачи. |
-| [apps/desktop/src/VoicePanel.tsx](../../apps/desktop/src/VoicePanel.tsx) | Подготовительный экран голосового ассистента: SVG-эскиз горничной, честные состояния отсутствующих STT/TTS и контракты будущей сессии; аудио пока не записывает. |
+| [apps/desktop/src/VoicePanel.tsx](../../apps/desktop/src/VoicePanel.tsx) | Рабочий разговор с Мией без file tools, системная озвучка, голос/темп/громкость/Stop и честный отключённый STT. |
 | [apps/desktop/src/main.tsx](../../apps/desktop/src/main.tsx) | Подключает CSS, создаёт React root и отображает App в StrictMode. |
 | [apps/desktop/src/style.css](../../apps/desktop/src/style.css) | Стили IDE-панелей, сообщений, формы, modal и индикатора streaming. |
 | [apps/desktop/src/vite-env.d.ts](../../apps/desktop/src/vite-env.d.ts) | Vite reference, CoreEvent и TypeScript-контракт Window.lca. |
@@ -68,6 +68,7 @@
 | [core/python/memory_service.py](../../core/python/memory_service.py) | Строгий read/edit API памяти проекта с byte revision и защитой повреждённых файлов. |
 | [core/python/project_search.py](../../core/python/project_search.py) | Ограниченный read-only поиск текста и путей с отменяемым отдельным worker. |
 | [core/python/runtime_service.py](../../core/python/runtime_service.py) | Неблокирующий сервис запуска/остановки GGUF и состояний собственного llama-server. |
+| [core/python/speech_service.py](../../core/python/speech_service.py) | Windows System.Speech через фиксированный PowerShell script и stdin JSON: каталог, TTS, Stop и owned job. |
 | [core/python/task_service.py](../../core/python/task_service.py) | Состояние выбранного чата/модели, запуск потока задачи, events и корреляция approval. |
 | [design_reference/DESIGN_REFERENCE.md](../../design_reference/DESIGN_REFERENCE.md) | Пояснение сохранённого визуального эталона и границ его переноса. |
 | [design_reference/agent_studio_reference.py](../../design_reference/agent_studio_reference.py) | Архивный визуальный прототип с собственными механизмами; не импортируется рабочим main.py. |
@@ -92,6 +93,7 @@
 | [docs/19-project-search.md](../../docs/19-project-search.md) | Ручная учебная глава или исторический материал: 19. Поиск по проекту и быстрое открытие. |
 | [docs/20-local-runtime.md](../../docs/20-local-runtime.md) | Ручная учебная глава или исторический материал: 20. Локальная GGUF-модель внутри приложения. |
 | [docs/21-memory-and-chat.md](../../docs/21-memory-and-chat.md) | Ручная учебная глава или исторический материал: 21. Память проекта и читаемый чат. |
+| [docs/22-voice-companion.md](../../docs/22-voice-companion.md) | Ручная учебная глава или исторический материал: 22. Мия: разговор и системная озвучка. |
 | [docs/AUTONOMOUS_PLAN_2026-10-23.md](../../docs/AUTONOMOUS_PLAN_2026-10-23.md) | Ручная учебная глава или исторический материал: Автономный план LocalAgent — 23 октября 2026. |
 | [docs/README.md](../../docs/README.md) | Ручная учебная глава или исторический материал: LocalAgent: подробное руководство по проекту. |
 | [docs/WORK_PLAN.md](../../docs/WORK_PLAN.md) | Ручная учебная глава или исторический материал: План дальнейшей разработки LocalAgent. |
@@ -140,6 +142,7 @@
 | [tests/test_runtime_architecture.py](../../tests/test_runtime_architecture.py) | Структура плана, skills, размер контекста и verifier. |
 | [tests/test_runtime_service.py](../../tests/test_runtime_service.py) | Проверки lifecycle, bounded output, отмены, ошибок и Windows crash cleanup. |
 | [tests/test_sandbox.py](../../tests/test_sandbox.py) | Обёртка запуска внутренней security self-test suite. |
+| [tests/test_speech_service.py](../../tests/test_speech_service.py) | TTS без динамиков/микрофона: WAV, JSON data boundary, cancellation и timeout cleanup. |
 | [tests/test_task_activity.py](../../tests/test_task_activity.py) | Контракты журнала: лимиты, статусы, отсутствие содержимого файлов, этапы и anchored recovery. |
 | [tests/test_task_store.py](../../tests/test_task_store.py) | Round-trip checkpoint, переход этапа, завершение и очистка. |
 | [tools/build_windows_core.py](../../tools/build_windows_core.py) | PyInstaller onedir сборка Windows x64 Core с Python 3.12 и данными навыков. |

@@ -1,10 +1,32 @@
 // Run with Electron after building and starting Vite on 127.0.0.1:5173.
 // Uses the real main process, preload, renderer, bridge and engine.
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const assert = require('node:assert/strict');
+
+// Capture speech IPC in GUI tests: actual System.Speech is tested through WAV,
+// so this suite never plays audio on the user's speakers.
+let simulatedSpeech=false;
+let capturedSpeech=null;
+let speechCalls=0;
+let companionRequest=false;
+const registerIpc=ipcMain.handle.bind(ipcMain);
+let handlerForVoiceStatus=async()=>({ok:true,state:'idle',voices:[],recognizers:[]});
+ipcMain.handle=(channel,handler)=>{
+  if(channel==='voice:status')handlerForVoiceStatus=handler;
+  return registerIpc(channel,async(event,...args)=>{
+    if(channel==='voice:speak') {
+      capturedSpeech=args[0];speechCalls++;simulatedSpeech=true;
+      const result=await handlerForVoiceStatus(event);
+      return {...result,state:'speaking'};
+    }
+    if(channel==='voice:stop')simulatedSpeech=false;
+    const result=await handler(event,...args);
+    return channel==='voice:status'&&simulatedSpeech?{...result,state:'speaking'}:result;
+  });
+};
 
 const testRoot = path.resolve(__dirname, '../../.test-data/electron-smoke');
 fs.mkdirSync(testRoot, { recursive: true });
@@ -46,6 +68,7 @@ const model = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type':'text/event-stream' });
     if (!input.tools) {
       assert.equal(input.tool_choice, undefined);
+      if(input.messages[0].content.includes('Мия'))companionRequest=true;
       if(modelMode==='scroll') {
         res.write(encode({content:Array.from({length:120},(_,i)=>'Scroll line '+i).join('\n')}));
         releaseModelText=()=>res.end(encode({content:'\n'+Array.from({length:120},(_,i)=>'More line '+i).join('\n')})+'data: [DONE]\n\n');
@@ -311,8 +334,34 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.main-panel')).backgroundColor`), 'rgb(25, 25, 28)');
       await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:last-child').click()`);
       await poll(win, `!!document.querySelector('.voice-panel')`);
-      fs.writeFileSync(path.join(testRoot, 'voice.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
-      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.voice-panel').textContent.includes('голос ещё не подключён')`), true);
+      await poll(win, `document.querySelector('.voice-panel').textContent.includes('Аудио не записывается')`);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.voice-buttons button[title="STT-провайдер пока не подключён"]').disabled`),true);
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Сообщение ассистенту"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Привет, Мия');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      await win.webContents.executeJavaScript(`document.querySelector('.voice-composer').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
+      await poll(win, `document.querySelector('.voice-conversation').textContent.includes('Standalone Chat reply')&&!document.querySelector('.voice-composer button[type=button]')`);
+      assert.equal(companionRequest,true,'Companion uses a persona and no file tools');
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.voice-conversation').getBoundingClientRect().height>200`),true);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.voice-controls').getBoundingClientRect().bottom>=document.querySelector('.voice-stt-note').getBoundingClientRect().bottom`),true);
+      await poll(win, `document.querySelector('.voice-state').textContent.includes('Готова')||!!document.querySelector('.voice-error')`);
+      const voiceStatus=await win.webContents.executeJavaScript('window.lca.voiceStatus()');
+      if(voiceStatus.voices.length) {
+        await win.webContents.executeJavaScript(`document.querySelector('.speak-reply').click()`);
+        await poll(win, `!!document.querySelector('.voice-speaking')`);
+        assert.ok(capturedSpeech.text.includes('Standalone Chat reply'));
+        assert.ok(voiceStatus.voices.some(voice=>voice.id===capturedSpeech.voice));
+        await win.webContents.executeJavaScript(`document.querySelector('.stop-speech').click()`);
+        await poll(win, `!document.querySelector('.voice-speaking')`);
+        const callsBefore=speechCalls;
+        await win.webContents.executeJavaScript(`document.querySelector('.auto-speak input').click()`);
+        await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Сообщение ассистенту"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Повтори ответ');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+        await win.webContents.executeJavaScript(`document.querySelector('.voice-composer').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
+        await poll(win, `!!document.querySelector('.voice-speaking')`);
+        assert.equal(speechCalls,callsBefore+1,'An identical new reply must be spoken once when opt-in is enabled');
+        await win.webContents.executeJavaScript(`document.querySelector('.stop-speech').click()`);
+        await poll(win, `!document.querySelector('.voice-speaking')`);
+      }
+      await win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+      fs.writeFileSync(path.join(testRoot,'voice.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
       await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:first-child').click()`);
       await poll(win, `!!document.querySelector('.mode-chat') && !document.querySelector('.main-panel')`);
       await win.webContents.executeJavaScript(`{ const input=document.querySelector('.composer textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'chat without files'); input.dispatchEvent(new Event('input',{bubbles:true})); }`);
@@ -332,6 +381,7 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript(`document.querySelector('.rename-dialog form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
       await poll(win, `!document.querySelector('.rename-dialog') && document.querySelector('.sidebar').textContent.includes('Переименованный разговор')`);
       assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('[role="dialog"]')`), false);
+      await win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
       fs.writeFileSync(path.join(testRoot, 'chat.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
       modelMode='scroll';
       await win.webContents.executeJavaScript(`{const input=document.querySelector('.composer textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Scroll verification');input.dispatchEvent(new Event('input',{bubbles:true}));}`);

@@ -980,3 +980,43 @@ TEST_PURPOSES.update({
  'rename_rejected_during_active_task':'Переименование запрещено во время реальной задачи, ожидающей approval.',
  'project_memory_and_chat_rename_are_scoped':'Реальный JSON bridge проверяет root памяти, stale revision и scope переименования.',
 })
+
+FILE_NOTES.update({
+ 'core/python/speech_service.py':'Windows System.Speech через фиксированный PowerShell script и stdin JSON: каталог, TTS, Stop и owned job.',
+ 'tests/test_speech_service.py':'TTS без динамиков/микрофона: WAV, JSON data boundary, cancellation и timeout cleanup.',
+ 'apps/desktop/src/VoicePanel.tsx':'Рабочий разговор с Мией без file tools, системная озвучка, голос/темп/громкость/Stop и честный отключённый STT.',
+})
+SYMBOL_NOTES.update({
+ 'core/python/speech_service.py:speech_command':'Выбирает только системный Windows PowerShell и кодирует константный script в UTF-16LE; пользовательский текст не попадает в команду.',
+ 'core/python/speech_service.py:SpeechService':'Владеет одним отменяемым Windows speech worker, cached каталогом и состоянием; микрофон не открывает.',
+ 'core/python/speech_service.py:SpeechService.status':'Возвращает plain JSON состояния/ошибки/голосов/распознавателей без текста синтеза.',
+ 'core/python/speech_service.py:SpeechService.refresh':'Асинхронно перечисляет установленные голоса/распознаватели без звука и записи аудио.',
+ 'core/python/speech_service.py:SpeechService.speak':'Проверяет выбранный installed voice, plain text до 6000 символов, rate/volume и запускает TTS worker.',
+ 'core/python/speech_service.py:SpeechService._start':'Фиксирует operation snapshot, проверяет single-flight, создаёт worker с отдельным timeout и cancel Event.',
+ 'core/python/speech_service.py:SpeechService._start.run':'Создаёт owned PowerShell/job, передаёт JSON через stdin, опрашивает communicate с коротким timeout, закрывает дерево и публикует итог.',
+ 'core/python/speech_service.py:SpeechService.stop':'Только устанавливает cancel Event и stopping; stdin bridge не ждёт синтеза.',
+ 'core/python/speech_service.py:SpeechService.shutdown':'Отменяет речь и ограниченно ждёт owned worker при выходе Core.',
+})
+TS_NOTES.update({
+ 'VoiceSessionState':'Состояния голосовой оболочки: disconnected/idle/listening/thinking/speaking/error; listening зарезервирован до подключения STT.',
+ 'VoicePanel':'Разговор с персонажем и реальный Windows TTS: каталог, voice/rate/volume, manual/opt-in auto speech и отдельный Stop.',
+ 'apps/desktop/src/VoicePanel.tsx:VoicePanel.refresh':'Читает plain status раз в 500 мс; отбрасывает ответы после unmount. Инициализация discovery учитывает StrictMode cleanup.',
+ 'apps/desktop/src/VoicePanel.tsx:VoicePanel.speak':'Отправляет до 6000 символов с выбранным голосом/темпом/громкостью и показывает lifecycle/ошибку.',
+ 'apps/desktop/src/VoicePanel.tsx:VoicePanel.stop':'Останавливает только озвучку; не отменяет модельную генерацию.',
+ 'apps/desktop/src/VoicePanel.tsx:VoicePanel.send':'Передаёт введённую фразу в общий task flow voice без файловых инструментов.',
+ 'voiceStatus':'Читает состояние системной озвучки через фиксированный IPC.',
+ 'refreshVoices':'Перечисляет системные голоса/распознаватели без запроса микрофона.',
+ 'speak':'Передаёт только text/voice/rate/volume для plain TTS; пути/PowerShell code не принимаются.',
+ 'stopVoice':'Запрашивает отмену собственного speech worker.',
+ 'handlerForVoiceStatus':'В Electron fixture хранит реальный status handler для симуляции speaking без воспроизведения.',
+ 'ipcMain.handle':'В Electron fixture перехватывает только speech playback для проверки UI/Stop без звука; остальные IPC проходят в настоящий main.',
+})
+TEST_PURPOSES.update({
+ 'invalid_text_voice_and_numeric_options_never_start_audio':'Невалидные text/voice/rate/volume не создают worker и не открывают аудиоустройство.',
+ 'catalog_runs_outside_bridge_and_returns_installed_choices':'Каталог выполняется в отдельном процессе/потоке, busy защищает второй старт.',
+ 'json_text_is_data_and_stop_cleans_owned_worker':'Unicode/quotes/PowerShell-подобные символы передаются неизменённым JSON; Stop быстро завершает своё дерево.',
+ 'timeout_is_visible_and_worker_can_be_reused':'Deadline завершает worker и делает ошибку видимой вместо вечного busy.',
+ 'real_system_voice_renders_wave_without_speakers_or_microphone':'Установленный Windows голос синтезирует PCM WAV; динамики и микрофон не используются.',
+ 'voice_persona_uses_chat_scope_without_file_tools':'Мия включается только для voice, uses empty Chat scope без tools/auto-memory.',
+ 'voice_catalog_and_cancel_keep_bridge_responsive_without_microphone':'Настоящий bridge разрешает voice без root, каталог/Stop не блокируют health, неизвестный voice отвергается.',
+})

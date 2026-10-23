@@ -107,6 +107,14 @@ class BridgeProcessTests(unittest.TestCase):
         self.assertTrue(result['ok'], result)
         return result
 
+    def test_voice_catalog_and_cancel_keep_bridge_responsive_without_microphone(self):
+        self.assertTrue(self.call('new_chat',mode='voice')['ok'])
+        self.assertTrue(self.call('voice_status')['ok'])
+        self.assertTrue(self.call('voice_refresh')['ok'])
+        self.assertTrue(self.call('health')['ok'])
+        self.assertTrue(self.call('voice_stop')['ok'])
+        self.assertFalse(self.call('voice_speak',text='Test',voice='not-installed')['ok'])
+
     def test_project_memory_and_chat_rename_are_scoped(self):
         self.assertFalse(self.call('get_project_memory')['ok'])
         self.call('set_project',root=str(self.root))

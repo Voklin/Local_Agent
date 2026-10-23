@@ -117,10 +117,25 @@ Checkpoint может содержать tool_activity (последние 100 �
 
 ## Обновление трёх режимов
 
-Chat работает без папки в области `project_root=""` с отключёнными tools и проектной памятью. IDE сохраняет прежнюю работу с выбранным корнем. Для RPC истории и старта добавлен необязательный `mode=chat|ide` (по умолчанию ide). Ассистент пока представляет подготовительный экран без аудио. Подробности архитектуры, IPC, восстановления пустых ответов и границ реализации — в [главе 16](16-workspaces-and-answer-recovery.md).
+Chat работает без папки в области `project_root=""` с отключёнными tools и проектной памятью. IDE сохраняет прежнюю работу с выбранным корнем. Для RPC истории и старта добавлен необязательный `mode=chat|ide|voice` (по умолчанию ide). Voice использует пустой Chat scope с persona Мии и системным TTS; запись/STT не подключены. Подробности архитектуры, IPC, восстановления пустых ответов и границ реализации — в [главе 16](16-workspaces-and-answer-recovery.md).
 
 Расширенные настройки и probe (deadline 30 с, IPC 35 с) подробно описаны в [главе 17](17-model-settings-and-theme.md).
 
 ## Ручной редактор
 
 Фиксированные API editorRead(path), editorPreview(path,content,revision), editorResolve(proposalId,decision) соответствуют IPC editor:read/preview/resolve и RPC editor_read/editor_preview/editor_resolve. setEditorDirty и confirmEditorDiscard обслуживаются main и не являются файловыми RPC. Preview не пишет, Resolve принимает одноразовый token. См. [контракт и границы](18-editor.md).
+
+## Навигация, runtime, память и речь
+
+| Preload / IPC | Core RPC / эффект | Контракт |
+| --- | --- | --- |
+| searchProject / project:search | search_project | Отдельный read-only worker, фиксированный root, bounded text/files results |
+| cancelProjectSearch / project:cancel-search | cancel_project_search | Cooperative cancel только поиска |
+| pickRuntimeFile / runtime:pick | Нативный file picker в main | Возвращает и удерживает выбранный trusted exe/GGUF path |
+| startRuntime/status/stopRuntime / runtime:start/status/stop | runtime_start/status/stop | Start/Stop асинхронны; status содержит owned process и lifecycle |
+| getProjectMemory/saveProjectMemory / memory:get/save | get_project_memory/save_project_memory | Семь полей и raw-byte revision, idle write |
+| renameChat / chat:rename | rename_chat | ID/title/mode, scoped title update без изменения messages |
+| refreshVoices/voiceStatus / voice:refresh/status | voice_refresh/status | Catalog worker и JSON lifecycle без микрофона |
+| speak/stopVoice / voice:speak/stop | voice_speak/stop | Только text/installed voice/rate/volume; отдельный owned Windows speech worker |
+
+Все эти каналы фиксированы в preload/main. Нет generic shell/exec/write IPC. Подробные лимиты/отмена/ошибки и учебные разборы: [19](19-project-search.md), [20](20-local-runtime.md), [21](21-memory-and-chat.md), [22](22-voice-companion.md). Голосовой render-to-WAV — внутренний тест script, не renderer RPC.

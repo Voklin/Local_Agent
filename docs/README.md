@@ -74,3 +74,5 @@ python tools/check_docs.py
 Запуск собственного GGUF, процессы и отмена — [глава 20](20-local-runtime.md).
 
 Память, названия чатов и code blocks — [глава 21](21-memory-and-chat.md).
+
+Мия, системный TTS, Stop и границы STT — [глава 22](22-voice-companion.md).

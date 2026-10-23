@@ -31,7 +31,7 @@ class BridgeTests(unittest.TestCase):
 
     def test_unknown_mode_is_rejected(self):
         with self.assertRaises(ValueError):
-            bridge.handle('new_chat', {'mode': 'voice'})
+            bridge.handle('new_chat', {'mode': 'unsupported-mode'})
 
     def test_editor_preview_blocks_task_and_project_switch_invalidates_approval(self):
         document = bridge.handle('editor_read', {'path':'hello.py'})

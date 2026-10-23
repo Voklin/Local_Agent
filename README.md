@@ -42,3 +42,5 @@ npm run docs:check
 [Краткая памятка v6](README_V6_MIGRATION.md) · [План развития](MIGRATION_PLAN.md) · [Исторические README](docs/history/legacy-readme.md).
 
 Три режима Chat/IDE/Ассистент и восстановление пустых ответов описаны в [главе 16](docs/16-workspaces-and-answer-recovery.md).
+
+Рабочие расширения: [редактор](docs/18-editor.md), [поиск/Ctrl+P](docs/19-project-search.md), [запуск GGUF](docs/20-local-runtime.md), [память и чат](docs/21-memory-and-chat.md), [Мия и системная озвучка](docs/22-voice-companion.md). Для собственного GGUF выберите существующие llama-server и модель в настройках; установка/загрузка моделей не выполняется. Голосовой режим пока использует текстовый ввод и Windows TTS, микрофон/STT отключены.

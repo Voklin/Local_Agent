@@ -38,6 +38,7 @@
 - [core/python/memory_service.py](#module-core-python-memory-service-py)
 - [core/python/project_search.py](#module-core-python-project-search-py)
 - [core/python/runtime_service.py](#module-core-python-runtime-service-py)
+- [core/python/speech_service.py](#module-core-python-speech-service-py)
 - [core/python/task_service.py](#module-core-python-task-service-py)
 - [main.py](#module-main-py)
 - [tools/build_windows_core.py](#module-tools-build-windows-core-py)
@@ -428,14 +429,14 @@ def isInterruptionRequested(self)
 [Исходник](../../agent/engine.py#L62)
 
 ```python
-def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None, allow_tools=True)
+def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None, allow_tools=True, companion=False)
 ```
 
 Инициализирует состояние экземпляра AgentEngine; параметры показаны в сигнатуре, назначение описано у класса.
 
 ### `AgentEngine._checkpoint`
 
-[Исходник](../../agent/engine.py#L93)
+[Исходник](../../agent/engine.py#L94)
 
 ```python
 def _checkpoint(self, stage=None, event='')
@@ -445,7 +446,7 @@ def _checkpoint(self, stage=None, event='')
 
 ### `AgentEngine.task_snapshot`
 
-[Исходник](../../agent/engine.py#L103)
+[Исходник](../../agent/engine.py#L104)
 
 ```python
 def task_snapshot(self)
@@ -455,7 +456,7 @@ def task_snapshot(self)
 
 ### `AgentEngine.resolve_write_approval`
 
-[Исходник](../../agent/engine.py#L106)
+[Исходник](../../agent/engine.py#L107)
 
 ```python
 def resolve_write_approval(self, decision)
@@ -465,7 +466,7 @@ def resolve_write_approval(self, decision)
 
 ### `AgentEngine._ask_write_approval`
 
-[Исходник](../../agent/engine.py#L117)
+[Исходник](../../agent/engine.py#L118)
 
 ```python
 def _ask_write_approval(self, path, diff, exists)
@@ -475,7 +476,7 @@ def _ask_write_approval(self, path, diff, exists)
 
 ### `AgentEngine._emit_change`
 
-[Исходник](../../agent/engine.py#L139)
+[Исходник](../../agent/engine.py#L140)
 
 ```python
 def _emit_change(self, path, diff, exists, status, error='')
@@ -485,7 +486,7 @@ def _emit_change(self, path, diff, exists, status, error='')
 
 ### `AgentEngine._looks_like_action_request`
 
-[Исходник](../../agent/engine.py#L149)
+[Исходник](../../agent/engine.py#L150)
 
 ```python
 @staticmethod
@@ -496,7 +497,7 @@ def _looks_like_action_request(prompt)
 
 ### `AgentEngine._verify_task_completion`
 
-[Исходник](../../agent/engine.py#L159)
+[Исходник](../../agent/engine.py#L160)
 
 ```python
 def _verify_task_completion(self, client, messages, max_tokens)
@@ -506,7 +507,7 @@ def _verify_task_completion(self, client, messages, max_tokens)
 
 ### `AgentEngine.run`
 
-[Исходник](../../agent/engine.py#L195)
+[Исходник](../../agent/engine.py#L196)
 
 ```python
 def run(self)
@@ -2479,7 +2480,7 @@ JSON-lines вход процесса, dispatch команд, UI-файловый
 
 ### `emit`
 
-[Исходник](../../core/python/bridge.py#L23)
+[Исходник](../../core/python/bridge.py#L24)
 
 ```python
 def emit(message)
@@ -2489,7 +2490,7 @@ def emit(message)
 
 ### `resolve_inside`
 
-[Исходник](../../core/python/bridge.py#L37)
+[Исходник](../../core/python/bridge.py#L39)
 
 ```python
 def resolve_inside(relative: str) -> Path
@@ -2499,7 +2500,7 @@ def resolve_inside(relative: str) -> Path
 
 ### `handle`
 
-[Исходник](../../core/python/bridge.py#L47)
+[Исходник](../../core/python/bridge.py#L49)
 
 ```python
 def handle(method: str, params: dict) -> dict
@@ -2509,7 +2510,7 @@ Whitelist диспетчер RPC: состояние, проект, модель
 
 ### `main`
 
-[Исходник](../../core/python/bridge.py#L143)
+[Исходник](../../core/python/bridge.py#L153)
 
 ```python
 def main() -> None
@@ -2790,6 +2791,112 @@ def shutdown(self)
 ```
 
 Отменяет lifecycle, ограниченно ждёт worker и закрывает оставшийся owned runtime.
+
+<a id="module-core-python-speech-service-py"></a>
+
+## `core/python/speech_service.py`
+
+Windows System.Speech через фиксированный PowerShell script и stdin JSON: каталог, TTS, Stop и owned job.
+
+### `speech_command`
+
+[Исходник](../../core/python/speech_service.py#L40)
+
+```python
+def speech_command()
+```
+
+Выбирает только системный Windows PowerShell и кодирует константный script в UTF-16LE; пользовательский текст не попадает в команду.
+
+### `SpeechService`
+
+[Исходник](../../core/python/speech_service.py#L50)
+
+```python
+class SpeechService
+```
+
+Владеет одним отменяемым Windows speech worker, cached каталогом и состоянием; микрофон не открывает.
+
+### `SpeechService.__init__`
+
+[Исходник](../../core/python/speech_service.py#L51)
+
+```python
+def __init__(self)
+```
+
+Инициализирует состояние экземпляра SpeechService; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `SpeechService.status`
+
+[Исходник](../../core/python/speech_service.py#L61)
+
+```python
+def status(self)
+```
+
+Возвращает plain JSON состояния/ошибки/голосов/распознавателей без текста синтеза.
+
+### `SpeechService.refresh`
+
+[Исходник](../../core/python/speech_service.py#L66)
+
+```python
+def refresh(self)
+```
+
+Асинхронно перечисляет установленные голоса/распознаватели без звука и записи аудио.
+
+### `SpeechService.speak`
+
+[Исходник](../../core/python/speech_service.py#L69)
+
+```python
+def speak(self, params)
+```
+
+Проверяет выбранный installed voice, plain text до 6000 символов, rate/volume и запускает TTS worker.
+
+### `SpeechService._start`
+
+[Исходник](../../core/python/speech_service.py#L84)
+
+```python
+def _start(self, payload, state, timeout)
+```
+
+Фиксирует operation snapshot, проверяет single-flight, создаёт worker с отдельным timeout и cancel Event.
+
+### `SpeechService._start.run`
+
+[Исходник](../../core/python/speech_service.py#L93)
+
+```python
+def run()
+```
+
+Создаёт owned PowerShell/job, передаёт JSON через stdin, опрашивает communicate с коротким timeout, закрывает дерево и публикует итог.
+
+### `SpeechService.stop`
+
+[Исходник](../../core/python/speech_service.py#L151)
+
+```python
+def stop(self)
+```
+
+Только устанавливает cancel Event и stopping; stdin bridge не ждёт синтеза.
+
+### `SpeechService.shutdown`
+
+[Исходник](../../core/python/speech_service.py#L158)
+
+```python
+def shutdown(self)
+```
+
+Отменяет речь и ограниченно ждёт owned worker при выходе Core.
 
 <a id="module-core-python-task-service-py"></a>
 

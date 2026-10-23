@@ -59,7 +59,7 @@ class AgentEngine:
     def isInterruptionRequested(self):
         return self._interrupted.is_set()
 
-    def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None, allow_tools=True):
+    def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None, allow_tools=True, companion=False):
         self._interrupted = threading.Event()
         self._client = None
         for name in self.event_names:
@@ -72,6 +72,7 @@ class AgentEngine:
         self.memory = dict(memory or {})
         self.auto_memory = bool(auto_memory)
         self.allow_tools = bool(allow_tools)
+        self.companion = bool(companion)
         self._memory_tool_events = []
         self.settings = {**DEFAULT_SETTINGS, **(settings or {})}
         self._approval_lock = threading.Lock()
@@ -200,6 +201,8 @@ class AgentEngine:
             system_prompt = SYSTEM_PROMPT
             if not self.allow_tools:
                 system_prompt = 'Ты полезный собеседник. Отвечай на языке пользователя. Это режим Chat: доступа к файлам, инструментам и выполнению команд нет. Не утверждай, что изучил или изменил файлы. Для работы с проектом предложи режим IDE.'
+            if self.companion and not self.allow_tools:
+                system_prompt += ' Ты Мия, дружелюбный локальный ассистент с образом аниме-горничной. Это вымышленный персонаж интерфейса. Отвечай тепло и по делу, без навязчивых ролевых вставок. Ответ может быть озвучен, поэтому предпочитай ясные фразы. Не заявляй о доступе к микрофону или управлении компьютером: таких инструментов в этом режиме нет.'
             selected_skills = self.runtime.prepare() if self.runtime and self.allow_tools else []
             if selected_skills:
                 skill_text = "\n".join(f"- {s['title']}: {s['summary']}" for s in selected_skills)

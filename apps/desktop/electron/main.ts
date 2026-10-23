@@ -82,8 +82,8 @@ function createWindow() {
   win.once('ready-to-show', () => win?.show());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (event) => event.preventDefault());
-  win.webContents.on('render-process-gone', () => { void callBackend('cancel_task'); });
-  win.webContents.on('did-start-loading', () => { if (backend) void callBackend('cancel_task'); });
+  win.webContents.on('render-process-gone', () => { void callBackend('cancel_task'); void callBackend('voice_stop'); });
+  win.webContents.on('did-start-loading', () => { if (backend) void callBackend('cancel_task'); void callBackend('voice_stop'); });
   if (app.isPackaged) win.loadFile(path.join(__dirname, '../dist/index.html')); else win.loadURL('http://127.0.0.1:5173');
 }
 app.whenReady().then(() => { diagnostic(`app:start version=${app.getVersion()} packaged=${app.isPackaged} platform=${process.platform} arch=${process.arch}`); createWindow(); app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); }); });
@@ -125,6 +125,10 @@ handle('editor:preview', (path, content, revision) => callBackend('editor_previe
 handle('editor:resolve', (proposalId, decision) => callBackend('editor_resolve', {proposal_id:proposalId, decision}));
 handle('editor:dirty', (dirty) => { editorDirty = dirty === true; return {ok:true}; });
 handle('editor:confirm-discard', () => confirmEditorDiscard());
+handle('voice:status',()=>callBackend('voice_status'));
+handle('voice:refresh',()=>callBackend('voice_refresh'));
+handle('voice:speak',params=>callBackend('voice_speak',{text:params?.text,voice:params?.voice,rate:params?.rate,volume:params?.volume}));
+handle('voice:stop',()=>callBackend('voice_stop'));
 handle('runtime:pick', async (kind) => {
   if(!win || !['model','runtime'].includes(kind)) return {ok:false,error:'Некорректный выбор файла'};
   const result=await dialog.showOpenDialog(win,{properties:['openFile'],title:kind==='model'?'Выберите GGUF':'Выберите установленный llama-server',filters:kind==='model'?[{name:'GGUF',extensions:['gguf']}]:[{name:'llama-server',extensions:process.platform==='win32'?['exe']:['*']}]});
