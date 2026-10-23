@@ -10,7 +10,7 @@ from core.python.memory_service import read_memory, write_memory
 class MemoryServiceTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory()
-        self.root=Path(self.temp.name)/'project';self.root.mkdir()
+        self.root=Path(self.temp.name)/'project';self.root.mkdir();self.root=self.root.resolve()
         self.patch=patch.object(project_memory,'MEMORY_DIR',Path(self.temp.name)/'store');self.patch.start()
 
     def tearDown(self):

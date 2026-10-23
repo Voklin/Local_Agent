@@ -25,3 +25,5 @@ ChatText разбирает отдельные строки с тройными 
 ## Проверки
 
 Unit tests памяти покрывают round trip, stale revision после auto-memory, invalid payload без записи, corrupt store без потери, изоляцию root и максимальный Unicode budget. Service/process тесты проверяют scope и busy rename. Electron smoke редактирует/сохраняет память, переименовывает чат, проверяет React escaping и Copy argument. Clipboard API в smoke подменяется capture-функцией: системный буфер пользователя не меняется. Отдельный длинный SSE ответ проверяет, что после scroll вверх следующий chunk не двигает viewport и кнопка follow возвращает вниз.
+
+CI уточнил контракт fixture: Windows runner может давать TemporaryDirectory через 8.3 alias. Root теста теперь canonical, как set_project и project_root движка; иначе raw helper сохранял заметки в другом историческом path-hash, а manual API правильно читал canonical scope. Проверки stale/corrupt сохранены без ослабления assertions.
