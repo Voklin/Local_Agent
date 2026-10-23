@@ -1,7 +1,10 @@
 """Explicit, nonblocking lifecycle for the application's own llama-server only."""
 import threading
+import os
+import json
 from pathlib import Path
 
+from agent.chat_store import APP_DIR, _atomic_write
 from agent.model_manager import LocalModel, LocalRuntime
 
 
@@ -11,6 +14,15 @@ class RuntimeService:
         self.lock = threading.RLock()
         self.cancelled = threading.Event()
         self.thread = None
+        self.preferences_file=APP_DIR/'runtime-preferences.json'
+        try:data=json.loads(self.preferences_file.read_text('utf-8'))
+        except (OSError,ValueError):data={}
+        if not isinstance(data,dict):data={}
+        self.cache_types={key:data.get(key) if data.get(key) in ('f16','q8_0','q4_0') else 'f16' for key in ('cache_type_k','cache_type_v')}
+        self.options={'threads':max(1,min(4,(os.cpu_count() or 4)//2)),'ctx_size':4096,'gpu_layers':0}
+        for key,minimum,maximum in (('threads',1,128),('ctx_size',512,32768),('gpu_layers',-1,256)):
+            value=data.get(key)
+            if type(value) is int and minimum<=value<=maximum:self.options[key]=value
         self.state = 'stopped'
         self.error = ''
 
@@ -27,11 +39,21 @@ class RuntimeService:
             with model.open('rb') as stream:
                 if stream.read(4) != b'GGUF':
                     raise ValueError('Файл не содержит заголовок GGUF')
-            ctx = params.get('ctx_size', 4096)
-            gpu = params.get('gpu_layers', 0)
+            cache = {key: params.get(key, self.cache_types[key]) for key in ('cache_type_k','cache_type_v')}
+            if any(value not in ('f16','q8_0','q4_0') for value in cache.values()):
+                raise ValueError('Тип KV-кеша: f16, q8_0 или q4_0')
+            threads=params.get('threads',self.options['threads'])
+            if isinstance(threads,bool) or not isinstance(threads,int) or not 1<=threads<=128:
+                raise ValueError('Потоки CPU: от 1 до 128')
+            extra = ['--threads',str(threads),'--parallel','1','--cache-type-k',cache['cache_type_k'],'--cache-type-v',cache['cache_type_v'], '--flash-attn','on' if cache['cache_type_v'] != 'f16' else 'auto']
+            ctx = params.get('ctx_size', self.options['ctx_size'])
+            gpu = params.get('gpu_layers', self.options['gpu_layers'])
             for value, minimum, maximum in ((ctx,512,32768),(gpu,-1,256)):
                 if isinstance(value,bool) or not isinstance(value,int) or not minimum <= value <= maximum:
                     raise ValueError('Контекст: 512–32768; GPU-слои: -1–256 (0 = CPU)')
+            self.cache_types=cache
+            self.options={'threads':threads,'ctx_size':ctx,'gpu_layers':gpu}
+            _atomic_write(self.preferences_file,{**self.cache_types,**self.options})
             self.cancelled = cancelled = threading.Event()
             self.state, self.error = 'starting', ''
             self.runtime.runtime_path = str(executable)
@@ -39,7 +61,7 @@ class RuntimeService:
 
             def launch():
                 try:
-                    self.runtime.start(local_model,ctx_size=ctx,gpu_layers=gpu,cancelled=cancelled)
+                    self.runtime.start(local_model,ctx_size=ctx,gpu_layers=gpu,cancelled=cancelled,extra_args=extra)
                     with self.lock:
                         self.state = 'running' if not cancelled.is_set() else 'stopping'
                     if cancelled.is_set():
@@ -61,7 +83,7 @@ class RuntimeService:
             if self.state == 'running' and not self.runtime.running:
                 self.state, self.error = 'error', 'Локальный сервер завершился'
             return {'ok':True,'state':self.state,'error':self.error,**self.runtime.status(),
-                    'logs':''.join(self.runtime.logs)[-4000:]}
+                    'logs':''.join(self.runtime.logs)[-4000:],**self.cache_types,**self.options}
 
     def stop(self):
         with self.lock:

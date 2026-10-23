@@ -1043,3 +1043,156 @@ TEST_PURPOSES.update({
  "mismatch_preserves_old_file_and_removes_partial": "Не допускает подменённый файл и удаляет частичную загрузку, сохраняя старый кэш.",
  "success_replaces_corrupt_cache": "Заменяет повреждённый кэш только после успешной проверки новой загрузки.",
 })
+
+
+FILE_NOTES.update({
+ 'agent/json_tools.py':'Текстовый JSON tool protocol: преобразование истории, строгий parser envelope и адаптация stream к обычному executor.',
+ 'agent/companion_preferences.py':'Независимый сохраняемый профиль Мии: модель, endpoint, характер, STT и голос; секреты не сохраняются.',
+ 'agent/delegation.py':'Единственное определение delegate_task для передачи сложной задачи от Мии основной модели.',
+ 'core/python/transcription_service.py':'Ограниченная WAV-транскрипция через локальный whisper.cpp или совместимый API с отменой HTTP.',
+ 'core/python/desktop_service.py':'Явно включаемые PC tools: human-prompt folder grants, read-only файлы, bounded web search и host screenshot broker.',
+ 'core/python/telegram_service.py':'Telegram long polling только для owner user ID: команды, состояние, ответы и текущие diff/approval; токен только в памяти Core.',
+ 'apps/desktop/src/CompanionSettings.tsx':'Настройка характера, независимой модели, JSON/native protocol, автоматической передачи и STT Мии.',
+ 'apps/desktop/src/ConnectionsSettings.tsx':'Настройка PC-инструментов и Telegram; явное подключение владельца и защищённое сохранение токена.',
+ 'apps/desktop/src/microphone.ts':'Запись только по действию пользователя: 16 kHz mono PCM16 WAV, максимум 60 секунд, остановка MediaStream tracks.',
+ 'tests/test_expansion.py':'Контракты разделения истории, профиля без секретов, JSON tools, KV whitelist, PC grants, Telegram owner и WAV validation.',
+ 'tests/migration/test_json_protocol.py':'Реальный HTTP-сервер без native tools: JSON read/write через тот же diff и approval executor.',
+})
+register('agent/json_tools.py', """
+prepare_json_request | Убирает native tools/tool_choice, добавляет JSON-схемы в system prompt и переводит tool history в обычные сообщения.
+parse_tool_json | Принимает только целый JSON envelope с 1–8 разрешёнными вызовами и объектами аргументов; не ищет команды в примерах внутри текста.
+JsonToolStream | Ограниченный буфер JSON-ответа поверх отменяемого native stream; возвращает существующему движку знакомую форму delta.tool_calls.
+JsonToolStream.__iter__ | Собирает до 1 МБ текста, проверяет обязательность/запрет вызова и создаёт native-shaped delta с UUID каждого вызова.
+JsonToolStream.close | Закрывает исходный HTTP stream и освобождает отменяемый запрос.
+""")
+register('agent/companion_preferences.py', """
+validate_profile | Проверяет независимый endpoint/model/tool protocol, характер до 6000 символов, STT URL, голос, темп, громкость и флаги.
+load_profile | Загружает companion.json, при отсутствии или повреждении использует независимые defaults с пустым ID модели.
+save_profile | Атомарно сохраняет только разрешённые публичные поля, исключая model/STT API keys.
+""")
+register('core/python/transcription_service.py', """
+TranscriptionService | Отдельный отменяемый STT worker; передаёт WAV на явно настроенный endpoint без хранения аудио на диске.
+TranscriptionService.start | Проверяет base64 и WAV PCM16 mono 16 kHz до 60 секунд; не допускает второй одновременно работающий запрос.
+TranscriptionService.start.transcribe | Отправляет multipart file/model/language/response_format, проверяет текст и отвечает по исходному RPC ID.
+TranscriptionService.stop | Выставляет cancel flag и закрывает HTTP client активного распознавания.
+TranscriptionService.shutdown | Отменяет запрос и ограниченно ждёт завершения worker.
+""")
+register('core/python/desktop_service.py', """
+prompt_folders | Извлекает существующие абсолютные пути только из исходного человеческого запроса и разрешает их до проверки вложенности.
+SearchResults | HTMLParser для ограниченного набора ссылок и заголовков поисковой выдачи; не исполняет HTML/JS.
+SearchResults.handle_starttag | Распознаёт result__a, извлекает обычную HTTP(S) ссылку из DuckDuckGo redirect wrapper.
+SearchResults.handle_data | Собирает текст текущего заголовка не длиннее 300 символов.
+SearchResults.handle_endtag | Завершает ссылку и сохраняет не больше восьми результатов.
+DesktopService | Сервис opt-in PC tools и брокер фиксированных операций Electron без произвольного shell.
+DesktopService.configure | Сохраняет только boolean enabled в desktop-tools.json; каталоговые разрешения не сохраняются.
+DesktopService.request | Создаёт одноразовый UUID host request, ждёт результат до 30 секунд с cooperative cancellation.
+DesktopService.respond | Принимает host-ответ только для существующего pending UUID и пробуждает ожидающий worker.
+DesktopService.execute | Проверяет включение tools, исходный запрос скриншота, prompt-only папки и bounded поисковый запрос; неизвестные имена отклоняет.
+""")
+register('core/python/telegram_service.py', """
+TelegramService | Владелец исходящего Telegram long polling; фильтрует owner ID/private chat и сериализует управление с Core.
+TelegramService.status | Возвращает состояние подключения, имя бота и owner ID без токена и URL с токеном.
+TelegramService.start | Валидирует BotFather token и числовой owner ID, запускает один worker; токен хранит только в памяти.
+TelegramService.api | Выполняет фиксированный запрос Telegram по TLS; необработанные HTTP exceptions не отправляются пользователю.
+TelegramService.send | Отправляет plain text только owner, частями по 3500 символов, с общим лимитом 21000.
+TelegramService.observe | Ставит результаты удалённой задачи и approval уведомления в очередь до 100 записей, не блокируя Core HTTP.
+TelegramService.command | Отбрасывает группы, посторонних и forwarded сообщения; под общим lock передаёт команду dispatcher.
+TelegramService.dispatch | Реализует /status, /stop, /chat, /ide, /miya и точный /approve или /reject по актуальному ID.
+TelegramService.poll | Проверяет getMe, отбрасывает старую очередь, читает getUpdates и отправляет уведомления; повторяет сетевые ошибки без раскрытия токена.
+TelegramService.stop | Запрашивает отключение и закрывает HTTP client; токен не возвращает.
+TelegramService.shutdown | Отключает polling и ограниченно ждёт worker при закрытии Core.
+""")
+register('core/python/task_service.py', """
+TaskService.move_chat | Переносит канонический чат между Chat и voice без удаления сообщений; проверяет исходную область и idle.
+TaskService.request_delegation | Разрешает только delegate_task, валидирует target/prompt, создаёт одну pending передачу с исходным человеческим запросом.
+TaskService.prepare_handoff | После завершения Мии создаёт отдельный чат основной модели; IDE требует выбранного проекта, сохраняет источник результата.
+TaskService.companion_preferences | Возвращает публичные поля отдельного профиля Мии без API keys.
+TaskService.configure_companion | Сохраняет независимый публичный профиль; ключи модели/STT оставляет только в памяти текущего Core.
+TaskService.start.dispatch | Направляет только разрешённые PC tools, delegate_task Мии или обычные инструменты выбранного проекта; grants делегирования берёт из исходного человеческого запроса.
+""")
+register('core/python/bridge.py', """
+_handle | Dispatcher RPC под общим TaskService lock: области чатов, профиль, STT, PC replies и Telegram; file scope по-прежнему ограничен.
+""")
+TEST_PURPOSES.update({
+ 'companion_scope_rejects_cross_loading':'Chat/voice списки раздельны; чужая область отклоняется при load/rename.',
+ 'profile_does_not_persist_keys_or_change_main_model':'Сохраняет собственную модель/характер Мии и не пишет API keys в JSON.',
+ 'json_tools_never_execute_embedded_examples':'Принимает целый envelope и отклоняет unknown tools; пример с окружающим текстом не выполняется.',
+ 'json_request_has_no_native_roles_or_api_fields':'Удаляет native API tool fields и переводит tool roles в текстовые результаты.',
+ 'json_stream_converts_complete_reply_to_tool_delta':'Склеивает разорванный JSON и формирует обычный tool delta без показа служебного JSON как ответа.',
+ 'pc_folders_come_only_from_human_prompt':'Читает только папку из исходного запроса и отказывает сторонней папке и неразрешённому скриншоту.',
+ 'telegram_ignores_other_users_groups_and_forwards':'Посторонние, группы и пересылки не вызывают даже Stop; owner private command работает.',
+ 'telegram_approval_keeps_exact_current_id':'Передаёт точный approval ID и текущий run ID обычному механизму подтверждения.',
+ 'kv_cache_validates_before_launch':'Отклоняет произвольный cache type и передаёт только whitelisted K/V/Flash Attention flags.',
+ 'transcription_rejects_invalid_audio_without_network':'Некорректный WAV отклоняется до запуска сетевого worker.',
+ 'json_only_model_uses_same_write_approval':'Сервер отвергает native tools API, но JSON read/write проходят через реальный HTTP и обязательный diff approval.',
+})
+TS_NOTES.update({
+ 'desktopRequest':'Исполняет только screenshot или фиксированный DuckDuckGo search URL, публикует локальный preview и отвечает Core по одноразовому UUID.',
+ 'getCompanionSettings':'Читает независимый публичный профиль Мии через allowlisted IPC.',
+ 'configureCompanion':'Сохраняет настройки Мии отдельно от основной модели и оставляет секреты только в памяти Core.',
+ 'transcribe':'Передаёт ограниченную base64 WAV-запись в отменяемый STT RPC.',
+ 'cancelTranscription':'Отменяет текущую транскрипцию и закрывает её сокет.',
+ 'prepareHandoff':'Переносит pending задание Мии в новый чат основной модели по точному ID.',
+ 'moveChat':'Переносит только Chat/voice историю в другую область по явному действию пользователя.',
+ 'desktopSettings':'Читает opt-in состояние PC tools без доступа к файлам.',
+ 'configureDesktop':'Включает/выключает PC tools; аргументы модели не могут изменить это разрешение.',
+ 'telegramStatus':'Читает безопасный статус бота без token и HTTP URL.',
+ 'connectTelegram':'Подключает token/owner либо явно выбранную защищённую локальную запись; секрет не возвращается renderer.',
+ 'disconnectTelegram':'Отключает polling бота через Core.',
+ 'forgetTelegram':'Удаляет только сохранённую encrypted запись токена по явной кнопке пользователя.',
+ 'apps/desktop/src/App.tsx:App.moveChat':'Переносит выбранный личный чат в область Мии или обратно и обновляет текущий список.',
+ 'apps/desktop/src/App.tsx:App.returnToMiya':'Загружает исходный voice чат с добавленным результатом основной модели.',
+ 'apps/desktop/src/App.tsx:App.acceptHandoff':'Создаёт основную задачу из pending передачи, синхронизирует mode/chat/run refs и запускает модель.',
+ 'CompanionSettings':'Форма собственного характера, модели, tool protocol, автоматической передачи и STT профиля Мии.',
+ 'apps/desktop/src/CompanionSettings.tsx:CompanionSettings.save':'Валидирует профиль в Core, сохраняет публичные настройки, не сохраняет API keys.',
+ 'apps/desktop/src/CompanionSettings.tsx:CompanionSettings.discover':'Загружает модели именно с чернового endpoint Мии без изменения основной конфигурации.',
+ 'ConnectionsSettings':'Настройка opt-in инструментов ПК и owner-only Telegram подключения с защищённым сохранением токена.',
+ 'apps/desktop/src/ConnectionsSettings.tsx:ConnectionsSettings.refresh':'Обновляет безопасный статус Telegram с cleanup при закрытии настроек.',
+ 'apps/desktop/src/ConnectionsSettings.tsx:ConnectionsSettings.toggle':'Применяет переключатель PC tools через Core только вне задачи.',
+ 'apps/desktop/src/ConnectionsSettings.tsx:ConnectionsSettings.connect':'Передаёт token/owner и флаг remember/use_saved; очищает поле token после подключения.',
+ 'apps/desktop/src/VoicePanel.tsx:VoicePanel.record':'Запускает явную запись микрофона или завершает текущую; ошибки и unmount освобождают tracks.',
+ 'apps/desktop/src/VoicePanel.tsx:VoicePanel.finishRecording':'Формирует PCM16 WAV, отправляет STT и помещает распознанный текст в редактируемое поле без автоматической отправки.',
+ 'apps/desktop/src/VoicePanel.tsx:VoicePanel.saveVoice':'Сохраняет выбранный голос, темп, громкость и auto-speak в отдельном профиле.',
+ 'this.processor.onaudioprocess':'Копирует mono float samples до 960000 frames, затем автоматически завершает запись по лимиту 60 секунд.',
+ 'ascii':'Записывает фиксированные RIFF/WAVE/fmt/data метки в WAV DataView.',
+})
+
+FILE_NOTES['tests/migration/test_transcription.py']='Реальный multipart WAV запрос к HTTP STT fixture и отмена зависшего сервера без доступа к микрофону.'
+register('core/python/transcription_service.py', """
+TranscriptionService.request_audio | Запускает async HTTP и наблюдатель отмены с общим deadline 90 секунд; закрывает socket при cancel.
+TranscriptionService.request_audio.request | Передаёт multipart WAV и читает до 1 МБ ответа, проверяя строку text до 50000 символов.
+TranscriptionService.request_audio.cancellation | Проверяет межпоточный Event каждые 50 мс без блокировки asyncio loop.
+""")
+TEST_PURPOSES.update({
+ 'real_multipart_returns_editable_text':'Отправляет WAV по настоящему HTTP, проверяет multipart file/language и возврат распознанного текста.',
+ 'cancel_closes_stalled_request_promptly':'Отменяет STT до HTTP headers и завершает worker менее чем за две секунды.',
+})
+
+FILE_NOTES['tests/migration/test_delegation.py']='Реальные HTTP-запросы к двум разным ID моделей: Мия ставит передачу, основная модель отвечает, итог сохраняется в voice истории.'
+TEST_PURPOSES['independent_model_delegates_and_returns_result']='Изолирует ID моделей и чаты, выполняет delegate_task и возвращает MAIN_MODEL_RESULT в исходную историю Мии.'
+
+TEST_PURPOSES.update({
+ 'telegram_poll_drops_backlog_and_never_sends_to_stranger':'Проверяет настоящий dispatcher с HTTPX MockTransport: старый /stop и чужой user игнорируются; status отправляется только owner; токен очищается.',
+ 'cache_preferences_survive_new_service':'Параметры K/V/threads сохраняются и восстанавливаются новым RuntimeService без сохранения пути модели.',
+})
+TEST_HELPERS['transport']='HTTPX MockTransport Telegram: getMe/getUpdates/sendMessage без настоящего токена или внешнего сетевого запроса.'
+
+register('core/python/task_service.py', """
+TaskService.discard_handoff | Удаляет pending передачу только по точному ID вне активной задачи, чтобы её можно было явно отклонить.
+""")
+TS_NOTES.update({
+ 'cancelHandoff':'Отклоняет pending передачу Мии по точному ID без запуска основной модели.',
+ 'apps/desktop/src/App.tsx:App.declineHandoff':'Очищает pending передачу и в Core, и в интерфейсе; старое задание больше не блокирует следующее.',
+})
+TEST_PURPOSES.update({
+ 'companion_profile_and_history_are_independent_in_real_process':'Через настоящий stdio/Core проверяет отдельную модель, отсутствие ключей в ответах, разделение истории, cross-scope отказ и перенос старого чата.',
+ 'desktop_telegram_and_invalid_stt_keep_real_bridge_responsive':'Через настоящий процесс проверяет PC opt-in, безопасный Telegram status, отказ невалидному аудио и отзывчивость health.',
+})
+
+TS_NOTES['desktopCapturer.getSources']='GUI fixture возвращает синтетический 1×1 NativeImage вместо захвата настоящего экрана; проверяет host broker и preview без чтения рабочего стола пользователя.'
+register('core/python/desktop_service.py', """
+SearchResults.handle_data | Собирает до 600 символов заголовка или snippet поискового результата без интерпретации разметки.
+""")
+register('agent/json_tools.py', """
+parse_tool_json | Принимает JSON только в начале ответа, целый fenced JSON или Qwen tool_call wrapper; хвост комментария игнорируется, поиск команд внутри произвольного текста запрещён; имена и arguments строго проверяются.
+""")

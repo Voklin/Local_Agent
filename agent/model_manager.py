@@ -185,7 +185,7 @@ class LocalRuntime:
         if not self.base_url:
             return False
         try:
-            with urllib.request.urlopen(self.base_url + "/models", timeout=0.5) as response:
+            with urllib.request.urlopen(self.base_url.removesuffix("/v1") + "/health", timeout=0.5) as response:
                 return 200 <= response.status < 300
         except (OSError, urllib.error.URLError):
             return False

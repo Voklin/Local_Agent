@@ -103,10 +103,12 @@ class TaskServiceTests(unittest.TestCase):
                 return event
 
     def test_voice_persona_uses_chat_scope_without_file_tools(self):
+        self.service.companion_config={**self.service.companion_config,**self.service.config}
         self.service.start('',{'prompt':'Привет','mode':'voice'})
         self.event('task_end')
         request=self.server.requests[-1]
-        self.assertNotIn('tools',request)
+        self.assertEqual([tool['function']['name'] for tool in request['tools']],['delegate_task'])
+        self.assertEqual(self.service.chat['mode'],'voice')
         self.assertIn('Мия',request['messages'][0]['content'])
         self.assertEqual(self.service.chat['project_root'],'')
         self.assertFalse(self.service.engine.auto_memory)

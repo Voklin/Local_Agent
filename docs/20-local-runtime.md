@@ -1,5 +1,6 @@
 # 20. Локальная GGUF-модель внутри приложения
 
+> Эта глава описывает исходный этап 6.0–6.0.1. Изменения 6.1: [JSON/KV и области чатов](25-json-tools-and-cache.md), [Мия/STT](26-miya-model-and-stt.md), [PC/Telegram](27-desktop-and-telegram.md).
 В настройках модели появился отдельный раздел «GGUF внутри LocalAgent». Он запускает собственный установленный llama-server и связывает его с уже скачанным GGUF. Копирования моделей и автоматической установки runtime нет. Для внешнего LM Studio/Ollama остаётся обычный URL; кнопка остановки собственного сервера не управляет внешним приложением.
 
 ## Порядок работы
@@ -26,7 +27,7 @@ stdout/stderr объединены и постоянно читаются отд
 
 На Windows `ProcessJob` создаёт ненаследуемый Job Object, задаёт JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE и присоединяет только собственный process handle. При гибели Core его job handle закрывается ОС и дочернее дерево завершается. Ошибка назначения job не игнорируется: запуск прекращается. На других ОС helper сейчас no-op; там гарантируется обычный Stop/graceful shutdown, но такой же crash-tree guarantee не заявляется.
 
-Electron will-quit сначала закрывает stdin Core и даёт до 15 секунд на cleanup; только после этого применяет fallback kill. Отмена закрытия dirty editor происходит раньше и не завершает Core. Shutdown Core отменяет поиск, локальный runtime и задачу агента. Это управление жизненным циклом, а не разрешение на запуск shell из модели.
+Electron before-quit сначала проверяет dirty editor и Cancel. После разрешённого закрытия закрывает stdin Core и даёт до 15 секунд на cleanup; только после этого применяет fallback kill. Shutdown Core отменяет поиск, локальный runtime и задачу агента. После выхода Core повторный app.quit пропускается guard-флагом и завершает Electron. Это управление жизненным циклом, а не разрешение на запуск shell из модели.
 
 Windows API: [Microsoft Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects). Аргументы сервера: [официальный llama.cpp server](https://github.com/ggml-org/llama.cpp/tree/master/tools/server).
 

@@ -20,10 +20,13 @@
 | [VERSION](../../VERSION) | Исторический маркер 5.8.0; не является единственным источником версии нового Electron-приложения. |
 | [agent/__init__.py](../../agent/__init__.py) | Маркер Python-пакета agent; не запускает UI или модель. |
 | [agent/chat_store.py](../../agent/chat_store.py) | JSON-чаты и индекс истории вне папки проекта. |
+| [agent/companion_preferences.py](../../agent/companion_preferences.py) | Независимый сохраняемый профиль Мии: модель, endpoint, характер, STT и голос; секреты не сохраняются. |
 | [agent/context_manager.py](../../agent/context_manager.py) | Простой ограничитель рабочего контекста активного AgentRuntime. |
 | [agent/conversation.py](../../agent/conversation.py) | Выбор недавних ходов и сокращение модельных сообщений с учётом tool-call групп. |
+| [agent/delegation.py](../../agent/delegation.py) | Единственное определение delegate_task для передачи сложной задачи от Мии основной модели. |
 | [agent/editor_io.py](../../agent/editor_io.py) | Самостоятельные sandbox-функции текстового редактора; React preview их не использует для записи. |
 | [agent/engine.py](../../agent/engine.py) | Независимый от UI цикл модели, инструментов, подтверждений, памяти и checkpoint. |
+| [agent/json_tools.py](../../agent/json_tools.py) | Текстовый JSON tool protocol: преобразование истории, строгий parser envelope и адаптация stream к обычному executor. |
 | [agent/mcp.py](../../agent/mcp.py) | Реестр MCP-конфигураций без транспорта и исполнения внешних tools. |
 | [agent/model_client.py](../../agent/model_client.py) | Отменяемый async HTTP-клиент с синхронной поверхностью для движка. |
 | [agent/model_discovery.py](../../agent/model_discovery.py) | HTTPX-получение списка моделей с общим deadline, ограничением ответа и отменой сокета. |
@@ -51,6 +54,8 @@
 | [apps/desktop/package.json](../../apps/desktop/package.json) | Зависимости Electron/React и dev/build/typecheck-скрипты workspace. |
 | [apps/desktop/src/App.tsx](../../apps/desktop/src/App.tsx) | React-состояние и представление проекта, настроек, чата, потока, checkpoint и diff. |
 | [apps/desktop/src/ChatText.tsx](../../apps/desktop/src/ChatText.tsx) | Безопасные текстовые/code блоки без HTML, memoized parser и явное копирование. |
+| [apps/desktop/src/CompanionSettings.tsx](../../apps/desktop/src/CompanionSettings.tsx) | Настройка характера, независимой модели, JSON/native protocol, автоматической передачи и STT Мии. |
+| [apps/desktop/src/ConnectionsSettings.tsx](../../apps/desktop/src/ConnectionsSettings.tsx) | Настройка PC-инструментов и Telegram; явное подключение владельца и защищённое сохранение токена. |
 | [apps/desktop/src/EditorPanel.tsx](../../apps/desktop/src/EditorPanel.tsx) | Рабочие вкладки/черновики редактора, виртуальный gutter, поиск/строка, hotkeys, reload и подтверждённое сохранение. |
 | [apps/desktop/src/LocalRuntimePanel.tsx](../../apps/desktop/src/LocalRuntimePanel.tsx) | Реальный GGUF picker, context/GPU, lifecycle status и явный перенос endpoint в настройки. |
 | [apps/desktop/src/MemoryPanel.tsx](../../apps/desktop/src/MemoryPanel.tsx) | Редактор семи полей памяти выбранного проекта с сохранением draft при конфликте. |
@@ -59,18 +64,22 @@
 | [apps/desktop/src/TaskProgress.tsx](../../apps/desktop/src/TaskProgress.tsx) | Типизированная панель этапов, инструментов, результатов и продолжения задачи. |
 | [apps/desktop/src/VoicePanel.tsx](../../apps/desktop/src/VoicePanel.tsx) | Рабочий разговор с Мией без file tools, системная озвучка, голос/темп/громкость/Stop и честный отключённый STT. |
 | [apps/desktop/src/main.tsx](../../apps/desktop/src/main.tsx) | Подключает CSS, создаёт React root и отображает App в StrictMode. |
+| [apps/desktop/src/microphone.ts](../../apps/desktop/src/microphone.ts) | Запись только по действию пользователя: 16 kHz mono PCM16 WAV, максимум 60 секунд, остановка MediaStream tracks. |
 | [apps/desktop/src/style.css](../../apps/desktop/src/style.css) | Стили IDE-панелей, сообщений, формы, modal и индикатора streaming. |
 | [apps/desktop/src/vite-env.d.ts](../../apps/desktop/src/vite-env.d.ts) | Vite reference, CoreEvent и TypeScript-контракт Window.lca. |
 | [apps/desktop/tsconfig.electron.json](../../apps/desktop/tsconfig.electron.json) | Статическая проверка Node/Electron main и preload без emit. |
 | [apps/desktop/tsconfig.json](../../apps/desktop/tsconfig.json) | Статическая проверка React/DOM/JSX-кода renderer. |
 | [apps/desktop/vite.config.ts](../../apps/desktop/vite.config.ts) | React-плагин, относительные assets, фиксированный локальный dev-порт и outDir. |
 | [core/python/bridge.py](../../core/python/bridge.py) | JSON-lines вход процесса, dispatch команд, UI-файловый API и синхронизированный stdout. |
+| [core/python/desktop_service.py](../../core/python/desktop_service.py) | Явно включаемые PC tools: human-prompt folder grants, read-only файлы, bounded web search и host screenshot broker. |
 | [core/python/editor_service.py](../../core/python/editor_service.py) | Ручной editor-протокол: strict UTF-8 чтение с revision, preview, одноразовый Apply через существующую атомарную snapshot-запись. |
 | [core/python/memory_service.py](../../core/python/memory_service.py) | Строгий read/edit API памяти проекта с byte revision и защитой повреждённых файлов. |
 | [core/python/project_search.py](../../core/python/project_search.py) | Ограниченный read-only поиск текста и путей с отменяемым отдельным worker. |
 | [core/python/runtime_service.py](../../core/python/runtime_service.py) | Неблокирующий сервис запуска/остановки GGUF и состояний собственного llama-server. |
 | [core/python/speech_service.py](../../core/python/speech_service.py) | Windows System.Speech через фиксированный PowerShell script и stdin JSON: каталог, TTS, Stop и owned job. |
 | [core/python/task_service.py](../../core/python/task_service.py) | Состояние выбранного чата/модели, запуск потока задачи, events и корреляция approval. |
+| [core/python/telegram_service.py](../../core/python/telegram_service.py) | Telegram long polling только для owner user ID: команды, состояние, ответы и текущие diff/approval; токен только в памяти Core. |
+| [core/python/transcription_service.py](../../core/python/transcription_service.py) | Ограниченная WAV-транскрипция через локальный whisper.cpp или совместимый API с отменой HTTP. |
 | [design_reference/DESIGN_REFERENCE.md](../../design_reference/DESIGN_REFERENCE.md) | Пояснение сохранённого визуального эталона и границ его переноса. |
 | [design_reference/agent_studio_reference.py](../../design_reference/agent_studio_reference.py) | Архивный визуальный прототип с собственными механизмами; не импортируется рабочим main.py. |
 | [docs/01-project-and-setup.md](../../docs/01-project-and-setup.md) | Ручная учебная глава или исторический материал: 1. Назначение проекта и запуск. |
@@ -97,7 +106,12 @@
 | [docs/22-voice-companion.md](../../docs/22-voice-companion.md) | Ручная учебная глава или исторический материал: 22. Мия: разговор и системная озвучка. |
 | [docs/23-autonomous-verification.md](../../docs/23-autonomous-verification.md) | Ручная учебная глава или исторический материал: 23. Результаты автономного сеанса 23 октября. |
 | [docs/24-full-windows-installer.md](../../docs/24-full-windows-installer.md) | Ручная учебная глава или исторический материал: 24. Полный установщик Windows 6.0.1. |
+| [docs/25-json-tools-and-cache.md](../../docs/25-json-tools-and-cache.md) | Ручная учебная глава или исторический материал: 25. Области чатов, JSON tool calling и квантование KV-кеша. |
+| [docs/26-miya-model-and-stt.md](../../docs/26-miya-model-and-stt.md) | Ручная учебная глава или исторический материал: 26. Мия: характер, своя модель, голос и распознавание. |
+| [docs/27-desktop-and-telegram.md](../../docs/27-desktop-and-telegram.md) | Ручная учебная глава или исторический материал: 27. Инструменты ПК и Telegram. |
+| [docs/28-expansion-validation.md](../../docs/28-expansion-validation.md) | Ручная учебная глава или исторический материал: Проверка расширения 6.1. |
 | [docs/AUTONOMOUS_PLAN_2026-10-23.md](../../docs/AUTONOMOUS_PLAN_2026-10-23.md) | Ручная учебная глава или исторический материал: Автономный план LocalAgent — 23 октября 2026. |
+| [docs/EXPANSION_PLAN.md](../../docs/EXPANSION_PLAN.md) | Ручная учебная глава или исторический материал: План расширения LocalAgent. |
 | [docs/README.md](../../docs/README.md) | Ручная учебная глава или исторический материал: LocalAgent: подробное руководство по проекту. |
 | [docs/WORK_PLAN.md](../../docs/WORK_PLAN.md) | Ручная учебная глава или исторический материал: План дальнейшей разработки LocalAgent. |
 | [docs/history/legacy-readme.md](../../docs/history/legacy-readme.md) | Ручная учебная глава или исторический материал: Исторические README до учебной документации. |
@@ -130,15 +144,19 @@
 | [tests/electron/smoke.cjs](../../tests/electron/smoke.cjs) | Скрытое настоящее Electron-окно: все слои, запись, поток, reload и Stop. |
 | [tests/migration/test_bridge.py](../../tests/migration/test_bridge.py) | Вызовы bridge.handle: health, файлы, traversal и запрет прямой записи. |
 | [tests/migration/test_bridge_process.py](../../tests/migration/test_bridge_process.py) | Реальный Python subprocess, malformed JSON, responsiveness и cancel при approval. |
+| [tests/migration/test_delegation.py](../../tests/migration/test_delegation.py) | Реальные HTTP-запросы к двум разным ID моделей: Мия ставит передачу, основная модель отвечает, итог сохраняется в voice истории. |
+| [tests/migration/test_json_protocol.py](../../tests/migration/test_json_protocol.py) | Реальный HTTP-сервер без native tools: JSON read/write через тот же diff и approval executor. |
 | [tests/migration/test_model_discovery.py](../../tests/migration/test_model_discovery.py) | HTTP-фикстура discovery: валидация ответа, медленный поток, общий deadline и отмена сокета. |
 | [tests/migration/test_model_probe.py](../../tests/migration/test_model_probe.py) | Реальный HTTP-стенд проверки ответа, пустого/некорректного/слишком большого результата, deadline и отмены. |
 | [tests/migration/test_streaming.py](../../tests/migration/test_streaming.py) | Задержанный HTTP/SSE: отмена сокета, частичный текст, пакетирование и настройки. |
 | [tests/migration/test_task_service.py](../../tests/migration/test_task_service.py) | HTTP-фикстура и реальный engine: apply/reject/cancel, чаты, recovery и конфигурация. |
+| [tests/migration/test_transcription.py](../../tests/migration/test_transcription.py) | Реальный multipart WAV запрос к HTTP STT fixture и отмена зависшего сервера без доступа к микрофону. |
 | [tests/test_approval_flow.py](../../tests/test_approval_flow.py) | Проверяет явные решения Qt-адаптера; пропускается при отсутствии PySide6. |
 | [tests/test_chat_store.py](../../tests/test_chat_store.py) | Создание, изменение, переименование и удаление чата в изолированном store. |
 | [tests/test_conversation_history.py](../../tests/test_conversation_history.py) | Выбор истории и сокращение tool outputs/пар в conversation.py. |
 | [tests/test_editor_io.py](../../tests/test_editor_io.py) | Чтение/сохранение существующих файлов, размер и отказ вне корня. |
 | [tests/test_editor_service.py](../../tests/test_editor_service.py) | Контракты editor revisions, CRLF, отсутствия записи до Apply, stale/replay, бинарных/больших/внешних файлов и project scope. |
+| [tests/test_expansion.py](../../tests/test_expansion.py) | Контракты разделения истории, профиля без секретов, JSON tools, KV whitelist, PC grants, Telegram owner и WAV validation. |
 | [tests/test_file_editing.py](../../tests/test_file_editing.py) | Preview без записи, explicit approval, overwrite и путь файла. |
 | [tests/test_limits.py](../../tests/test_limits.py) | Настраиваемое число entries и глубина обхода. |
 | [tests/test_memory_service.py](../../tests/test_memory_service.py) | Память UI: CAS, invalid payload, corrupt file, scope и полный Unicode budget. |

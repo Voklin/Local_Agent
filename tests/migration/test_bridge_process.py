@@ -115,6 +115,30 @@ class BridgeProcessTests(unittest.TestCase):
         self.assertTrue(self.call('voice_stop')['ok'])
         self.assertFalse(self.call('voice_speak',text='Test',voice='not-installed')['ok'])
 
+    def test_companion_profile_and_history_are_independent_in_real_process(self):
+        self.assertTrue(self.call('configure_model',base_url='http://127.0.0.1:9/v1',model='main')['ok'])
+        profile=self.call('configure_companion',base_url='http://127.0.0.1:9/v1',model='small',persona='Спокойная Мия',api_key='fixture-secret',stt_api_key='fixture-stt-secret')
+        self.assertTrue(profile['ok']);self.assertEqual(profile['model'],'small')
+        self.assertNotIn('fixture-secret',json.dumps(profile));self.assertNotIn('api_key',profile)
+        self.assertEqual(self.call('get_model_settings')['model'],'main')
+        chat=self.call('new_chat',mode='chat')['chat']
+        miya=self.call('new_chat',mode='voice')['chat']
+        self.assertEqual(miya['model'],'small')
+        self.assertEqual([c['id'] for c in self.call('list_chats',mode='chat')['chats']],[chat['id']])
+        self.assertEqual([c['id'] for c in self.call('list_chats',mode='voice')['chats']],[miya['id']])
+        self.assertFalse(self.call('load_chat',chat_id=miya['id'],mode='chat')['ok'])
+        self.assertTrue(self.call('move_chat_mode',chat_id=miya['id'],mode='voice',target='chat')['ok'])
+        self.assertEqual(self.call('list_chats',mode='voice')['chats'],[])
+
+    def test_desktop_telegram_and_invalid_stt_keep_real_bridge_responsive(self):
+        self.assertFalse(self.call('desktop_settings')['enabled'])
+        self.assertTrue(self.call('configure_desktop',enabled=True)['enabled'])
+        self.assertEqual(self.call('telegram_status')['state'],'disconnected')
+        self.assertNotIn('token',self.call('telegram_status'))
+        self.assertFalse(self.call('transcribe',audio='not-base64')['ok'])
+        self.assertTrue(self.call('cancel_transcription')['ok'])
+        self.assertTrue(self.call('health')['ok'])
+
     def test_project_memory_and_chat_rename_are_scoped(self):
         self.assertFalse(self.call('get_project_memory')['ok'])
         self.call('set_project',root=str(self.root))

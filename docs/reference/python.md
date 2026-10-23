@@ -10,10 +10,13 @@
 
 - [agent/__init__.py](#module-agent-init-py)
 - [agent/chat_store.py](#module-agent-chat-store-py)
+- [agent/companion_preferences.py](#module-agent-companion-preferences-py)
 - [agent/context_manager.py](#module-agent-context-manager-py)
 - [agent/conversation.py](#module-agent-conversation-py)
+- [agent/delegation.py](#module-agent-delegation-py)
 - [agent/editor_io.py](#module-agent-editor-io-py)
 - [agent/engine.py](#module-agent-engine-py)
+- [agent/json_tools.py](#module-agent-json-tools-py)
 - [agent/mcp.py](#module-agent-mcp-py)
 - [agent/model_client.py](#module-agent-model-client-py)
 - [agent/model_discovery.py](#module-agent-model-discovery-py)
@@ -34,12 +37,15 @@
 - [agent/verifier.py](#module-agent-verifier-py)
 - [agent/worker.py](#module-agent-worker-py)
 - [core/python/bridge.py](#module-core-python-bridge-py)
+- [core/python/desktop_service.py](#module-core-python-desktop-service-py)
 - [core/python/editor_service.py](#module-core-python-editor-service-py)
 - [core/python/memory_service.py](#module-core-python-memory-service-py)
 - [core/python/project_search.py](#module-core-python-project-search-py)
 - [core/python/runtime_service.py](#module-core-python-runtime-service-py)
 - [core/python/speech_service.py](#module-core-python-speech-service-py)
 - [core/python/task_service.py](#module-core-python-task-service-py)
+- [core/python/telegram_service.py](#module-core-python-telegram-service-py)
+- [core/python/transcription_service.py](#module-core-python-transcription-service-py)
 - [main.py](#module-main-py)
 - [tools/build_windows_core.py](#module-tools-build-windows-core-py)
 - [tools/check_docs.py](#module-tools-check-docs-py)
@@ -147,14 +153,14 @@ def read_chat_catalog()
 [Исходник](../../agent/chat_store.py#L97)
 
 ```python
-def create_chat(project_root: str='', model: str='', title: str='Новый чат') -> dict[str, Any]
+def create_chat(project_root: str='', model: str='', title: str='Новый чат', mode=None) -> dict[str, Any]
 ```
 
 Генерирует UUID, создаёт запись и добавляет её метаданные в индекс.
 
 ### `load_chat`
 
-[Исходник](../../agent/chat_store.py#L118)
+[Исходник](../../agent/chat_store.py#L119)
 
 ```python
 def load_chat(chat_id: str) -> dict[str, Any] | None
@@ -164,7 +170,7 @@ def load_chat(chat_id: str) -> dict[str, Any] | None
 
 ### `save_chat`
 
-[Исходник](../../agent/chat_store.py#L133)
+[Исходник](../../agent/chat_store.py#L134)
 
 ```python
 def save_chat(chat: dict[str, Any]) -> str | None
@@ -174,7 +180,7 @@ def save_chat(chat: dict[str, Any]) -> str | None
 
 ### `delete_chat`
 
-[Исходник](../../agent/chat_store.py#L144)
+[Исходник](../../agent/chat_store.py#L145)
 
 ```python
 def delete_chat(chat_id: str) -> bool
@@ -184,7 +190,7 @@ def delete_chat(chat_id: str) -> bool
 
 ### `rename_chat`
 
-[Исходник](../../agent/chat_store.py#L157)
+[Исходник](../../agent/chat_store.py#L158)
 
 ```python
 def rename_chat(chat_id: str, title: str) -> dict[str, Any] | None
@@ -194,13 +200,49 @@ def rename_chat(chat_id: str, title: str) -> dict[str, Any] | None
 
 ### `title_from_messages`
 
-[Исходник](../../agent/chat_store.py#L165)
+[Исходник](../../agent/chat_store.py#L166)
 
 ```python
 def title_from_messages(messages: list[dict[str, Any]]) -> str
 ```
 
 Выбирает первое непустое user-сообщение и делает короткий заголовок.
+
+<a id="module-agent-companion-preferences-py"></a>
+
+## `agent/companion_preferences.py`
+
+Независимый сохраняемый профиль Мии: модель, endpoint, характер, STT и голос; секреты не сохраняются.
+
+### `validate_profile`
+
+[Исходник](../../agent/companion_preferences.py#L15)
+
+```python
+def validate_profile(params)
+```
+
+Проверяет независимый endpoint/model/tool protocol, характер до 6000 символов, STT URL, голос, темп, громкость и флаги.
+
+### `load_profile`
+
+[Исходник](../../agent/companion_preferences.py#L35)
+
+```python
+def load_profile()
+```
+
+Загружает companion.json, при отсутствии или повреждении использует независимые defaults с пустым ID модели.
+
+### `save_profile`
+
+[Исходник](../../agent/companion_preferences.py#L43)
+
+```python
+def save_profile(params)
+```
+
+Атомарно сохраняет только разрешённые публичные поля, исключая model/STT API keys.
 
 <a id="module-agent-context-manager-py"></a>
 
@@ -324,6 +366,14 @@ def size()
 
 Измеряет точную длину сериализованного JSON текущего модельного контекста.
 
+<a id="module-agent-delegation-py"></a>
+
+## `agent/delegation.py`
+
+Единственное определение delegate_task для передачи сложной задачи от Мии основной модели.
+
+Именованных классов/функций нет. Исполняемый entry point и константы описаны в главе о соответствующем слое.
+
 <a id="module-agent-editor-io-py"></a>
 
 ## `agent/editor_io.py`
@@ -431,14 +481,14 @@ def isInterruptionRequested(self)
 [Исходник](../../agent/engine.py#L62)
 
 ```python
-def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None, allow_tools=True, companion=False)
+def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None, allow_tools=True, companion=False, tool_protocol='native', persona='', tool_definitions=None, tool_handler=None)
 ```
 
 Инициализирует состояние экземпляра AgentEngine; параметры показаны в сигнатуре, назначение описано у класса.
 
 ### `AgentEngine._checkpoint`
 
-[Исходник](../../agent/engine.py#L94)
+[Исходник](../../agent/engine.py#L98)
 
 ```python
 def _checkpoint(self, stage=None, event='')
@@ -448,7 +498,7 @@ def _checkpoint(self, stage=None, event='')
 
 ### `AgentEngine.task_snapshot`
 
-[Исходник](../../agent/engine.py#L104)
+[Исходник](../../agent/engine.py#L108)
 
 ```python
 def task_snapshot(self)
@@ -458,7 +508,7 @@ def task_snapshot(self)
 
 ### `AgentEngine.resolve_write_approval`
 
-[Исходник](../../agent/engine.py#L107)
+[Исходник](../../agent/engine.py#L111)
 
 ```python
 def resolve_write_approval(self, decision)
@@ -468,7 +518,7 @@ def resolve_write_approval(self, decision)
 
 ### `AgentEngine._ask_write_approval`
 
-[Исходник](../../agent/engine.py#L118)
+[Исходник](../../agent/engine.py#L122)
 
 ```python
 def _ask_write_approval(self, path, diff, exists)
@@ -478,7 +528,7 @@ def _ask_write_approval(self, path, diff, exists)
 
 ### `AgentEngine._emit_change`
 
-[Исходник](../../agent/engine.py#L140)
+[Исходник](../../agent/engine.py#L144)
 
 ```python
 def _emit_change(self, path, diff, exists, status, error='')
@@ -488,7 +538,7 @@ def _emit_change(self, path, diff, exists, status, error='')
 
 ### `AgentEngine._looks_like_action_request`
 
-[Исходник](../../agent/engine.py#L150)
+[Исходник](../../agent/engine.py#L154)
 
 ```python
 @staticmethod
@@ -499,7 +549,7 @@ def _looks_like_action_request(prompt)
 
 ### `AgentEngine._verify_task_completion`
 
-[Исходник](../../agent/engine.py#L160)
+[Исходник](../../agent/engine.py#L164)
 
 ```python
 def _verify_task_completion(self, client, messages, max_tokens)
@@ -509,13 +559,79 @@ def _verify_task_completion(self, client, messages, max_tokens)
 
 ### `AgentEngine.run`
 
-[Исходник](../../agent/engine.py#L196)
+[Исходник](../../agent/engine.py#L200)
 
 ```python
 def run(self)
 ```
 
 Строит контекст, выполняет потоковые ходы и tools, обрабатывает остановку, сохраняет состояние и закрывает клиент.
+
+<a id="module-agent-json-tools-py"></a>
+
+## `agent/json_tools.py`
+
+Текстовый JSON tool protocol: преобразование истории, строгий parser envelope и адаптация stream к обычному executor.
+
+### `prepare_json_request`
+
+[Исходник](../../agent/json_tools.py#L8)
+
+```python
+def prepare_json_request(params)
+```
+
+Убирает native tools/tool_choice, добавляет JSON-схемы в system prompt и переводит tool history в обычные сообщения.
+
+### `parse_tool_json`
+
+[Исходник](../../agent/json_tools.py#L49)
+
+```python
+def parse_tool_json(content, allowed)
+```
+
+Принимает JSON только в начале ответа, целый fenced JSON или Qwen tool_call wrapper; хвост комментария игнорируется, поиск команд внутри произвольного текста запрещён; имена и arguments строго проверяются.
+
+### `JsonToolStream`
+
+[Исходник](../../agent/json_tools.py#L81)
+
+```python
+class JsonToolStream
+```
+
+Ограниченный буфер JSON-ответа поверх отменяемого native stream; возвращает существующему движку знакомую форму delta.tool_calls.
+
+### `JsonToolStream.__init__`
+
+[Исходник](../../agent/json_tools.py#L83)
+
+```python
+def __init__(self, source, allowed, choice)
+```
+
+Инициализирует состояние экземпляра JsonToolStream; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `JsonToolStream.__iter__`
+
+[Исходник](../../agent/json_tools.py#L86)
+
+```python
+def __iter__(self)
+```
+
+Собирает до 1 МБ текста, проверяет обязательность/запрет вызова и создаёт native-shaped delta с UUID каждого вызова.
+
+### `JsonToolStream.close`
+
+[Исходник](../../agent/json_tools.py#L106)
+
+```python
+def close(self)
+```
+
+Закрывает исходный HTTP stream и освобождает отменяемый запрос.
 
 <a id="module-agent-mcp-py"></a>
 
@@ -715,14 +831,14 @@ Async SDK в отдельном loop-потоке с синхронными crea
 [Исходник](../../agent/model_client.py#L45)
 
 ```python
-def __init__(self, base_url, api_key, interrupted, timeout=180)
+def __init__(self, base_url, api_key, interrupted, timeout=180, tool_protocol='native')
 ```
 
 Инициализирует состояние экземпляра ModelClient; параметры показаны в сигнатуре, назначение описано у класса.
 
 ### `ModelClient.check_cancelled`
 
-[Исходник](../../agent/model_client.py#L55)
+[Исходник](../../agent/model_client.py#L56)
 
 ```python
 def check_cancelled(self)
@@ -732,7 +848,7 @@ def check_cancelled(self)
 
 ### `ModelClient.submit`
 
-[Исходник](../../agent/model_client.py#L59)
+[Исходник](../../agent/model_client.py#L60)
 
 ```python
 def submit(self, coroutine)
@@ -742,7 +858,7 @@ def submit(self, coroutine)
 
 ### `ModelClient._forget`
 
-[Исходник](../../agent/model_client.py#L68)
+[Исходник](../../agent/model_client.py#L69)
 
 ```python
 def _forget(self, future)
@@ -752,7 +868,7 @@ def _forget(self, future)
 
 ### `ModelClient.result`
 
-[Исходник](../../agent/model_client.py#L72)
+[Исходник](../../agent/model_client.py#L73)
 
 ```python
 def result(self, future)
@@ -762,7 +878,7 @@ def result(self, future)
 
 ### `ModelClient.create`
 
-[Исходник](../../agent/model_client.py#L82)
+[Исходник](../../agent/model_client.py#L83)
 
 ```python
 def create(self, **params)
@@ -772,7 +888,7 @@ def create(self, **params)
 
 ### `ModelClient.cancel`
 
-[Исходник](../../agent/model_client.py#L88)
+[Исходник](../../agent/model_client.py#L93)
 
 ```python
 def cancel(self)
@@ -782,7 +898,7 @@ def cancel(self)
 
 ### `ModelClient.close`
 
-[Исходник](../../agent/model_client.py#L94)
+[Исходник](../../agent/model_client.py#L99)
 
 ```python
 def close(self)
@@ -792,7 +908,7 @@ def close(self)
 
 ### `ModelClient.close.shutdown`
 
-[Исходник](../../agent/model_client.py#L95)
+[Исходник](../../agent/model_client.py#L100)
 
 ```python
 async def shutdown()
@@ -1174,7 +1290,7 @@ def validate_preferences(params)
 
 ### `load_preferences`
 
-[Исходник](../../agent/model_preferences.py#L50)
+[Исходник](../../agent/model_preferences.py#L53)
 
 ```python
 def load_preferences()
@@ -1184,7 +1300,7 @@ def load_preferences()
 
 ### `save_preferences`
 
-[Исходник](../../agent/model_preferences.py#L58)
+[Исходник](../../agent/model_preferences.py#L61)
 
 ```python
 def save_preferences(params)
@@ -2482,7 +2598,7 @@ JSON-lines вход процесса, dispatch команд, UI-файловый
 
 ### `emit`
 
-[Исходник](../../core/python/bridge.py#L24)
+[Исходник](../../core/python/bridge.py#L27)
 
 ```python
 def emit(message)
@@ -2492,7 +2608,7 @@ def emit(message)
 
 ### `resolve_inside`
 
-[Исходник](../../core/python/bridge.py#L39)
+[Исходник](../../core/python/bridge.py#L47)
 
 ```python
 def resolve_inside(relative: str) -> Path
@@ -2502,7 +2618,7 @@ def resolve_inside(relative: str) -> Path
 
 ### `handle`
 
-[Исходник](../../core/python/bridge.py#L49)
+[Исходник](../../core/python/bridge.py#L57)
 
 ```python
 def handle(method: str, params: dict) -> dict
@@ -2510,15 +2626,151 @@ def handle(method: str, params: dict) -> dict
 
 Whitelist диспетчер RPC: состояние, проект, модель, чаты, задачи и readonly UI-файлы.
 
+### `_handle`
+
+[Исходник](../../core/python/bridge.py#L61)
+
+```python
+def _handle(method: str, params: dict) -> dict
+```
+
+Dispatcher RPC под общим TaskService lock: области чатов, профиль, STT, PC replies и Telegram; file scope по-прежнему ограничен.
+
 ### `main`
 
-[Исходник](../../core/python/bridge.py#L153)
+[Исходник](../../core/python/bridge.py#L192)
 
 ```python
 def main() -> None
 ```
 
 Цикл stdin JSON-lines с ID ответов, обработкой некорректного ввода и shutdown при EOF.
+
+<a id="module-core-python-desktop-service-py"></a>
+
+## `core/python/desktop_service.py`
+
+Явно включаемые PC tools: human-prompt folder grants, read-only файлы, bounded web search и host screenshot broker.
+
+### `prompt_folders`
+
+[Исходник](../../core/python/desktop_service.py#L24)
+
+```python
+def prompt_folders(prompt)
+```
+
+Извлекает существующие абсолютные пути только из исходного человеческого запроса и разрешает их до проверки вложенности.
+
+### `SearchResults`
+
+[Исходник](../../core/python/desktop_service.py#L41)
+
+```python
+class SearchResults(HTMLParser)
+```
+
+HTMLParser для ограниченного набора ссылок и заголовков поисковой выдачи; не исполняет HTML/JS.
+
+### `SearchResults.__init__`
+
+[Исходник](../../core/python/desktop_service.py#L43)
+
+```python
+def __init__(self)
+```
+
+Инициализирует состояние экземпляра SearchResults; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `SearchResults.handle_starttag`
+
+[Исходник](../../core/python/desktop_service.py#L46)
+
+```python
+def handle_starttag(self, tag, attrs)
+```
+
+Распознаёт result__a, извлекает обычную HTTP(S) ссылку из DuckDuckGo redirect wrapper.
+
+### `SearchResults.handle_data`
+
+[Исходник](../../core/python/desktop_service.py#L58)
+
+```python
+def handle_data(self, data)
+```
+
+Собирает до 600 символов заголовка или snippet поискового результата без интерпретации разметки.
+
+### `SearchResults.handle_endtag`
+
+[Исходник](../../core/python/desktop_service.py#L62)
+
+```python
+def handle_endtag(self, tag)
+```
+
+Завершает ссылку и сохраняет не больше восьми результатов.
+
+### `DesktopService`
+
+[Исходник](../../core/python/desktop_service.py#L69)
+
+```python
+class DesktopService
+```
+
+Сервис opt-in PC tools и брокер фиксированных операций Electron без произвольного shell.
+
+### `DesktopService.__init__`
+
+[Исходник](../../core/python/desktop_service.py#L70)
+
+```python
+def __init__(self, emit)
+```
+
+Инициализирует состояние экземпляра DesktopService; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `DesktopService.configure`
+
+[Исходник](../../core/python/desktop_service.py#L76)
+
+```python
+def configure(self, params)
+```
+
+Сохраняет только boolean enabled в desktop-tools.json; каталоговые разрешения не сохраняются.
+
+### `DesktopService.request`
+
+[Исходник](../../core/python/desktop_service.py#L81)
+
+```python
+def request(self, operation, args, cancelled)
+```
+
+Создаёт одноразовый UUID host request, ждёт результат до 30 секунд с cooperative cancellation.
+
+### `DesktopService.respond`
+
+[Исходник](../../core/python/desktop_service.py#L94)
+
+```python
+def respond(self, params)
+```
+
+Принимает host-ответ только для существующего pending UUID и пробуждает ожидающий worker.
+
+### `DesktopService.execute`
+
+[Исходник](../../core/python/desktop_service.py#L104)
+
+```python
+def execute(self, name, args, prompt, cancelled)
+```
+
+Проверяет включение tools, исходный запрос скриншота, prompt-only папки и bounded поисковый запрос; неизвестные имена отклоняет.
 
 <a id="module-core-python-editor-service-py"></a>
 
@@ -2716,7 +2968,7 @@ def shutdown(self)
 
 ### `RuntimeService`
 
-[Исходник](../../core/python/runtime_service.py#L8)
+[Исходник](../../core/python/runtime_service.py#L11)
 
 ```python
 class RuntimeService
@@ -2726,7 +2978,7 @@ class RuntimeService
 
 ### `RuntimeService.__init__`
 
-[Исходник](../../core/python/runtime_service.py#L9)
+[Исходник](../../core/python/runtime_service.py#L12)
 
 ```python
 def __init__(self)
@@ -2736,7 +2988,7 @@ def __init__(self)
 
 ### `RuntimeService.start`
 
-[Исходник](../../core/python/runtime_service.py#L17)
+[Исходник](../../core/python/runtime_service.py#L29)
 
 ```python
 def start(self, params)
@@ -2746,7 +2998,7 @@ def start(self, params)
 
 ### `RuntimeService.start.launch`
 
-[Исходник](../../core/python/runtime_service.py#L40)
+[Исходник](../../core/python/runtime_service.py#L62)
 
 ```python
 def launch()
@@ -2756,7 +3008,7 @@ def launch()
 
 ### `RuntimeService.status`
 
-[Исходник](../../core/python/runtime_service.py#L59)
+[Исходник](../../core/python/runtime_service.py#L81)
 
 ```python
 def status(self)
@@ -2766,7 +3018,7 @@ def status(self)
 
 ### `RuntimeService.stop`
 
-[Исходник](../../core/python/runtime_service.py#L66)
+[Исходник](../../core/python/runtime_service.py#L88)
 
 ```python
 def stop(self)
@@ -2776,7 +3028,7 @@ def stop(self)
 
 ### `RuntimeService.stop.terminate`
 
-[Исходник](../../core/python/runtime_service.py#L74)
+[Исходник](../../core/python/runtime_service.py#L96)
 
 ```python
 def terminate()
@@ -2786,7 +3038,7 @@ def terminate()
 
 ### `RuntimeService.shutdown`
 
-[Исходник](../../core/python/runtime_service.py#L87)
+[Исходник](../../core/python/runtime_service.py#L109)
 
 ```python
 def shutdown(self)
@@ -2908,7 +3160,7 @@ def shutdown(self)
 
 ### `TaskService`
 
-[Исходник](../../core/python/task_service.py#L20)
+[Исходник](../../core/python/task_service.py#L24)
 
 ```python
 class TaskService
@@ -2918,7 +3170,7 @@ class TaskService
 
 ### `TaskService.__init__`
 
-[Исходник](../../core/python/task_service.py#L21)
+[Исходник](../../core/python/task_service.py#L25)
 
 ```python
 def __init__(self, emit, engine_factory=AgentEngine)
@@ -2928,7 +3180,7 @@ def __init__(self, emit, engine_factory=AgentEngine)
 
 ### `TaskService.idle`
 
-[Исходник](../../core/python/task_service.py#L44)
+[Исходник](../../core/python/task_service.py#L52)
 
 ```python
 def idle(self)
@@ -2938,7 +3190,7 @@ def idle(self)
 
 ### `TaskService.configure`
 
-[Исходник](../../core/python/task_service.py#L49)
+[Исходник](../../core/python/task_service.py#L57)
 
 ```python
 def configure(self, params)
@@ -2948,7 +3200,7 @@ def configure(self, params)
 
 ### `TaskService.preferences`
 
-[Исходник](../../core/python/task_service.py#L57)
+[Исходник](../../core/python/task_service.py#L65)
 
 ```python
 def preferences(self)
@@ -2956,9 +3208,59 @@ def preferences(self)
 
 Возвращает URL и модель без ключа.
 
+### `TaskService.request_delegation`
+
+[Исходник](../../core/python/task_service.py#L69)
+
+```python
+def request_delegation(self, name, args)
+```
+
+Разрешает только delegate_task, валидирует target/prompt, создаёт одну pending передачу с исходным человеческим запросом.
+
+### `TaskService.prepare_handoff`
+
+[Исходник](../../core/python/task_service.py#L81)
+
+```python
+def prepare_handoff(self, root, params)
+```
+
+После завершения Мии создаёт отдельный чат основной модели; IDE требует выбранного проекта, сохраняет источник результата.
+
+### `TaskService.discard_handoff`
+
+[Исходник](../../core/python/task_service.py#L95)
+
+```python
+def discard_handoff(self, params)
+```
+
+Удаляет pending передачу только по точному ID вне активной задачи, чтобы её можно было явно отклонить.
+
+### `TaskService.companion_preferences`
+
+[Исходник](../../core/python/task_service.py#L102)
+
+```python
+def companion_preferences(self)
+```
+
+Возвращает публичные поля отдельного профиля Мии без API keys.
+
+### `TaskService.configure_companion`
+
+[Исходник](../../core/python/task_service.py#L105)
+
+```python
+def configure_companion(self, params)
+```
+
+Сохраняет независимый публичный профиль; ключи модели/STT оставляет только в памяти текущего Core.
+
 ### `TaskService.models`
 
-[Исходник](../../core/python/task_service.py#L61)
+[Исходник](../../core/python/task_service.py#L111)
 
 ```python
 def models(self, config=None, cancelled=None)
@@ -2968,7 +3270,7 @@ def models(self, config=None, cancelled=None)
 
 ### `TaskService.diagnostic_config`
 
-[Исходник](../../core/python/task_service.py#L64)
+[Исходник](../../core/python/task_service.py#L114)
 
 ```python
 def diagnostic_config(self, params=None)
@@ -2978,7 +3280,7 @@ def diagnostic_config(self, params=None)
 
 ### `TaskService.start_model_probe`
 
-[Исходник](../../core/python/task_service.py#L69)
+[Исходник](../../core/python/task_service.py#L119)
 
 ```python
 def start_model_probe(self, params, respond)
@@ -2988,7 +3290,7 @@ def start_model_probe(self, params, respond)
 
 ### `TaskService.start_model_probe.run_probe`
 
-[Исходник](../../core/python/task_service.py#L76)
+[Исходник](../../core/python/task_service.py#L126)
 
 ```python
 def run_probe()
@@ -2998,7 +3300,7 @@ def run_probe()
 
 ### `TaskService.cancel_model_setup`
 
-[Исходник](../../core/python/task_service.py#L85)
+[Исходник](../../core/python/task_service.py#L135)
 
 ```python
 def cancel_model_setup(self)
@@ -3008,7 +3310,7 @@ def cancel_model_setup(self)
 
 ### `TaskService.start_model_discovery`
 
-[Исходник](../../core/python/task_service.py#L90)
+[Исходник](../../core/python/task_service.py#L140)
 
 ```python
 def start_model_discovery(self, respond, params=None)
@@ -3018,7 +3320,7 @@ def start_model_discovery(self, respond, params=None)
 
 ### `TaskService.start_model_discovery.run_discovery`
 
-[Исходник](../../core/python/task_service.py#L97)
+[Исходник](../../core/python/task_service.py#L147)
 
 ```python
 def run_discovery()
@@ -3026,19 +3328,29 @@ def run_discovery()
 
 Получает список моделей или структурированную ошибку и вызывает callback ответа.
 
-### `TaskService.chats`
+### `TaskService.move_chat`
 
-[Исходник](../../core/python/task_service.py#L107)
+[Исходник](../../core/python/task_service.py#L157)
 
 ```python
-def chats(self, root)
+def move_chat(self, params)
+```
+
+Переносит канонический чат между Chat и voice без удаления сообщений; проверяет исходную область и idle.
+
+### `TaskService.chats`
+
+[Исходник](../../core/python/task_service.py#L171)
+
+```python
+def chats(self, root, mode=None)
 ```
 
 Фильтрует индекс чатов по точной строке выбранного корня.
 
 ### `TaskService.rename`
 
-[Исходник](../../core/python/task_service.py#L112)
+[Исходник](../../core/python/task_service.py#L177)
 
 ```python
 def rename(self, root, params)
@@ -3048,17 +3360,17 @@ def rename(self, root, params)
 
 ### `TaskService.select_chat`
 
-[Исходник](../../core/python/task_service.py#L127)
+[Исходник](../../core/python/task_service.py#L193)
 
 ```python
-def select_chat(self, root, chat_id=None)
+def select_chat(self, root, chat_id=None, mode=None)
 ```
 
 Загружает чат, восстанавливает embedded checkpoint/stream draft и возвращает предупреждения без повторного применения старого approval.
 
 ### `TaskService._recover_chat`
 
-[Исходник](../../core/python/task_service.py#L142)
+[Исходник](../../core/python/task_service.py#L209)
 
 ```python
 def _recover_chat(self)
@@ -3068,7 +3380,7 @@ def _recover_chat(self)
 
 ### `TaskService._persist_chat`
 
-[Исходник](../../core/python/task_service.py#L211)
+[Исходник](../../core/python/task_service.py#L278)
 
 ```python
 def _persist_chat(self)
@@ -3078,7 +3390,7 @@ def _persist_chat(self)
 
 ### `TaskService._task_event`
 
-[Исходник](../../core/python/task_service.py#L216)
+[Исходник](../../core/python/task_service.py#L283)
 
 ```python
 def _task_event(self, task)
@@ -3088,7 +3400,7 @@ def _task_event(self, task)
 
 ### `TaskService._event`
 
-[Исходник](../../core/python/task_service.py#L222)
+[Исходник](../../core/python/task_service.py#L289)
 
 ```python
 def _event(self, kind, **data)
@@ -3098,7 +3410,7 @@ def _event(self, kind, **data)
 
 ### `TaskService._flush_text`
 
-[Исходник](../../core/python/task_service.py#L225)
+[Исходник](../../core/python/task_service.py#L292)
 
 ```python
 def _flush_text(self)
@@ -3108,7 +3420,7 @@ def _flush_text(self)
 
 ### `TaskService._flush_scheduled`
 
-[Исходник](../../core/python/task_service.py#L234)
+[Исходник](../../core/python/task_service.py#L301)
 
 ```python
 def _flush_scheduled(self, run_id)
@@ -3118,7 +3430,7 @@ def _flush_scheduled(self, run_id)
 
 ### `TaskService._persist_draft`
 
-[Исходник](../../core/python/task_service.py#L239)
+[Исходник](../../core/python/task_service.py#L306)
 
 ```python
 def _persist_draft(self)
@@ -3128,7 +3440,7 @@ def _persist_draft(self)
 
 ### `TaskService._persist_draft_scheduled`
 
-[Исходник](../../core/python/task_service.py#L244)
+[Исходник](../../core/python/task_service.py#L311)
 
 ```python
 def _persist_draft_scheduled(self, run_id, turn)
@@ -3138,7 +3450,7 @@ def _persist_draft_scheduled(self, run_id, turn)
 
 ### `TaskService._text_delta`
 
-[Исходник](../../core/python/task_service.py#L255)
+[Исходник](../../core/python/task_service.py#L322)
 
 ```python
 def _text_delta(self, turn, text)
@@ -3148,7 +3460,7 @@ def _text_delta(self, turn, text)
 
 ### `TaskService._chat_event`
 
-[Исходник](../../core/python/task_service.py#L285)
+[Исходник](../../core/python/task_service.py#L352)
 
 ```python
 def _chat_event(self, role, text)
@@ -3158,7 +3470,7 @@ def _chat_event(self, role, text)
 
 ### `TaskService._request_approval`
 
-[Исходник](../../core/python/task_service.py#L293)
+[Исходник](../../core/python/task_service.py#L360)
 
 ```python
 def _request_approval(self, path, diff, exists)
@@ -3168,7 +3480,7 @@ def _request_approval(self, path, diff, exists)
 
 ### `TaskService.resolve_approval`
 
-[Исходник](../../core/python/task_service.py#L301)
+[Исходник](../../core/python/task_service.py#L368)
 
 ```python
 def resolve_approval(self, params)
@@ -3178,7 +3490,7 @@ def resolve_approval(self, params)
 
 ### `TaskService.cancel`
 
-[Исходник](../../core/python/task_service.py#L312)
+[Исходник](../../core/python/task_service.py#L379)
 
 ```python
 def cancel(self)
@@ -3188,7 +3500,7 @@ def cancel(self)
 
 ### `TaskService.start`
 
-[Исходник](../../core/python/task_service.py#L321)
+[Исходник](../../core/python/task_service.py#L388)
 
 ```python
 def start(self, root: Path, params)
@@ -3196,9 +3508,19 @@ def start(self, root: Path, params)
 
 Проверяет задачу, готовит историю/память, подписывает события и запускает agent-task.
 
+### `TaskService.start.dispatch`
+
+[Исходник](../../core/python/task_service.py#L418)
+
+```python
+def dispatch(name, args)
+```
+
+Направляет только разрешённые PC tools, delegate_task Мии или обычные инструменты выбранного проекта; grants делегирования берёт из исходного человеческого запроса.
+
 ### `TaskService._save_messages`
 
-[Исходник](../../core/python/task_service.py#L376)
+[Исходник](../../core/python/task_service.py#L456)
 
 ```python
 def _save_messages(self, messages)
@@ -3208,7 +3530,7 @@ def _save_messages(self, messages)
 
 ### `TaskService._run`
 
-[Исходник](../../core/python/task_service.py#L388)
+[Исходник](../../core/python/task_service.py#L468)
 
 ```python
 def _run(self)
@@ -3218,13 +3540,235 @@ def _run(self)
 
 ### `TaskService.shutdown`
 
-[Исходник](../../core/python/task_service.py#L416)
+[Исходник](../../core/python/task_service.py#L508)
 
 ```python
 def shutdown(self)
 ```
 
 Отменяет операции и ограниченно ждёт потоки задачи и model discovery при EOF.
+
+<a id="module-core-python-telegram-service-py"></a>
+
+## `core/python/telegram_service.py`
+
+Telegram long polling только для owner user ID: команды, состояние, ответы и текущие diff/approval; токен только в памяти Core.
+
+### `TelegramService`
+
+[Исходник](../../core/python/telegram_service.py#L9)
+
+```python
+class TelegramService
+```
+
+Владелец исходящего Telegram long polling; фильтрует owner ID/private chat и сериализует управление с Core.
+
+### `TelegramService.__init__`
+
+[Исходник](../../core/python/telegram_service.py#L10)
+
+```python
+def __init__(self, tasks, root, emit, start_task)
+```
+
+Инициализирует состояние экземпляра TelegramService; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `TelegramService.status`
+
+[Исходник](../../core/python/telegram_service.py#L17)
+
+```python
+def status(self)
+```
+
+Возвращает состояние подключения, имя бота и owner ID без токена и URL с токеном.
+
+### `TelegramService.start`
+
+[Исходник](../../core/python/telegram_service.py#L22)
+
+```python
+def start(self, params)
+```
+
+Валидирует BotFather token и числовой owner ID, запускает один worker; токен хранит только в памяти.
+
+### `TelegramService.api`
+
+[Исходник](../../core/python/telegram_service.py#L37)
+
+```python
+def api(self, method, params=None)
+```
+
+Выполняет фиксированный запрос Telegram по TLS; необработанные HTTP exceptions не отправляются пользователю.
+
+### `TelegramService.send`
+
+[Исходник](../../core/python/telegram_service.py#L44)
+
+```python
+def send(self, text)
+```
+
+Отправляет plain text только owner, частями по 3500 символов, с общим лимитом 21000.
+
+### `TelegramService.observe`
+
+[Исходник](../../core/python/telegram_service.py#L50)
+
+```python
+def observe(self, event)
+```
+
+Ставит результаты удалённой задачи и approval уведомления в очередь до 100 записей, не блокируя Core HTTP.
+
+### `TelegramService.command`
+
+[Исходник](../../core/python/telegram_service.py#L61)
+
+```python
+def command(self, message)
+```
+
+Отбрасывает группы, посторонних и forwarded сообщения; под общим lock передаёт команду dispatcher.
+
+### `TelegramService.dispatch`
+
+[Исходник](../../core/python/telegram_service.py#L72)
+
+```python
+def dispatch(self, name, argument)
+```
+
+Реализует /status, /stop, /chat, /ide, /miya и точный /approve или /reject по актуальному ID.
+
+### `TelegramService.poll`
+
+[Исходник](../../core/python/telegram_service.py#L115)
+
+```python
+def poll(self)
+```
+
+Проверяет getMe, отбрасывает старую очередь, читает getUpdates и отправляет уведомления; повторяет сетевые ошибки без раскрытия токена.
+
+### `TelegramService.stop`
+
+[Исходник](../../core/python/telegram_service.py#L147)
+
+```python
+def stop(self)
+```
+
+Запрашивает отключение и закрывает HTTP client; токен не возвращает.
+
+### `TelegramService.shutdown`
+
+[Исходник](../../core/python/telegram_service.py#L154)
+
+```python
+def shutdown(self)
+```
+
+Отключает polling и ограниченно ждёт worker при закрытии Core.
+
+<a id="module-core-python-transcription-service-py"></a>
+
+## `core/python/transcription_service.py`
+
+Ограниченная WAV-транскрипция через локальный whisper.cpp или совместимый API с отменой HTTP.
+
+### `TranscriptionService`
+
+[Исходник](../../core/python/transcription_service.py#L12)
+
+```python
+class TranscriptionService
+```
+
+Отдельный отменяемый STT worker; передаёт WAV на явно настроенный endpoint без хранения аудио на диске.
+
+### `TranscriptionService.__init__`
+
+[Исходник](../../core/python/transcription_service.py#L13)
+
+```python
+def __init__(self)
+```
+
+Инициализирует состояние экземпляра TranscriptionService; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `TranscriptionService.start`
+
+[Исходник](../../core/python/transcription_service.py#L19)
+
+```python
+def start(self, params, profile, respond)
+```
+
+Проверяет base64 и WAV PCM16 mono 16 kHz до 60 секунд; не допускает второй одновременно работающий запрос.
+
+### `TranscriptionService.start.transcribe`
+
+[Исходник](../../core/python/transcription_service.py#L33)
+
+```python
+def transcribe()
+```
+
+Отправляет multipart file/model/language/response_format, проверяет текст и отвечает по исходному RPC ID.
+
+### `TranscriptionService.request_audio`
+
+[Исходник](../../core/python/transcription_service.py#L46)
+
+```python
+async def request_audio(self, audio, profile, cancelled)
+```
+
+Запускает async HTTP и наблюдатель отмены с общим deadline 90 секунд; закрывает socket при cancel.
+
+### `TranscriptionService.request_audio.request`
+
+[Исходник](../../core/python/transcription_service.py#L47)
+
+```python
+async def request()
+```
+
+Передаёт multipart WAV и читает до 1 МБ ответа, проверяя строку text до 50000 символов.
+
+### `TranscriptionService.request_audio.cancellation`
+
+[Исходник](../../core/python/transcription_service.py#L60)
+
+```python
+async def cancellation()
+```
+
+Проверяет межпоточный Event каждые 50 мс без блокировки asyncio loop.
+
+### `TranscriptionService.stop`
+
+[Исходник](../../core/python/transcription_service.py#L71)
+
+```python
+def stop(self)
+```
+
+Выставляет cancel flag и закрывает HTTP client активного распознавания.
+
+### `TranscriptionService.shutdown`
+
+[Исходник](../../core/python/transcription_service.py#L76)
+
+```python
+def shutdown(self)
+```
+
+Отменяет запрос и ограниченно ждёт завершения worker.
 
 <a id="module-main-py"></a>
 
@@ -3304,7 +3848,7 @@ def scenario(service, events, mode, root, timeout)
 
 ### `main`
 
-[Исходник](../../tools/check_live_model.py#L60)
+[Исходник](../../tools/check_live_model.py#L61)
 
 ```python
 def main()

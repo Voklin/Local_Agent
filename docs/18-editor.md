@@ -6,7 +6,7 @@
 
 Ctrl+F открывает поиск внутри файла с циклическим переходом, Ctrl+G — номер строки, Ctrl+Shift+R перечитывает файл, Ctrl+S получает diff. Сохранить может и кнопка панели. Ни одно нажатие Save не пишет сразу: сначала показан конкретный diff, затем «Применить и сохранить». Reject/Cancel оставляют черновик редактируемым.
 
-Вкладки живут при переходах Chat/IDE/Ассистент: App не размонтирует EditorPanel, а меняет видимость рабочего main. Закрытие dirty-вкладки, смена проекта и закрытие окна требуют явного отказа от несохранённого текста. Default нативного диалога — Cancel. Отмена закрытия окна оставляет Core работающим; cleanup перенесён из before-quit в will-quit.
+Вкладки живут при переходах Chat/IDE/Ассистент: App не размонтирует EditorPanel, а меняет видимость рабочего main. Закрытие dirty-вкладки, смена проекта и закрытие окна требуют явного отказа от несохранённого текста. Default нативного диалога — Cancel. Отмена закрытия окна оставляет Core работающим. В 6.1 `before-quit` также проверяет dirty до начала cleanup, поэтому Cancel при `app.quit()` не завершает ядро.
 
 При остановке Core локальные drafts не удаляются. Снова выбрав тот же проект, можно продолжить; Save по-прежнему проверит revision. Это хранение в памяти окна, а не crash-draft для ручного editor: аварийное завершение всего Electron может потерять ещё не сохранённый текст. Автоматической записи черновиков проекта на диск этот этап не добавляет.
 
@@ -48,7 +48,7 @@ EditorDirty IPC передаёт main лишь boolean для защиты ок�
 | [bridge.py](../core/python/bridge.py) | Project scope/idle, сброс pending, запрет task start во время editor approval |
 | [EditorPanel.tsx](../apps/desktop/src/EditorPanel.tsx) | Вкладки/draft, toolbar, поиск, строка, reload, diff и dirty |
 | [App.tsx](../apps/desktop/src/App.tsx) | Долгоживущий editor ref и переход от проводника/событий агента |
-| [main.ts](../apps/desktop/electron/main.ts) | Фиксированный IPC, unsaved close guard, нативный discard и will-quit |
+| [main.ts](../apps/desktop/electron/main.ts) | Фиксированный IPC, unsaved close/quit guards, нативный discard и cleanup Core |
 | [preload.ts](../apps/desktop/electron/preload.ts) | Узкие editorRead/Preview/Resolve и dirty/discard методы |
 | [test_editor_service.py](../tests/test_editor_service.py) | Файловые контракты и отказные сценарии |
 

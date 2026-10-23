@@ -23,7 +23,8 @@ def scenario(service, events, mode, root, timeout):
             'Ничего не создавай и не изменяй. Обязательно прочитай содержимое обоих файлов инструментом read_file.'
             if mode=='ide' else 'Ответь одной короткой фразой по-русски: сколько будет 6 умножить на 7?')
     before=fingerprint(root)
-    service.select_chat(scope)
+    if mode=='voice':service.companion_config={**service.companion_config,**service.config}
+    service.select_chat(scope,mode=mode)
     service.start(scope,{'mode':mode,'prompt':prompt})
     deadline=time.monotonic()+timeout
     seen=[]

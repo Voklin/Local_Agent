@@ -18,6 +18,9 @@ from core.python.project_search import ProjectSearchService
 from core.python.runtime_service import RuntimeService
 from core.python.memory_service import read_memory, write_memory
 from core.python.speech_service import SpeechService
+from core.python.telegram_service import TelegramService
+from core.python.desktop_service import DesktopService
+from core.python.transcription_service import TranscriptionService
 
 output_lock = threading.Lock()
 
@@ -25,12 +28,17 @@ def emit(message):
     with output_lock:
         sys.stdout.write(json.dumps(message, ensure_ascii=False) + '\n')
         sys.stdout.flush()
+    observer=globals().get('telegram')
+    if observer:observer.observe(message)
 
 tasks = TaskService(emit)
 editor = EditorService()
 project_search = ProjectSearchService()
 runtime = RuntimeService()
 speech = SpeechService()
+transcription = TranscriptionService()
+desktop = DesktopService(emit)
+tasks.desktop = desktop
 
 MAX_READ_BYTES = 1_000_000
 MAX_ENTRIES = 1000
@@ -47,7 +55,36 @@ def resolve_inside(relative: str) -> Path:
     return candidate
 
 def handle(method: str, params: dict) -> dict:
+    with tasks.lock:
+        return _handle(method,params)
+
+def _handle(method: str, params: dict) -> dict:
     global project_root
+    if method == 'telegram_status':
+        return telegram.status()
+    if method == 'telegram_start':
+        return telegram.start(params)
+    if method == 'telegram_stop':
+        return telegram.stop()
+    if method == 'desktop_result':
+        return desktop.respond(params)
+    if method == 'desktop_settings':
+        return {'ok':True,'enabled':desktop.enabled}
+    if method == 'configure_desktop':
+        tasks.idle()
+        return desktop.configure(params)
+    if method == 'move_chat_mode':
+        return tasks.move_chat(params)
+    if method == 'discard_handoff':
+        return tasks.discard_handoff(params)
+    if method == 'prepare_handoff':
+        return tasks.prepare_handoff(project_root,params)
+    if method == 'get_companion_settings':
+        return tasks.companion_preferences()
+    if method == 'configure_companion':
+        return tasks.configure_companion(params)
+    if method == 'cancel_transcription':
+        return transcription.stop()
     if method == 'voice_status':
         return speech.status()
     if method == 'voice_refresh':
@@ -107,9 +144,9 @@ def handle(method: str, params: dict) -> dict:
         if method == 'rename_chat':
             return tasks.rename(scope,params)
         if method == 'list_chats':
-            return tasks.chats(scope)
+            return tasks.chats(scope, mode)
         if method in ('new_chat', 'load_chat'):
-            return tasks.select_chat(scope, params.get('chat_id') if method == 'load_chat' else None)
+            return tasks.select_chat(scope, params.get('chat_id') if method == 'load_chat' else None, mode)
         if editor.pending:
             raise ValueError('Сначала завершите подтверждение изменения в редакторе')
         return tasks.start(scope, params)
@@ -150,6 +187,8 @@ def handle(method: str, params: dict) -> dict:
     # No direct write or shell API: writes go through the engine approval protocol.
     raise ValueError(f'Неизвестный или пока не подключённый метод: {method}')
 
+telegram = TelegramService(tasks, lambda:project_root, emit, lambda params:handle('start_task',params))
+
 def main() -> None:
     for line in sys.stdin:
         req_id = None
@@ -159,6 +198,9 @@ def main() -> None:
                 raise ValueError('Ожидается JSON-объект запроса и параметров')
             req_id = req.get('id')
             method = str(req.get('method', ''))
+            if method == 'transcribe':
+                transcription.start(req.get('params') or {}, dict(tasks.companion_config), lambda result, request_id=req_id: emit({'id':request_id, **result}))
+                continue
             if method == 'list_models':
                 tasks.start_model_discovery(lambda result, request_id=req_id: emit({'id': request_id, **result}), req.get('params') or None)
                 continue
@@ -175,11 +217,13 @@ def main() -> None:
         except Exception as exc:
             response = {'id': req_id, 'ok': False, 'error': str(exc)[:500]}
         emit(response)
+    telegram.shutdown()
     project_search.cancel()
     speech.stop()
     runtime.stop()
     tasks.cancel()
     project_search.shutdown()
+    transcription.shutdown()
     speech.shutdown()
     runtime.shutdown()
     tasks.shutdown()

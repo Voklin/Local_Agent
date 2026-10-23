@@ -17,7 +17,7 @@ SETTING_LIMITS = {
     'max_agent_turns': (200, 1, 500, True),
     'max_runtime_minutes': (180, 1, 1440, True),
 }
-DEFAULTS = {'base_url': 'http://127.0.0.1:1234/v1', 'model': '',
+DEFAULTS = {'tool_protocol':'native', 'base_url': 'http://127.0.0.1:1234/v1', 'model': '',
             'settings': {key: rule[0] for key, rule in SETTING_LIMITS.items()}}
 
 
@@ -43,7 +43,10 @@ def validate_preferences(params):
     if len(base_url) > 2000:
         raise ValueError('Слишком длинный URL сервера')
     parsed.port  # Validate port syntax/range before persisting it.
-    return {'base_url': base_url, 'model': str(params.get('model', '')).strip()[:300],
+    protocol = params.get('tool_protocol', 'native')
+    if protocol not in ('native','json'):
+        raise ValueError('Протокол инструментов: native или json')
+    return {'tool_protocol':protocol, 'base_url': base_url, 'model': str(params.get('model', '')).strip()[:300],
             'settings': validate_settings(params.get('settings', {}))}
 
 

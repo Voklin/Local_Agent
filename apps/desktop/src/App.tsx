@@ -43,6 +43,11 @@ export default function App() {
   const [logs, setLogs] = useState<string[]>([]);
   const [baseUrl, setBaseUrl] = useState('http://127.0.0.1:1234/v1');
   const [model, setModel] = useState('');
+  const [handoffResult,setHandoffResult]=useState('');
+  const [desktopImage,setDesktopImage]=useState('');
+  const [handoff,setHandoff]=useState<any>(null);
+  const handoffWorking=useRef(false);
+  const [toolProtocol,setToolProtocol]=useState('native');
   const [apiKey, setApiKey] = useState('');
   const [generation, setGeneration] = useState<GenerationSettings>({...defaultGeneration});
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -60,7 +65,7 @@ export default function App() {
     setChat(c => c.some(m => m.role === 'system' && m.text === text) ? c : [...c, {role: 'system', text}]);
   }
   async function refreshChats(scope = modeRef.current) {
-    const r = await window.lca.listChats(scope === 'voice' ? 'chat' : scope);
+    const r = await window.lca.listChats(scope);
     if (scope !== modeRef.current) return;
     if (r.ok) { setChats(r.chats); (r.warnings || []).forEach(showWarning); }
     else showWarning(r.error);
@@ -68,11 +73,15 @@ export default function App() {
   useEffect(() => {
     window.lca.health().then(r => setHealth(r.ok ? 'Python Core подключён' : r.error)).catch(e => setHealth(String(e)));
     window.lca.getModelSettings().then(r => {
-      if (r.ok) { setBaseUrl(r.base_url); setModel(r.model); setGeneration({...defaultGeneration, ...r.settings}); }
+      if (r.ok) { setBaseUrl(r.base_url); setModel(r.model); setToolProtocol(r.tool_protocol||'native'); setGeneration({...defaultGeneration, ...r.settings}); }
       else report(r.error);
     }).catch(e => report(String(e))).finally(() => setSettingsReady(true));
     void refreshChats();
     return window.lca.onEvent(e => {
+      if(e.event==='handoff_result'){setHandoffResult(e.source_chat);return;}
+      if(e.event==='remote_error'){setBusy(false);active.current=false;report(e.text);return;}
+      if(e.event==='remote_task'){modeRef.current=e.mode;setMode(e.mode);setNav('History');chatId.current=e.chat.id;runId.current='';setTask(null);setChat([...(e.resume?e.chat.messages.filter((m:any)=>typeof m.content==='string'&&['user','assistant'].includes(m.role)).map((m:any)=>({role:m.role,text:m.content})):[]),{role:'user',text:e.prompt}]);active.current=true;setBusy(true);return;}
+      if(e.event==='desktop_artifact'){setDesktopImage(e.image);return;}
       if (e.event === 'backend_stopped') {
         setHealth('Python Core остановлен. Выберите проект заново.');
         setBusy(false); setStopping(false); active.current = false; setApproval(null); setRoot(''); setFiles([]);
@@ -85,6 +94,7 @@ export default function App() {
         if (index < 0) return [...c, {role:'assistant', text:e.text, id:e.message_id, streaming:true}];
         return c.map((m, i) => i === index ? {...m, text:m.text + e.text, streaming:true} : m);
       });
+      if (e.event === 'handoff') setHandoff(e.handoff);
       if (e.event === 'chat') setChat(c => {
         const index = e.message_id ? c.findIndex(m => m.id === e.message_id) : -1;
         const message = {role:e.role, text:e.text, id:e.message_id, streaming:false};
@@ -155,7 +165,7 @@ export default function App() {
     chatId.current = ''; runId.current = ''; setTask(null); setApproval(null); setShowProgress(false);
     setChat(next === 'ide' ? greeting : [{role:'assistant', text:next==='voice'?'Я Мия, ваш локальный ассистент. Напишите сообщение, затем можно озвучить мой ответ.':'Новый разговор. Чем могу помочь?'}]);
     setChats([]);
-    if (next !== 'voice' && (next === 'chat' || root)) await refreshChats(next);
+    if (next !== 'ide' || root) await refreshChats(next);
   }
   async function openFile(item: FileItem) {
     if (item.kind === 'directory') { await refreshFiles(item.path); return; }
@@ -173,26 +183,57 @@ export default function App() {
     await refreshChats();
     return r.chat.id as string;
   }
+  async function moveChat(id:string) {
+    try{const result=await window.lca.moveChat(id,mode,mode==='voice'?'chat':'voice');if(!result.ok)throw Error(result.error);if(chatId.current===id){chatId.current='';setChat([]);setTask(null);}await refreshChats();}
+    catch(error){report(String(error));}
+  }
+  async function returnToMiya() {
+    if(active.current||!handoffResult)return;
+    try{const result=await window.lca.loadChat(handoffResult,'voice');if(!result.ok)throw Error(result.error);modeRef.current='voice';setMode('voice');setNav('History');chatId.current=result.chat.id;runId.current='';setTask(result.task);setChat(result.chat.messages.filter((m:any)=>typeof m.content==='string'&&['user','assistant'].includes(m.role)).map((m:any)=>({role:m.role,text:m.content})));setHandoffResult('');await refreshChats('voice');}
+    catch(error){report(String(error));}
+  }
+  async function declineHandoff() {
+    if(!handoff||active.current)return;
+    try{const result=await window.lca.cancelHandoff(handoff.id);if(!result.ok)throw Error(result.error);setHandoff(null);}
+    catch(error){report(String(error));}
+  }
+  async function acceptHandoff() {
+    if(active.current||!handoff||handoffWorking.current)return;
+    handoffWorking.current=true;
+    try {
+      const result=await window.lca.prepareHandoff(handoff.id);if(!result.ok)throw Error(result.error);
+      const target=result.handoff.target as WorkspaceMode;
+      setMode(target);modeRef.current=target;setNav('History');setChat([]);setTask(null);
+      chatId.current=result.chat.id;runId.current='';setHandoff(null);
+      active.current=true;setBusy(true);setStopping(false);
+      setChat([{role:'user',text:result.handoff.prompt}]);
+      const started=await window.lca.startTask(result.handoff.prompt,false,target);
+      if(!started.ok)throw Error(started.error);if(active.current)runId.current=started.run_id;
+      await refreshChats(target);
+    }catch(error){report(String(error));setBusy(false);active.current=false;}finally{handoffWorking.current=false;}
+  }
+  useEffect(()=>{if(mode==='voice'&&handoff&&!busy)void window.lca.getCompanionSettings().then(profile=>{if(profile.ok&&profile.auto_delegate!==false)void acceptHandoff();});},[handoff,busy,mode]);
   async function renameChat() {
     if(!renaming||busy||renameWorking)return;
     setRenameWorking(true);setRenameNotice('');
     try {
-      const result=await window.lca.renameChat(renaming.id,renaming.title,mode==='voice'?'chat':mode);
+      const result=await window.lca.renameChat(renaming.id,renaming.title,mode);
       if(!result.ok)throw new Error(result.error);
       (result.warnings||[]).forEach(showWarning);setRenaming(null);await refreshChats();
     }catch(error){setRenameNotice(String(error));}finally{setRenameWorking(false);}
   }
   async function configure() {
-    const r = await window.lca.configureModel({base_url: baseUrl, model, api_key: apiKey, settings:generation});
+    const r = await window.lca.configureModel({base_url: baseUrl, model, api_key: apiKey, tool_protocol:toolProtocol, settings:generation});
     if (!r.ok) throw new Error(r.error);
   }
   async function sendPrompt(resume = false, voiceText?:string) {
     const value = (voiceText??prompt).trim();
-    if (active.current || !settingsReady || (mode === 'ide' && !root) || (mode === 'voice' && voiceText===undefined) || !model || (!resume && !value)) return;
+    if (active.current || !settingsReady || (mode === 'ide' && !root) || (mode === 'voice' && voiceText===undefined) || (mode!=='voice'&&!model) || (!resume && !value)) return;
     // Block repeated clicks before the first IPC round trip.
     active.current = true; setBusy(true); setStopping(false);
     try {
       await configure();
+      if(mode==='voice')setHandoff(null);
       if (!chatId.current) {
         const r = await window.lca.newChat(mode);
         if (!r.ok) throw new Error(r.error);
@@ -229,19 +270,22 @@ export default function App() {
   const parent = directory.split(/[\\/]/).slice(0, -1).join('/') || '.';
   return <div className={`app-shell mode-${mode}`}>
     {quickOpen&&<div className="search-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setQuickOpen(false);}}><ProjectSearch root={root} visible quick focus={searchFocus} onClose={()=>setQuickOpen(false)} onOpen={(path,line)=>void openSearchFile(path,line)}/></div>}
-    <header className="topbar"><div className="brand"><div className="brand-mark"><Code2 size={18}/></div><span>LOCAL<b>AGENT</b></span><span className="version">v6.0</span></div><button className="project-pill" onClick={chooseProject} disabled={busy}><FolderOpen size={15}/>{project}<ChevronDown size={14}/></button><div className="mode-tabs" role="tablist" aria-label="Режим работы">{(['chat','ide','voice'] as WorkspaceMode[]).map(m=><button role="tab" aria-selected={mode===m} disabled={busy} className={mode===m?'selected':''} key={m} onClick={()=>void switchMode(m)}>{m==='chat'?'Chat':m==='ide'?'IDE':'Ассистент'}</button>)}</div><div className="top-spacer"/><span className="status">{health}</span><button className="icon-button" title="Настройки модели" onClick={()=>setSettingsOpen(true)}><Settings2 size={17}/></button></header>
+    <header className="topbar"><div className="brand"><div className="brand-mark"><Code2 size={18}/></div><span>LOCAL<b>AGENT</b></span><span className="version">v6.1</span></div><button className="project-pill" onClick={chooseProject} disabled={busy}><FolderOpen size={15}/>{project}<ChevronDown size={14}/></button><div className="mode-tabs" role="tablist" aria-label="Режим работы">{(['chat','ide','voice'] as WorkspaceMode[]).map(m=><button role="tab" aria-selected={mode===m} disabled={busy} className={mode===m?'selected':''} key={m} onClick={()=>void switchMode(m)}>{m==='chat'?'Chat':m==='ide'?'IDE':'Ассистент'}</button>)}</div><div className="top-spacer"/><span className="status">{health}</span><button className="icon-button" title="Настройки модели" onClick={()=>setSettingsOpen(true)}><Settings2 size={17}/></button></header>
     <div className="workarea">
       <nav className="activity-bar">{[{id:'Explorer',icon:Folder},{id:'Search',icon:Search},{id:'History',icon:History},{id:'Memory',icon:Brain},{id:'Models',icon:Settings2}].map(x=><button key={x.id} className={(x.id==='Models'?settingsOpen:nav===x.id)?'active':''} disabled={x.id==='Memory'&&(!root||mode!=='ide')} onClick={()=>x.id==='Models'?setSettingsOpen(true):x.id==='Memory'?setMemoryOpen(true):setNav(x.id)} title={x.id==='Memory'?'Память проекта':x.id}><x.icon size={19}/></button>)}</nav>
-      <aside className="sidebar"><div className="side-heading"><span>{nav==='History'?'ИСТОРИЯ ЧАТОВ':nav==='Search'?'ПОИСК ПО ПРОЕКТУ':nav==='Models'?'НАСТРОЙКИ МОДЕЛИ':'ФАЙЛЫ ПРОЕКТА'}</span><button onClick={()=>nav==='History'?refreshChats():refreshFiles(directory)} title="Обновить"><ChevronDown size={15}/></button></div>
+      <aside className="sidebar"><div className="side-heading"><span>{nav==='History'?(mode==='voice'?'ИСТОРИЯ МИИ':'ИСТОРИЯ ЧАТОВ'):nav==='Search'?'ПОИСК ПО ПРОЕКТУ':nav==='Models'?'НАСТРОЙКИ МОДЕЛИ':'ФАЙЛЫ ПРОЕКТА'}</span><button onClick={()=>nav==='History'?refreshChats():refreshFiles(directory)} title="Обновить"><ChevronDown size={15}/></button></div>
         <ProjectSearch root={root} visible={nav==='Search'&&!quickOpen} quick={false} focus={searchFocus} onClose={()=>setNav('Explorer')} onOpen={(path,line)=>void openSearchFile(path,line)}/>
         {nav==='Explorer' && <div className="file-list">{directory!=='.'&&<button className="file-row" onClick={()=>refreshFiles(parent)}>..</button>}{files.map(f=><button key={f.path} className={`file-row ${selectedFile===f.path?'selected':''}`} onClick={()=>openFile(f)}>{f.kind==='directory'?<Folder size={15}/>:<FileCode2 size={15}/>}<span>{f.name}</span></button>)}{!root&&<div className="empty-small">Выберите папку проекта</div>}</div>}
-        {nav==='History' && <div className="file-list"><button className="file-row" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={15}/>Новый чат</button>{chats.map(c=><div className="chat-history-row" key={c.id}><button className="file-row" disabled={busy} onClick={()=>selectChat(c.id)}><History size={15}/><span>{c.title}</span></button><button className="rename-chat icon-button" title="Переименовать чат" disabled={busy} onClick={()=>{setRenaming({id:c.id,title:c.title});setRenameNotice('');}}><Pencil size={13}/></button></div>)}</div>}
+        {nav==='History' && <div className="file-list"><button className="file-row" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={15}/>Новый чат</button>{chats.map(c=><div className="chat-history-row" key={c.id}><button className="file-row" disabled={busy} onClick={()=>selectChat(c.id)}><History size={15}/><span>{c.title}</span></button>{mode!=='ide'&&<button className="icon-button move-chat" title={mode==='voice'?'Перенести в Chat':'Перенести к Мие'} disabled={busy} onClick={()=>void moveChat(c.id)}>{mode==='voice'?'C':'М'}</button>}<button className="rename-chat icon-button" title="Переименовать чат" disabled={busy} onClick={()=>{setRenaming({id:c.id,title:c.title});setRenameNotice('');}}><Pencil size={13}/></button></div>)}</div>}
         <div className="sidebar-footer"><div className="project-status"><GitBranch size={14}/><span>{root?'Локальный проект':'Проект не выбран'}</span></div></div>
       </aside>
       <main className={mode==='ide'?'main-panel':'editor-hidden'}><EditorPanel ref={editorRef} root={root} busy={busy} visible={mode==='ide'} onActive={path=>{setSelectedFile(path);selectedRef.current=path;}} onDirty={dirty=>{void window.lca.setEditorDirty(dirty);}} onProject={()=>void chooseProject()} onModels={()=>setSettingsOpen(true)} onLog={report}/>
         <div className="bottom-panel"><div className="bottom-tabs"><span className="bottom-tab active"><SquareTerminal size={14}/>ВЫВОД</span></div><div className="output-log">{logs.length?logs.map((l,i)=><pre key={i}>{l}</pre>):<div className="output-line dim">События агента появятся здесь.</div>}</div></div>
       </main>
-      {mode==='voice'?<VoicePanel conversationKey={chatId.current} completed={task?.status==='completed'} model={model} messages={chat} busy={busy} onAsk={text=>void sendPrompt(false,text)} onCancel={()=>void cancel()} onChat={()=>void switchMode('chat')}/>:<aside className="agent-panel"><div className="agent-heading"><div><Bot size={17}/><b>{mode==='chat'?'Разговор с моделью':'Агент проекта'}</b></div><button className="icon-button" title="Новый чат" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={16}/></button></div><div className="agent-context"><span className="context-chip"><Folder size={13}/>{mode==='chat'?'Личный чат · без файловых инструментов':project}</span><span className="context-chip">Модель: {model||'не выбрана'}</span>{task&&<button className="progress-toggle" aria-expanded={showProgress} onClick={()=>setShowProgress(!showProgress)}>Ход задачи · {task.status==='completed'?'завершена':task.status==='paused'?'приостановлена':'в работе'} <ChevronDown size={13}/></button>}</div>
+      {handoffResult&&!busy&&<button className="handoff-return" onClick={()=>void returnToMiya()}>Результат готов · вернуться к Мие</button>}
+      {desktopImage&&<div className="desktop-artifact"><button onClick={()=>setDesktopImage('')}>Закрыть скриншот</button><img src={desktopImage} alt="Скриншот по запросу пользователя"/></div>}
+      {handoff&&<div className="handoff-card"><b>Мия передаёт задачу в {handoff.target.toUpperCase()}</b><p>{handoff.prompt}</p><button disabled={busy} onClick={()=>void acceptHandoff()}>Выполнить основной моделью</button><button disabled={busy} onClick={()=>void declineHandoff()}>Не выполнять</button></div>}
+      {mode==='voice'?<VoicePanel conversationKey={chatId.current} completed={task?.status==='completed'} messages={chat} busy={busy} onAsk={text=>void sendPrompt(false,text)} onCancel={()=>void cancel()} onChat={()=>void switchMode('chat')}/>:<aside className="agent-panel"><div className="agent-heading"><div><Bot size={17}/><b>{mode==='chat'?'Разговор с моделью':'Агент проекта'}</b></div><button className="icon-button" title="Новый чат" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={16}/></button></div><div className="agent-context"><span className="context-chip"><Folder size={13}/>{mode==='chat'?'Личный чат · без файловых инструментов':project}</span><span className="context-chip">Модель: {model||'не выбрана'}</span>{task&&<button className="progress-toggle" aria-expanded={showProgress} onClick={()=>setShowProgress(!showProgress)}>Ход задачи · {task.status==='completed'?'завершена':task.status==='paused'?'приостановлена':'в работе'} <ChevronDown size={13}/></button>}</div>
         {showProgress&&task&&<div className="progress-drawer"><TaskProgress task={task} busy={busy} onResume={()=>void sendPrompt(true)}/></div>}<div className="chat-messages" onScroll={event=>{const node=event.currentTarget;const bottom=node.scrollHeight-node.scrollTop-node.clientHeight<80;followChat.current=bottom;setAtBottom(bottom);}}>{chat.map((m,i)=><div className={`message ${m.role}`} key={i}>{m.role==='assistant'&&<div className="avatar"><Bot size={14}/></div>}<div className="message-content"><ChatText text={m.text}/>{m.streaming&&<span className="streaming-caret" aria-label="Ответ генерируется">▍</span>}</div></div>)}<div ref={messagesEnd}/></div>
         {!atBottom&&<button className="follow-chat" onClick={()=>{followChat.current=true;setAtBottom(true);messagesEnd.current?.scrollIntoView({behavior:'instant'});}}>К последнему сообщению ↓</button>}
         <div className="composer"><textarea aria-label="Задача агенту" value={prompt} disabled={busy} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendPrompt();}}} placeholder={mode==='ide'&&!root?'Сначала выберите проект':!model?'Укажите модель в настройках':'Опишите задачу…'}/><div className="composer-footer"><span>{stopping?'Останавливаем…':busy?'Агент работает…':'Enter для отправки'}</span>{busy?<button className="send-button" title="Остановить" disabled={stopping} onClick={cancel}><Square size={14}/></button>:<button className="send-button" title="Отправить" onClick={()=>sendPrompt()} disabled={!prompt.trim()||(mode==='ide'&&!root)||!model||!settingsReady}><Play size={14}/></button>}</div></div><div className="agent-foot"><ShieldCheck size={13}/> {mode==='ide'?'Подтверждение перед записью':'Локальная модель · история сохраняется на этом ПК'}</div>
@@ -249,7 +293,7 @@ export default function App() {
     </div><footer className="statusbar"><span><GitBranch size={12}/>{project}</span><span><ShieldCheck size={12}/>{mode==='ide'?'Файлы ограничены папкой проекта':mode==='chat'?'Chat · файловые инструменты отключены':'Ассистент · локальная озвучка'}</span><span className="statusbar-right">Electron · React · Python</span></footer>
     {memoryOpen&&root&&<MemoryPanel key={root} root={root} busy={busy} onClose={()=>setMemoryOpen(false)}/>}
     {renaming&&<div className="modal-backdrop"><section className="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="rename-title"><h2 id="rename-title">Название чата</h2><form onSubmit={event=>{event.preventDefault();void renameChat();}}><input autoFocus aria-label="Название чата" value={renaming.title} maxLength={120} disabled={renameWorking} onChange={event=>setRenaming({...renaming,title:event.target.value})}/><p role="status">{renameNotice}</p><div className="settings-actions"><button type="button" disabled={renameWorking} onClick={()=>setRenaming(null)}>Отмена</button><button className="primary-button" type="submit" disabled={busy||renameWorking||!renaming.title.trim()}>Переименовать</button></div></form></section></div>}
-    {settingsOpen&&settingsReady&&<ModelSettings initial={{base_url:baseUrl,model,api_key:apiKey,settings:generation}} busy={busy} onClose={()=>setSettingsOpen(false)} onSaved={config=>{setBaseUrl(config.base_url);setModel(config.model);setApiKey(config.api_key);setGeneration(config.settings);report('Настройки модели сохранены');}}/>}
+    {settingsOpen&&settingsReady&&<ModelSettings initial={{base_url:baseUrl,model,api_key:apiKey,tool_protocol:toolProtocol,settings:generation}} busy={busy} onClose={()=>setSettingsOpen(false)} onSaved={config=>{setBaseUrl(config.base_url);setModel(config.model);setToolProtocol(config.tool_protocol||'native');setApiKey(config.api_key);setGeneration(config.settings);report('Настройки модели сохранены');}}/>}
     {approval&&<div className="modal-backdrop"><section className="approval-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-title"><h2 id="approval-title">{approval.exists?'Изменение файла':'Новый файл'}: {approval.path}</h2><p>Проверьте изменения перед записью.</p><pre>{approval.diff||'Текстовых изменений нет'}</pre><div className="approval-actions"><button disabled={deciding} onClick={()=>decide('cancel')}>Отменить задачу</button><button disabled={deciding} onClick={()=>decide('reject')}>Отклонить изменение</button><button className="primary-button" disabled={deciding} onClick={()=>decide('apply')}>Применить изменение</button></div></section></div>}
   </div>;
 }

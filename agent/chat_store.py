@@ -53,7 +53,7 @@ def list_chats() -> list[dict[str, Any]]:
 
 
 def _metadata(chat):
-    return {k: str(chat.get(k, '')) for k in ('id', 'title', 'created_at', 'updated_at', 'project_root', 'model')}
+    return {**{k: str(chat.get(k, '')) for k in ('id', 'title', 'created_at', 'updated_at', 'project_root', 'model')}, 'mode': chat.get('mode', 'ide' if chat.get('project_root') else 'chat')}
 
 
 def _cache_chat(chat=None, deleted_id=None):
@@ -94,7 +94,7 @@ def read_chat_catalog():
         return {'chats': sorted(records, key=lambda x: x['updated_at'], reverse=True), 'warnings': warnings}
 
 
-def create_chat(project_root: str = "", model: str = "", title: str = "Новый чат") -> dict[str, Any]:
+def create_chat(project_root: str = "", model: str = "", title: str = "Новый чат", mode=None) -> dict[str, Any]:
     import uuid
     chat_id = uuid.uuid4().hex
     now = _now()
@@ -106,6 +106,7 @@ def create_chat(project_root: str = "", model: str = "", title: str = "Новы�
         "project_root": str(project_root),
         "model": str(model),
         "messages": [],
+        "mode": mode or ("ide" if project_root else "chat"),
     }
     with STORE_LOCK:
         _atomic_write(CHAT_DIR / f"{chat_id}.json", record)

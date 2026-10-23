@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session, desktopCapturer, shell, screen, safeStorage } from 'electron';
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import path from 'node:path';
@@ -29,6 +29,23 @@ function diagnostic(message: string) {
     fs.appendFileSync(file, `${new Date().toISOString()} ${message}\n`, 'utf8');
   } catch { /* Diagnostics must not prevent startup or shutdown. */ }
 }
+async function desktopRequest(message:any) {
+  let result:any={ok:false,error:'Неизвестная операция ПК'};
+  try {
+    if(message.operation==='screenshot') {
+      const displays=await desktopCapturer.getSources({types:['screen'],thumbnailSize:{width:1280,height:720}});
+      const primary=String(screen.getPrimaryDisplay().id);
+      const source=displays.find(item=>item.display_id===primary)||displays[0];
+      if(!source||source.thumbnail.isEmpty())throw Error('Снимок экрана недоступен');
+      publish({event:'desktop_artifact',image:source.thumbnail.toDataURL(),title:'Скриншот экрана'});
+      result={ok:true,capture_id:message.request_id,note:'Скриншот показан в приложении. Без VLM модель не получает изображение и не должна описывать его содержимое.'};
+    }else if(message.operation==='search') {
+      const query=String(message.args?.query||'');if(!query||query.length>500)throw Error('Некорректный запрос');
+      await shell.openExternal('https://duckduckgo.com/?q='+encodeURIComponent(query));result={ok:true};
+    }
+  }catch(error){result={ok:false,error:String(error)};}
+  await callBackend('desktop_result',{request_id:message.request_id,result});
+}
 function publish(message: any) {
   if (win && !win.isDestroyed()) win.webContents.send('core:event', message);
 }
@@ -44,7 +61,7 @@ function startBackend() {
   createInterface({ input: child.stdout }).on('line', (line) => {
     try {
       const msg = JSON.parse(line);
-      if (typeof msg.event === 'string') { publish(msg); return; }
+      if (typeof msg.event === 'string') { if(msg.event==='desktop_request')void desktopRequest(msg);else publish(msg); return; }
       const entry = pending.get(msg.id);
       if (entry) { clearTimeout(entry.timer); pending.delete(msg.id); entry.resolve(msg); }
     } catch { /* Backend output is data, never commands. */ }
@@ -69,7 +86,7 @@ function callBackend(method: string, params: Record<string, unknown> = {}) {
   startBackend();
   const id = ++requestId;
   return new Promise<any>((resolve) => {
-    const timer = setTimeout(() => { pending.delete(id); resolve({ ok: false, error: 'Python Core: время ожидания истекло' }); }, method === 'test_model' ? 35000 : 10000);
+    const timer = setTimeout(() => { pending.delete(id); resolve({ ok: false, error: 'Python Core: время ожидания истекло' }); }, method === 'transcribe' ? 95000 : method === 'test_model' ? 35000 : 10000);
     timer.unref();
     pending.set(id, { resolve, timer });
     backend!.stdin.write(JSON.stringify({ id, method, params }) + '\n');
@@ -93,13 +110,22 @@ function createWindow() {
   win.webContents.on('did-start-loading', () => { if (backend) void callBackend('cancel_task'); void callBackend('voice_stop'); });
   if (app.isPackaged) win.loadFile(path.join(__dirname, '../dist/index.html')); else win.loadURL('http://127.0.0.1:5173');
 }
-app.whenReady().then(() => { diagnostic(`app:start version=${app.getVersion()} packaged=${app.isPackaged} platform=${process.platform} arch=${process.arch}`); createWindow(); app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); }); });
-app.on('will-quit', event => {
+app.whenReady().then(() => { session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => { callback(contents===win?.webContents && (permission==='clipboard-sanitized-write' || (permission==='media' && 'mediaTypes' in details && details.mediaTypes?.includes('audio')===true && details.mediaTypes.every(type=>type==='audio')))); }); diagnostic(`app:start version=${app.getVersion()} packaged=${app.isPackaged} platform=${process.platform} arch=${process.arch}`); createWindow(); app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); }); });
+app.on('before-quit', event => {
+  if (editorDirty) {
+    event.preventDefault();
+    if (confirmingClose) return;
+    confirmingClose = true;
+    void confirmEditorDiscard().then(result => {
+      if (result.discard) { editorDirty = false; app.quit(); }
+    }).finally(() => { confirmingClose = false; });
+    return;
+  }
   if (quitting || !backend) return;
   event.preventDefault(); quitting = true; diagnostic('app:quit');
   const child=backend;
   const deadline=setTimeout(()=>{child.kill();app.exit(1);},15000);
-  child.once('exit',()=>{clearTimeout(deadline);app.exit(0);});
+  child.once('exit',()=>{clearTimeout(deadline);app.quit();});
   child.stdin.end();
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
@@ -118,7 +144,7 @@ handle('project:choose', async () => {
 handle('project:list', (rel = '.') => callBackend('list_files', { path: String(rel).slice(0, 1000) }));
 handle('project:read', (rel) => callBackend('read_file', { path: String(rel).slice(0, 1000) }));
 function modelConfig(config: any) {
-  return { base_url: String(config?.base_url || '').slice(0, 2000), model: String(config?.model || '').slice(0, 300), api_key: String(config?.api_key || '').slice(0, 4000), settings: config?.settings ?? {} };
+  return { tool_protocol: config?.tool_protocol || 'native', base_url: String(config?.base_url || '').slice(0, 2000), model: String(config?.model || '').slice(0, 300), api_key: String(config?.api_key || '').slice(0, 4000), settings: config?.settings ?? {} };
 }
 async function confirmEditorDiscard() {
   if (!win) return {discard:false};
@@ -132,6 +158,33 @@ handle('editor:preview', (path, content, revision) => callBackend('editor_previe
 handle('editor:resolve', (proposalId, decision) => callBackend('editor_resolve', {proposal_id:proposalId, decision}));
 handle('editor:dirty', (dirty) => { editorDirty = dirty === true; return {ok:true}; });
 handle('editor:confirm-discard', () => confirmEditorDiscard());
+handle('telegram:status',()=>callBackend('telegram_status'));
+handle('telegram:connect',async(params)=>{
+  const secretFile=path.join(app.getPath('userData'),'telegram-secret.bin');
+  let credentials={token:String(params?.token||''),owner_id:String(params?.owner_id||'')};
+  if(params?.use_saved===true){
+    if(!safeStorage.isEncryptionAvailable())return {ok:false,error:'Защищённое хранилище недоступно'};
+    try{credentials=JSON.parse(safeStorage.decryptString(fs.readFileSync(secretFile)));}
+    catch{return {ok:false,error:'Сохранённый токен не найден или недоступен'};}
+  }
+  const result=await callBackend('telegram_start',credentials);
+  if(result.ok&&params?.remember===true){
+    if(!safeStorage.isEncryptionAvailable())return {...result,warning:'Подключено, но сохранение токена недоступно'};
+    fs.mkdirSync(path.dirname(secretFile),{recursive:true});fs.writeFileSync(secretFile,safeStorage.encryptString(JSON.stringify(credentials)));
+  }
+  return result;
+});
+handle('telegram:disconnect',()=>callBackend('telegram_stop'));
+handle('telegram:forget',()=>{const file=path.join(app.getPath('userData'),'telegram-secret.bin');if(fs.existsSync(file))fs.unlinkSync(file);return {ok:true};});
+handle('desktop:settings',()=>callBackend('desktop_settings'));
+handle('desktop:configure',params=>callBackend('configure_desktop',{enabled:params?.enabled===true}));
+handle('chat:move',params=>callBackend('move_chat_mode',{chat_id:params?.chat_id,mode:params?.mode,target:params?.target}));
+handle('companion:cancel-handoff',params=>callBackend('discard_handoff',{id:params?.id}));
+handle('companion:handoff',params=>callBackend('prepare_handoff',{id:params?.id}));
+handle('companion:settings',()=>callBackend('get_companion_settings'));
+handle('companion:configure',params=>callBackend('configure_companion',params));
+handle('voice:transcribe',params=>callBackend('transcribe',{audio:params?.audio}));
+handle('voice:cancel-transcription',()=>callBackend('cancel_transcription'));
 handle('voice:status',()=>callBackend('voice_status'));
 handle('voice:refresh',()=>callBackend('voice_refresh'));
 handle('voice:speak',params=>callBackend('voice_speak',{text:params?.text,voice:params?.voice,rate:params?.rate,volume:params?.volume}));
@@ -146,7 +199,7 @@ handle('runtime:pick', async (kind) => {
 handle('runtime:start', params => {
   const runtime = selectedRuntime || bundledRuntimePath();
   if(!runtime||!selectedModel)return {ok:false,error:'Выберите сервер и модель через диалог файлов'};
-  return callBackend('runtime_start',{runtime_path:runtime,model_path:selectedModel,ctx_size:params?.ctx_size,gpu_layers:params?.gpu_layers});
+  return callBackend('runtime_start',{runtime_path:runtime,model_path:selectedModel,ctx_size:params?.ctx_size,gpu_layers:params?.gpu_layers,threads:params?.threads,cache_type_k:params?.cache_type_k,cache_type_v:params?.cache_type_v});
 });
 handle('runtime:status',async()=>({...await callBackend('runtime_status'),bundled_runtime:bundledRuntimePath()}));
 handle('runtime:stop',()=>callBackend('runtime_stop'));

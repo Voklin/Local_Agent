@@ -15,6 +15,10 @@ from agent.model_preferences import load_preferences, save_preferences, validate
 from agent.model_discovery import discover_models
 from agent.model_probe import probe_model
 from agent.task_activity import recover_tools
+from agent.tools import TOOL_DEFINITIONS, execute_tool
+from core.python.desktop_service import DESKTOP_TOOLS
+from agent.delegation import DELEGATE_TOOL
+from agent.companion_preferences import load_profile, save_profile
 
 
 class TaskService:
@@ -29,6 +33,7 @@ class TaskService:
         self.chat = None
         self.run_id = None
         self.config = {**load_preferences(), 'api_key': ''}
+        self.companion_config = {**load_profile(), 'api_key':'', 'stt_api_key':''}
         self.stream_turn = None
         self.stream_buffer = ''
         self.last_stream_emit = 0
@@ -39,6 +44,9 @@ class TaskService:
         self.discovery_cancel = threading.Event()
         self.stream_text = ''
         self.stream_persist_at = 0
+        self.desktop = None
+        self.handoff_pending = None
+        self.delegation_origin = None
         self.draft_timer = None
 
     def idle(self):
@@ -55,8 +63,50 @@ class TaskService:
         return {'ok': True, **preferences}
 
     def preferences(self):
-        return {'ok': True, 'base_url': self.config['base_url'], 'model': self.config['model'],
+        return {'ok': True, 'tool_protocol':self.config.get('tool_protocol','native'), 'base_url': self.config['base_url'], 'model': self.config['model'],
                 'settings': deepcopy(self.config['settings'])}
+
+    def request_delegation(self, name, args):
+        if name != 'delegate_task' or args.get('target') not in ('chat','ide'):
+            return {'ok':False,'error':'Недопустимое делегирование'}
+        prompt=args.get('prompt')
+        if not isinstance(prompt,str) or not 1<=len(prompt.strip())<=10000:
+            return {'ok':False,'error':'Задание: от 1 до 10000 символов'}
+        if self.handoff_pending:
+            return {'ok':False,'error':'Уже подготовлена передача задачи'}
+        self.handoff_pending={'id':uuid.uuid4().hex,'target':args['target'],'prompt':prompt.strip(),'source_chat':self.chat['id'], 'original_prompt':self.engine.prompt}
+        self._event('handoff',handoff=dict(self.handoff_pending))
+        return {'ok':True,'queued':True,'id':self.handoff_pending['id']}
+
+    def prepare_handoff(self, root, params):
+        self.idle()
+        pending=self.handoff_pending
+        if not pending or pending['id']!=params.get('id'):
+            raise ValueError('Передача задачи устарела')
+        if pending['target']=='ide' and not root:
+            raise ValueError('Для передачи в IDE сначала выберите папку проекта')
+        scope=root if pending['target']=='ide' else ''
+        result=self.select_chat(scope,mode=pending['target'])
+        self.handoff_pending=None
+        self.delegation_origin={**pending,'target_chat':result['chat']['id']}
+        self.emit({'event':'handoff_started','source_chat':pending['source_chat'],'target_chat':result['chat']['id']})
+        return {**result,'handoff':pending}
+
+    def discard_handoff(self, params):
+        self.idle()
+        if not self.handoff_pending or self.handoff_pending['id']!=params.get('id'):
+            raise ValueError('Передача задачи устарела')
+        self.handoff_pending=None
+        return {'ok':True}
+
+    def companion_preferences(self):
+        return {'ok':True, **{k:v for k,v in self.companion_config.items() if k not in ('api_key','stt_api_key')}}
+
+    def configure_companion(self, params):
+        self.idle()
+        public=save_profile(params)
+        self.companion_config={**public, **{key:str(params.get(key,self.companion_config.get(key,'')))[:4000] for key in ('api_key','stt_api_key')}}
+        return self.companion_preferences()
 
     def models(self, config=None, cancelled=None):
         return discover_models(dict(config if config is not None else self.config), cancelled=cancelled)
@@ -104,19 +154,35 @@ class TaskService:
             self.discovery_thread = threading.Thread(target=run_discovery, daemon=True, name='model-discovery')
             self.discovery_thread.start()
 
-    def chats(self, root):
+    def move_chat(self, params):
+        self.idle()
+        target=params.get('target');source=params.get('mode')
+        if target not in ('chat','voice') or source not in ('chat','voice'):
+            raise ValueError('Перенос доступен между Chat и Мией')
+        with self.lock, STORE_LOCK:
+            chat=load_chat(params.get('chat_id'))
+            if not chat or chat.get('project_root') or chat.get('mode','chat')!=source:
+                raise ValueError('Чат не принадлежит исходной области')
+            chat['mode']=target
+            save_chat(chat)
+            if self.chat and self.chat['id']==chat['id']:self.chat=None
+        return {'ok':True}
+
+    def chats(self, root, mode=None):
+        mode = mode or ('ide' if root else 'chat')
         catalog = read_chat_catalog()
-        return {'ok': True, 'chats': [c for c in catalog['chats'] if c.get('project_root') == str(root)],
+        return {'ok': True, 'chats': [c for c in catalog['chats'] if c.get('project_root') == str(root) and c.get('mode', 'ide' if root else 'chat') == mode],
                 'warnings': catalog['warnings']}
 
     def rename(self, root, params):
+        mode = params.get('mode', 'ide' if root else 'chat')
         self.idle()
         title=params.get('title')
         if not isinstance(title,str) or not title.strip() or len(title)>120 or '\x00' in title:
             raise ValueError('Название чата: от 1 до 120 символов без NUL')
         with self.lock, STORE_LOCK:
             chat=load_chat(params.get('chat_id'))
-            if not chat or chat.get('project_root')!=str(root):
+            if not chat or chat.get('project_root')!=str(root) or chat.get('mode', 'ide' if root else 'chat')!=mode:
                 raise ValueError('Чат не принадлежит выбранной области')
             chat['title']=' '.join(title.split())
             warning=save_chat(chat)
@@ -124,16 +190,17 @@ class TaskService:
                 self.chat['title']=chat['title']
             return {'ok':True,'title':chat['title'],'warnings':[warning] if warning else []}
 
-    def select_chat(self, root, chat_id=None):
+    def select_chat(self, root, chat_id=None, mode=None):
+        mode = mode or ('ide' if root else 'chat')
         self.idle()
         if chat_id:
             if not isinstance(chat_id, str) or len(chat_id) != 32 or any(c not in '0123456789abcdef' for c in chat_id):
                 raise ValueError('Некорректный идентификатор чата')
             chat = load_chat(chat_id)
-            if not chat or chat.get('project_root') != str(root):
+            if not chat or chat.get('project_root') != str(root) or chat.get('mode', 'ide' if root else 'chat') != mode:
                 raise ValueError('Чат не принадлежит выбранному проекту')
         else:
-            chat = create_chat(str(root), self.config['model'])
+            chat = create_chat(str(root), self.companion_config['model'] if mode=='voice' else self.config['model'], mode=mode)
         self.chat = chat
         warnings = [chat.pop('storage_warning')] if chat.get('storage_warning') else []
         task, recovered = self._recover_chat()
@@ -320,7 +387,9 @@ class TaskService:
 
     def start(self, root: Path, params):
         self.idle()
-        if not self.config['model']:
+        voice = params.get('mode') == 'voice'
+        config = {key:self.companion_config[key] for key in ('base_url','model','api_key','settings','tool_protocol')} if voice else self.config
+        if not config['model']:
             raise ValueError('Выберите модель в настройках')
         prompt = str(params.get('prompt', '')).strip()
         if params.get('resume'):
@@ -334,24 +403,35 @@ class TaskService:
         if not prompt or len(prompt) > 50000:
             raise ValueError('Введите задачу длиной от 1 до 50000 символов')
         if not self.chat:
-            self.select_chat(root)
+            self.select_chat(root, mode=params.get('mode'))
         elif self.chat.get('stream_draft'):
             self._recover_chat()
-        if self.chat['project_root'] != str(root):
+        if self.chat['project_root'] != str(root) or self.chat.get('mode', 'ide' if root else 'chat') != params.get('mode', 'ide' if root else 'chat'):
             raise ValueError('Чат принадлежит другому проекту')
         if not params.get('resume'):
             clear_task(self.chat['id'])
+        if voice and not params.get('resume'):self.handoff_pending=None
+        if self.delegation_origin and self.chat['id']!=self.delegation_origin['target_chat']:self.delegation_origin=None
         history = list(self.chat.get('messages', []))
-        self.engine = self.engine_factory(**self.config, project_root=str(root), prompt=prompt,
+        desktop_tools=DESKTOP_TOOLS if self.desktop and self.desktop.enabled else []
+        definitions=([DELEGATE_TOOL] if voice else TOOL_DEFINITIONS if root else []) + desktop_tools
+        def dispatch(name,args):
+            if name in {tool['function']['name'] for tool in desktop_tools}:
+                grants=self.delegation_origin['original_prompt'] if self.delegation_origin else prompt
+                try:return self.desktop.execute(name,args,grants,self.engine._interrupted)
+                except Exception as exc:return {'ok':False,'error':'Инструмент ПК: '+type(exc).__name__}
+            if voice:return self.request_delegation(name,args)
+            return execute_tool(name,args,str(root),self.engine.settings)
+        self.engine = self.engine_factory(**config, project_root=str(root), prompt=prompt,
             history=history, memory=load_project_memory(str(root)) if root else {},
-            auto_memory=bool(root), allow_tools=bool(root), companion=params.get('mode')=='voice', task_id=self.chat['id'])
+            auto_memory=bool(root), allow_tools=bool(definitions), tool_definitions=definitions, tool_handler=dispatch, companion=voice, persona=self.companion_config['persona'] if voice else '', task_id=self.chat['id'])
         self.run_id = uuid.uuid4().hex
         self.stream_turn = None
         self.stream_buffer = ''
         self.stream_text = ''
         self.stream_persist_at = 0
         self.last_stream_emit = 0
-        self.chat['model'] = self.config['model']
+        self.chat['model'] = config['model']
         self.chat['active_run_id'] = self.run_id
         self.chat['messages'] = history + [{'role': 'user', 'content': prompt}]
         self.chat['task_checkpoint'] = self.engine.task_snapshot()
@@ -410,6 +490,18 @@ class TaskService:
                     self._event('failed', text=f'Не удалось сохранить состояние задачи: {type(exc).__name__}: {exc}')
                 finally:
                     # All state is finalized before clients are told they may start again.
+                    origin=self.delegation_origin
+                    if origin and self.chat['id']==origin['target_chat']:
+                        try:
+                            with STORE_LOCK:
+                                source=load_chat(origin['source_chat'])
+                                answers=[m.get('content','') for m in self.chat['messages'] if m.get('role')=='assistant' and isinstance(m.get('content'),str)]
+                                if source and source.get('mode')=='voice':
+                                    source['messages'].append({'role':'assistant','content':'Результат основной модели '+origin['target'].upper()+':\n'+(answers[-1][-20000:] if answers else 'Задача завершилась без текстового ответа; проверьте её журнал.')})
+                                    save_chat(source)
+                            self.emit({'event':'handoff_result','source_chat':origin['source_chat'],'target_chat':self.chat['id']})
+                        except Exception as exc:self._event('warning',text='Не удалось передать результат Мие: '+type(exc).__name__)
+                        finally:self.delegation_origin=None
                     self.task_running = False
                     self._event('task_end')
 

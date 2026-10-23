@@ -1,3 +1,4 @@
+import { ConnectionsSettings } from './ConnectionsSettings';
 import { LocalRuntimePanel } from './LocalRuntimePanel';
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Eye, EyeOff, RotateCcw, Server, Settings2, X } from 'lucide-react';
@@ -6,7 +7,7 @@ export type GenerationSettings = {
   temperature: number; top_p: number; max_tokens: number; max_context_chars: number;
   request_timeout: number; max_agent_turns: number; max_runtime_minutes: number;
 };
-export type ModelConfig = { base_url: string; model: string; api_key: string; settings: GenerationSettings };
+export type ModelConfig = { tool_protocol?: string; base_url: string; model: string; api_key: string; settings: GenerationSettings };
 export const defaultGeneration: GenerationSettings = {
   temperature: 0.2, top_p: 1, max_tokens: 8192, max_context_chars: 80000,
   request_timeout: 180, max_agent_turns: 200, max_runtime_minutes: 180,
@@ -102,6 +103,7 @@ export function ModelSettings({ initial, busy, onSaved, onClose }: {
           {busy&&<div className="settings-notice">Дождитесь завершения задачи, чтобы менять настройки.</div>}
           <section className="settings-section"><h3><Server size={16}/>Подключение</h3>
             <div className="endpoint-presets"><span>Быстрый адрес</span><button type="button" disabled={locked} onClick={()=>change('base_url','http://127.0.0.1:1234/v1')}>LM Studio</button><button type="button" disabled={locked} onClick={()=>change('base_url','http://127.0.0.1:11434/v1')}>Ollama</button></div>
+            <label>Протокол инструментов<select aria-label="Протокол инструментов" value={draft.tool_protocol||'native'} disabled={locked} onChange={e=>change('tool_protocol',e.target.value)}><option value="native">Native tools API</option><option value="json">JSON в тексте · Qwen 2.5 Coder</option></select><small>JSON не требует нативной поддержки tools у модели. Вызовы выполняются через обычные проверки и подтверждения.</small></label>
             <label>URL сервера<input name="base_url" maxLength={2000} value={draft.base_url} disabled={locked} onChange={event=>change('base_url',event.target.value)} placeholder="http://127.0.0.1:1234/v1"/><small>Адрес OpenAI-совместимого API с /v1. Для внешнего сервера запустите его отдельно; GGUF можно запустить ниже.</small></label>
             <label>API-ключ <span className="field-optional">если требуется сервером</span><div className="key-input"><input name="api_key" maxLength={4000} type={visibleKey?'text':'password'} autoComplete="off" value={draft.api_key} disabled={locked} onChange={event=>change('api_key',event.target.value)}/><button type="button" className="icon-button" title={visibleKey?'Скрыть ключ':'Показать ключ'} onClick={()=>setVisibleKey(!visibleKey)}>{visibleKey?<EyeOff size={16}/>:<Eye size={16}/>}</button></div><small>Ключ не сохраняется на диск. Для локального сервера обычно не нужен.</small></label>
             <div className="connection-actions"><button type="button" className="secondary-button discover-models" disabled={locked} onClick={()=>void perform('discover')}>{operation==='discover'?'Получаю список…':'Проверить сервер и загрузить модели'}</button></div>
@@ -109,7 +111,7 @@ export function ModelSettings({ initial, busy, onSaved, onClose }: {
             {!!models.length&&<div className="model-picker" aria-label="Модели сервера">{models.map(model=><button type="button" key={model} disabled={locked} className={draft.model===model?'selected':''} onClick={()=>change('model',model)}><span>{model}</span>{draft.model===model&&<CheckCircle2 size={14}/>}</button>)}</div>}
             <button type="button" className="secondary-button probe-model" disabled={locked||!draft.model.trim()} onClick={()=>void perform('probe')}>{operation==='probe'?'Проверяю ответ…':'Проверить ответ модели'}</button><small>Короткий запрос без файлов и истории, до 30 секунд, с выбранным ниже бюджетом токенов. Сервер может автоматически загрузить выбранную модель.</small>
           </section>
-          <LocalRuntimePanel locked={locked} onUse={(url,model)=>{setDraft(current=>({...current,base_url:url,model,api_key:''}));setModels([]);}}/>
+          <ConnectionsSettings busy={locked}/><LocalRuntimePanel locked={locked} onUse={(url,model)=>{setDraft(current=>({...current,base_url:url,model,api_key:''}));setModels([]);}}/>
           <section className="settings-section"><div className="settings-section-heading"><h3>Генерация и лимиты</h3><button type="button" className="reset-generation" disabled={locked} onClick={resetGeneration}><RotateCcw size={13}/>Сбросить параметры</button></div>
             <div className="generation-grid">{fields.map(field=><label key={field.key}>{field.label}<input name={field.key} type="number" min={field.min} max={field.max} step={field.step} value={Number.isFinite(draft.settings[field.key])?draft.settings[field.key]:''} disabled={locked} onChange={event=>change('settings',{...draft.settings,[field.key]:event.target.value===''?NaN:Number(event.target.value)})}/><small>{field.hint}</small></label>)}</div>
             <p className="settings-help">Для внешнего сервера контекст, GPU и chat template настраиваются в LM Studio/Ollama. Для собственного GGUF контекст и GPU-слои задаются в разделе выше. Эти поля управляют запросами LocalAgent.</p>

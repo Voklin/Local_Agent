@@ -42,7 +42,8 @@ class ModelStream:
 
 
 class ModelClient:
-    def __init__(self, base_url, api_key, interrupted, timeout=180):
+    def __init__(self, base_url, api_key, interrupted, timeout=180, tool_protocol='native'):
+        self.tool_protocol = tool_protocol
         from openai import AsyncOpenAI
         self.interrupted = interrupted
         self.loop = asyncio.new_event_loop()
@@ -82,6 +83,10 @@ class ModelClient:
     def create(self, **params):
         self.check_cancelled()
         if params.get('stream'):
+            if self.tool_protocol == 'json' and params.get('tools'):
+                from .json_tools import prepare_json_request, JsonToolStream
+                request, allowed, choice = prepare_json_request(params)
+                return JsonToolStream(ModelStream(self, request), allowed, choice)
             return ModelStream(self, params)
         return self.result(self.submit(self.client.chat.completions.create(**params)))
 

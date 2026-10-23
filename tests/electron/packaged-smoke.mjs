@@ -55,8 +55,9 @@ async function run(executable, directory, first, modelUrl) {
   const child = spawn(executable, [`--user-data-dir=${path.join(directory, 'profile')}`, '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${port}`, '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows'],
     { cwd: directory, env, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
   let stderr = '';
+  console.log(JSON.stringify({event:'package-start',pid:child.pid,first,directory}));
   child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-8000); });
-  const exited = new Promise(resolve => child.once('exit', resolve));
+  const exited = new Promise(resolve => child.once('exit', (code,signal)=>{console.log(JSON.stringify({event:'package-exit',pid:child.pid,code,signal}));resolve(code);}));
   let socket;
   try {
     socket = await connectPage(port, child);
@@ -95,8 +96,10 @@ async function run(executable, directory, first, modelUrl) {
       assert.equal(speech.state,'idle',speech.error);
       assert.ok(speech.voices.length>0,'Expected an installed system voice');
     }
-    assert.equal(await evaluate(socket,`document.querySelector('.voice-buttons button[title="STT-провайдер пока не подключён"]').disabled`),true);
+    assert.equal(await evaluate(socket,`!!document.querySelector('.microphone-record')`),true);
     await evaluate(socket, 'setTimeout(() => window.close(), 50); true');
+    socket.close();
+    socket = undefined;
     const code = await Promise.race([exited, delay(25_000).then(() => 'timeout')]);
     assert.equal(code, 0, stderr);
   } finally {
@@ -124,7 +127,7 @@ async function main() {
     const log = await fs.readFile(path.join(directory, 'profile/logs/main.log'), 'utf8');
     assert.ok(log.includes('packaged=true') && log.includes('app:quit'));
     assert.ok(!log.includes('packaging-test-secret'));
-    console.log(JSON.stringify({ status: 'passed', executable, directory, checks: ['bundled-core', 'stripped-PATH', 'file-renderer', 'discovery', 'restart-preferences', 'clean-exit', 'no-secret-in-preferences-or-log','system-voice-catalog-no-audio','microphone-disabled'] }));
+    console.log(JSON.stringify({ status: 'passed', executable, directory, checks: ['bundled-core', 'stripped-PATH', 'file-renderer', 'discovery', 'restart-preferences', 'clean-exit', 'no-secret-in-preferences-or-log','system-voice-catalog-no-audio','explicit-microphone-control'] }));
   } finally {
     await new Promise(resolve => model.close(resolve));
   }

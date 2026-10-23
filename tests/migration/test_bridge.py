@@ -25,7 +25,7 @@ class BridgeTests(unittest.TestCase):
         bridge.project_root = None
         with patch.object(bridge.tasks, 'chats', return_value={'ok': True}) as chats:
             self.assertTrue(bridge.handle('list_chats', {'mode': 'chat'})['ok'])
-            chats.assert_called_once_with('')
+            chats.assert_called_once_with('', 'chat')
         with self.assertRaises(ValueError):
             bridge.handle('list_chats', {'mode': 'ide'})
 

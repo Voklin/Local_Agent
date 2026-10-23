@@ -80,3 +80,11 @@ python tools/check_docs.py
 Результаты сеанса, проверки, артефакт и следующие шаги — [глава 23](23-autonomous-verification.md).
 
 Полный офлайн-установщик, встроенный llama.cpp, Visual C++ и GitHub Release — [глава 24](24-full-windows-installer.md).
+
+Новые области истории, JSON tool calling и KV-кеш — [глава 25](25-json-tools-and-cache.md).
+
+Отдельная модель/характер Мии, передача задач и STT — [глава 26](26-miya-model-and-stt.md).
+
+Инструменты ПК, prompt-only папки и Telegram — [глава 27](27-desktop-and-telegram.md).
+
+Проверки расширения, реальная Qwen и границы готовности — [глава 28](28-expansion-validation.md).

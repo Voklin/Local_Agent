@@ -1,10 +1,15 @@
 // Run with Electron after building and starting Vite on 127.0.0.1:5173.
 // Uses the real main process, preload, renderer, bridge and engine.
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, desktopCapturer, nativeImage } = require('electron');
+desktopCapturer.getSources=async()=>[{display_id:'fixture',thumbnail:nativeImage.createFromBitmap(Buffer.from([255,0,0,255]),{width:1,height:1})}];
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const assert = require('node:assert/strict');
+app.commandLine.appendSwitch('use-fake-device-for-media-stream');
+app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+let transcriptionRequests=0;
+const transcriptionFixture=http.createServer((request,response)=>{let body=[];request.on('data',chunk=>body.push(chunk));request.on('end',()=>{body=Buffer.concat(body);assert.ok(body.includes(Buffer.from('RIFF')));transcriptionRequests++;response.writeHead(200,{'Content-Type':'application/json'});response.end(JSON.stringify({text:'Микрофон fixture'}));});});
 
 // Capture speech IPC in GUI tests: actual System.Speech is tested through WAV,
 // so this suite never plays audio on the user's speakers.
@@ -30,6 +35,7 @@ ipcMain.handle=(channel,handler)=>{
 
 const testRoot = path.resolve(__dirname, '../../.test-data/electron-smoke');
 fs.mkdirSync(testRoot, { recursive: true });
+fs.writeFileSync(path.join(testRoot,'fixture-requests.log'),'');
 const resultPath = path.join(testRoot, 'result.json');
 fs.writeFileSync(resultPath, JSON.stringify({status:'running'}));
 function fail(error) {
@@ -39,8 +45,9 @@ function fail(error) {
 process.on('uncaughtException', fail);
 process.on('unhandledRejection', fail);
 const project = fs.mkdtempSync(path.join(testRoot, 'project-'));
-process.env.LOCALAPPDATA = testRoot;
-app.setPath('userData', path.join(testRoot, 'electron-profile'));
+const appData=fs.mkdtempSync(path.join(testRoot,'userdata-'));
+process.env.LOCALAPPDATA = appData;
+app.setPath('userData', path.join(appData, 'electron-profile'));
 BrowserWindow.prototype.show = function () {}; // Keep the test window hidden.
 let discardChoice = 1;
 dialog.showMessageBox = async () => ({response:discardChoice});
@@ -52,6 +59,7 @@ let modelMode = 'write';
 let releaseModelText = null;
 let streamDisconnected = false;
 const model = http.createServer((req, res) => {
+  fs.appendFileSync(path.join(testRoot,'fixture-requests.log'), `${new Date().toISOString()} ${req.method} ${req.url}\n`);
   let raw = '';
   req.on('data', chunk => { raw += chunk; });
   req.on('end', () => {
@@ -66,8 +74,11 @@ const model = http.createServer((req, res) => {
     }
     const encode = delta => 'data: ' + JSON.stringify({id:'test',object:'chat.completion.chunk',created:0,model:'smoke-model',choices:[{index:0,delta,finish_reason:null}]}) + '\n\n';
     res.writeHead(200, { 'Content-Type':'text/event-stream' });
-    if (!input.tools) {
-      assert.equal(input.tool_choice, undefined);
+    if(modelMode==='desktop') {
+      const delta=input.messages.some(message=>message.role==='tool')?{content:'Screenshot created'}:{tool_calls:[{index:0,id:'screen-fixture',type:'function',function:{name:'desktop_screenshot',arguments:'{}'}}]};
+      res.end(encode(delta)+'data: [DONE]\n\n');
+    }else if (!input.tools || input.tools.every(tool=>tool.function.name==='delegate_task')) {
+      if(!input.tools)assert.equal(input.tool_choice, undefined);
       if(input.messages[0].content.includes('Мия'))companionRequest=true;
       if(modelMode==='scroll') {
         res.write(encode({content:Array.from({length:120},(_,i)=>'Scroll line '+i).join('\n')}));
@@ -96,7 +107,7 @@ async function poll(win, expression, timeout=10000) {
   }
   throw new Error('Timed out: ' + expression);
 }
-const deadline = setTimeout(() => fail(new Error('Smoke timed out')), process.env.LCA_TEST_RUNTIME?180000:45000);
+const deadline = setTimeout(() => fail(new Error('Smoke timed out')), process.env.LCA_TEST_RUNTIME?180000:90000);
 app.on('browser-window-created', (_event, win) => {
   win.webContents.setBackgroundThrottling(false);
   win.webContents.on('preload-error', (_event, preloadPath, error) => {
@@ -153,6 +164,10 @@ app.on('browser-window-created', (_event, win) => {
       win.close();
       assert.equal((await win.webContents.executeJavaScript('window.lca.health()')).ok,true);
       assert.equal(win.isDestroyed(),false);
+      app.quit();
+      await new Promise(resolve=>setTimeout(resolve,100));
+      assert.equal(win.isDestroyed(),false);
+      assert.equal((await win.webContents.executeJavaScript('window.lca.health()')).ok,true);
       fs.writeFileSync(path.join(project,'editor-a.txt'),'external change');
       await win.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'s',ctrlKey:true,bubbles:true}))`);
       await poll(win, `document.querySelector('.editor-notice').textContent.includes('изменился на диске')`);
@@ -249,7 +264,7 @@ app.on('browser-window-created', (_event, win) => {
       }`);
       await poll(win, `!document.querySelector('[title="Отправить"]').disabled`);
       await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
-      await poll(win, `!!document.querySelector('[role="dialog"]')`);
+      await poll(win, `!!document.querySelector('[role="dialog"]')`, 30000);
       await win.webContents.executeJavaScript(`document.querySelector('.progress-toggle').click()`);
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-tools [data-status="awaiting_approval"]').textContent.includes('smoke.txt')`), true);
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-stages [aria-current="step"]').textContent.includes('Реализация')`), true);
@@ -274,7 +289,7 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `!!document.querySelector('.task-tools [data-status="succeeded"]') && document.querySelector('.task-files').textContent.includes('smoke.txt')`);
       await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       fs.writeFileSync(path.join(testRoot, 'completed.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
-      const corruptChat = path.join(testRoot, 'LocalCodingAgent/chats', '0'.repeat(32) + '.json');
+      const corruptChat = path.join(appData, 'LocalCodingAgent/chats', '0'.repeat(32) + '.json');
       fs.writeFileSync(corruptChat, '{broken source');
       modelMode = 'conflict';
       await win.webContents.executeJavaScript(`document.querySelector('[title="Новый чат"]').click()`);
@@ -294,8 +309,8 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `!document.querySelector('[title="Остановить"]') && document.querySelector('.chat-messages').textContent.includes('запросите новый diff')`);
       assert.equal(fs.readFileSync(path.join(project, 'conflict.txt'), 'utf8'), 'external edit');
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-tools [data-status="failed"]').textContent.includes('изменились')`), true);
-      const saved = JSON.parse(fs.readFileSync(path.join(testRoot, 'LocalCodingAgent/model-preferences.json'), 'utf8'));
-      assert.deepEqual(saved, {base_url:url, model:'smoke-model', settings:{temperature:0.65,top_p:1,max_tokens:1024,max_context_chars:80000,request_timeout:180,max_agent_turns:200,max_runtime_minutes:180}});
+      const saved = JSON.parse(fs.readFileSync(path.join(appData, 'LocalCodingAgent/model-preferences.json'), 'utf8'));
+      assert.deepEqual(saved, {tool_protocol:'native',base_url:url, model:'smoke-model', settings:{temperature:0.65,top_p:1,max_tokens:1024,max_context_chars:80000,request_timeout:180,max_agent_turns:200,max_runtime_minutes:180}});
       assert.equal(JSON.stringify(saved).includes('test-secret'), false);
       const reloaded = new Promise(resolve => win.webContents.once('did-finish-load', resolve));
       win.webContents.reload();
@@ -332,10 +347,20 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       fs.writeFileSync(path.join(testRoot, 'ide.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
       assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.main-panel')).backgroundColor`), 'rgb(25, 25, 28)');
+      await win.webContents.executeJavaScript(`window.lca.configureCompanion({base_url:${JSON.stringify(url)},model:'smoke-model',persona:'Мия — дружелюбная помощница',auto_delegate:false,stt_url:'http://127.0.0.1:${transcriptionFixture.address().port}/inference'})`);
       await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:last-child').click()`);
       await poll(win, `!!document.querySelector('.voice-panel')`);
-      await poll(win, `document.querySelector('.voice-panel').textContent.includes('Аудио не записывается')`);
-      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.voice-buttons button[title="STT-провайдер пока не подключён"]').disabled`),true);
+      await poll(win, `document.querySelector('.voice-panel').textContent.includes('Микрофон включается по нажатию')`);
+      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.microphone-record')`),true);
+      await poll(win, `!document.querySelector('.microphone-record').disabled`);
+      await win.webContents.executeJavaScript(`document.querySelector('.microphone-record').click()`,true);
+      await poll(win, `document.querySelector('.voice-stt-note').textContent.includes('Идёт запись')`);
+      await win.webContents.executeJavaScript('new Promise(resolve=>setTimeout(resolve,1500))');
+      await win.webContents.executeJavaScript(`document.querySelector('.microphone-record').click()`,true);
+      await poll(win, `document.querySelector('[aria-label="Сообщение ассистенту"]').value==='Микрофон fixture'`);
+      assert.equal(transcriptionRequests,1,'Synthetic microphone must send one actual WAV request');
+      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.voice-composer button[type=button]')`),false,'Recognition does not submit the task automatically');
+
       await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Сообщение ассистенту"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Привет, Мия');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
       await win.webContents.executeJavaScript(`document.querySelector('.voice-composer').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
       await poll(win, `document.querySelector('.voice-conversation').textContent.includes('Standalone Chat reply')&&!document.querySelector('.voice-composer button[type=button]')`);
@@ -361,9 +386,11 @@ app.on('browser-window-created', (_event, win) => {
         await poll(win, `!document.querySelector('.voice-speaking')`);
       }
       await win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.voice-controls>button').getBoundingClientRect().top>=document.querySelector('.companion-settings').getBoundingClientRect().bottom-1`),true,'Chat navigation must not overlap companion settings');
       fs.writeFileSync(path.join(testRoot,'voice.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
       await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:first-child').click()`);
       await poll(win, `!!document.querySelector('.mode-chat') && !document.querySelector('.main-panel')`);
+      await poll(win, `!document.querySelector('.sidebar').textContent.includes('Привет, Мия')`);
       await win.webContents.executeJavaScript(`{ const input=document.querySelector('.composer textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'chat without files'); input.dispatchEvent(new Event('input',{bubbles:true})); }`);
       await poll(win, `!document.querySelector('[title="Отправить"]').disabled`);
       await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
@@ -394,14 +421,22 @@ app.on('browser-window-created', (_event, win) => {
       assert.ok(await win.webContents.executeJavaScript(`document.querySelector('.chat-messages').scrollTop<5`),'Reading old messages must not jump to the streamed answer');
       await win.webContents.executeJavaScript(`document.querySelector('.follow-chat').click()`);
       await poll(win, `!document.querySelector('.follow-chat') && document.querySelector('.chat-messages').scrollTop>100`);
+      modelMode='desktop';
+      await win.webContents.executeJavaScript('window.lca.configureDesktop(true)');
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('.composer textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Сделай скриншот');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      await poll(win, `!document.querySelector('[title="Отправить"]').disabled`);
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
+      await poll(win, `!!document.querySelector('.desktop-artifact img')&&!document.querySelector('[title="Остановить"]')`);
+      assert.ok(await win.webContents.executeJavaScript(`document.querySelector('.desktop-artifact img').src.startsWith('data:image/png;base64,')`));
+      await win.webContents.executeJavaScript(`document.querySelector('.desktop-artifact button').click();window.lca.configureDesktop(false)`);
       console.log('PASS: Electron approval and stale-diff conflict, incremental text without duplicate answer, persisted preferences, fast network cancellation');
       fs.writeFileSync(resultPath, JSON.stringify({status:'passed',project}, null, 2));
-      clearTimeout(deadline); model.close(); app.quit();
+      clearTimeout(deadline); model.close(); transcriptionFixture.close(); app.quit();
     } catch (error) {
       fs.writeFileSync(path.join(testRoot, 'failure.png'), (await win.webContents.capturePage()).toPNG());
-      fs.writeFileSync(path.join(testRoot, 'failure-state.txt'), await win.webContents.executeJavaScript(`JSON.stringify({text:document.body.textContent,api:typeof window.lca})`));
-      model.close(); fail(error);
+      fs.writeFileSync(path.join(testRoot, 'failure-state.txt'), await win.webContents.executeJavaScript(`JSON.stringify({text:document.body.textContent,api:typeof window.lca,baseUrl:document.querySelector('input[name="base_url"]')?.value})`));
+      model.close(); transcriptionFixture.close(); fail(error);
     }
   });
 });
-model.listen(0, '127.0.0.1', () => require('../../apps/desktop/dist-electron/main.cjs'));
+transcriptionFixture.listen(0,'127.0.0.1',()=>model.listen(0, '127.0.0.1', () => require('../../apps/desktop/dist-electron/main.cjs')));
