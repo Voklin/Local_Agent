@@ -12,6 +12,8 @@ interface Window { lca: {
   prepareHandoff:(id:string)=>Promise<any>;
   getCompanionSettings:()=>Promise<any>;configureCompanion:(params:unknown)=>Promise<any>;
   transcribe:(audio:string)=>Promise<any>;cancelTranscription:()=>Promise<any>;
+  voicePlayback:(params:unknown)=>Promise<any>;openTtsFolder:()=>Promise<any>;
+  activateAssistant:()=>Promise<any>;wakeListening:(enabled:boolean)=>Promise<any>;
   voiceStatus: () => Promise<any>; refreshVoices: () => Promise<any>; speak: (params:unknown) => Promise<any>; stopVoice: () => Promise<any>;
   searchProject: (params: unknown) => Promise<any>; cancelProjectSearch: () => Promise<any>;
   editorRead: (path: string) => Promise<any>; editorPreview: (path: string, content: string, revision: unknown) => Promise<any>;

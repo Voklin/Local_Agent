@@ -40,6 +40,7 @@
 - [core/python/desktop_service.py](#module-core-python-desktop-service-py)
 - [core/python/editor_service.py](#module-core-python-editor-service-py)
 - [core/python/memory_service.py](#module-core-python-memory-service-py)
+- [core/python/neural_speech.py](#module-core-python-neural-speech-py)
 - [core/python/project_search.py](#module-core-python-project-search-py)
 - [core/python/runtime_service.py](#module-core-python-runtime-service-py)
 - [core/python/speech_service.py](#module-core-python-speech-service-py)
@@ -53,6 +54,7 @@
 - [tools/doc_notes.py](#module-tools-doc-notes-py)
 - [tools/generate_code_reference.py](#module-tools-generate-code-reference-py)
 - [tools/prepare_windows_dependencies.py](#module-tools-prepare-windows-dependencies-py)
+- [tools/tts/qwen_server.py](#module-tools-tts-qwen-server-py)
 
 <a id="module-agent-init-py"></a>
 
@@ -216,7 +218,7 @@ def title_from_messages(messages: list[dict[str, Any]]) -> str
 
 ### `validate_profile`
 
-[Исходник](../../agent/companion_preferences.py#L15)
+[Исходник](../../agent/companion_preferences.py#L18)
 
 ```python
 def validate_profile(params)
@@ -226,7 +228,7 @@ def validate_profile(params)
 
 ### `load_profile`
 
-[Исходник](../../agent/companion_preferences.py#L35)
+[Исходник](../../agent/companion_preferences.py#L44)
 
 ```python
 def load_profile()
@@ -236,7 +238,7 @@ def load_profile()
 
 ### `save_profile`
 
-[Исходник](../../agent/companion_preferences.py#L43)
+[Исходник](../../agent/companion_preferences.py#L52)
 
 ```python
 def save_profile(params)
@@ -2598,7 +2600,7 @@ JSON-lines вход процесса, dispatch команд, UI-файловый
 
 ### `emit`
 
-[Исходник](../../core/python/bridge.py#L27)
+[Исходник](../../core/python/bridge.py#L28)
 
 ```python
 def emit(message)
@@ -2608,7 +2610,7 @@ def emit(message)
 
 ### `resolve_inside`
 
-[Исходник](../../core/python/bridge.py#L47)
+[Исходник](../../core/python/bridge.py#L49)
 
 ```python
 def resolve_inside(relative: str) -> Path
@@ -2618,7 +2620,7 @@ def resolve_inside(relative: str) -> Path
 
 ### `handle`
 
-[Исходник](../../core/python/bridge.py#L57)
+[Исходник](../../core/python/bridge.py#L59)
 
 ```python
 def handle(method: str, params: dict) -> dict
@@ -2628,7 +2630,7 @@ Whitelist диспетчер RPC: состояние, проект, модель
 
 ### `_handle`
 
-[Исходник](../../core/python/bridge.py#L61)
+[Исходник](../../core/python/bridge.py#L63)
 
 ```python
 def _handle(method: str, params: dict) -> dict
@@ -2638,7 +2640,7 @@ Dispatcher RPC под общим TaskService lock: области чатов, п
 
 ### `main`
 
-[Исходник](../../core/python/bridge.py#L192)
+[Исходник](../../core/python/bridge.py#L198)
 
 ```python
 def main() -> None
@@ -2873,6 +2875,122 @@ def write_memory(root, params)
 ```
 
 Проверяет исходную byte revision под общим с auto-memory RLock, атомарно сохраняет только валидные поля и перечитывает результат.
+
+<a id="module-core-python-neural-speech-py"></a>
+
+## `core/python/neural_speech.py`
+
+Отменяемый HTTP TTS: bounded PCM WAV, события звука и точное подтверждение плеера по sequence.
+
+### `NeuralSpeech`
+
+[Исходник](../../core/python/neural_speech.py#L12)
+
+```python
+class NeuralSpeech
+```
+
+Управляет отдельной нейроозвучкой через HTTP и плеер Electron, не импортируя PyTorch в Core.
+
+### `NeuralSpeech.__init__`
+
+[Исходник](../../core/python/neural_speech.py#L13)
+
+```python
+def __init__(self, emit)
+```
+
+Инициализирует состояние экземпляра NeuralSpeech; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `NeuralSpeech.status`
+
+[Исходник](../../core/python/neural_speech.py#L18)
+
+```python
+def status(self)
+```
+
+Возвращает состояние и фиксированный профиль miya-anime-ru без аудиобуфера или текста.
+
+### `NeuralSpeech.speak`
+
+[Исходник](../../core/python/neural_speech.py#L23)
+
+```python
+def speak(self, params, profile)
+```
+
+Проверяет текст/темп/громкость, запускает worker и ожидает подтверждения воспроизведения до 200 секунд с учётом замедленного темпа.
+
+### `NeuralSpeech.speak.run`
+
+[Исходник](../../core/python/neural_speech.py#L34)
+
+```python
+def run()
+```
+
+Получает WAV, публикует voice_audio и завершает операцию после плеера, отмены либо deadline.
+
+### `NeuralSpeech.fetch`
+
+[Исходник](../../core/python/neural_speech.py#L52)
+
+```python
+async def fetch(self, text, profile, cancelled)
+```
+
+Выполняет bounded async POST и закрывает HTTP socket при отмене.
+
+### `NeuralSpeech.fetch.request`
+
+[Исходник](../../core/python/neural_speech.py#L53)
+
+```python
+async def request()
+```
+
+Читает максимум 15 МБ и проверяет PCM16 mono WAV 8–48 kHz до 120 секунд.
+
+### `NeuralSpeech.fetch.cancellation`
+
+[Исходник](../../core/python/neural_speech.py#L65)
+
+```python
+async def cancellation()
+```
+
+Наблюдает Event отмены без блокировки event loop.
+
+### `NeuralSpeech.playback`
+
+[Исходник](../../core/python/neural_speech.py#L76)
+
+```python
+def playback(self, params)
+```
+
+Принимает только текущий sequence; устаревший ответ плеера не завершает новую озвучку.
+
+### `NeuralSpeech.stop`
+
+[Исходник](../../core/python/neural_speech.py#L83)
+
+```python
+def stop(self)
+```
+
+Отменяет сеть и публикует остановку глобальному плееру.
+
+### `NeuralSpeech.shutdown`
+
+[Исходник](../../core/python/neural_speech.py#L90)
+
+```python
+def shutdown(self)
+```
+
+Останавливает worker и ограниченно ждёт завершения.
 
 <a id="module-core-python-project-search-py"></a>
 
@@ -4013,3 +4131,79 @@ def prepare(root)
 ```
 
 Stage server/DLLs/licenses and offline VC++ bootstrap under ignored build/.
+
+<a id="module-tools-tts-qwen-server-py"></a>
+
+## `tools/tts/qwen_server.py`
+
+Отдельный localhost Qwen3-TTS VoiceDesign сервер с русским языком, описанием голоса и PCM16 WAV.
+
+### `synthesize`
+
+[Исходник](../../tools/tts/qwen_server.py#L12)
+
+```python
+def synthesize(model, text, style)
+```
+
+Генерирует русский звук с VoiceDesign, фиксированным seed и ограничением токенов; кодирует PCM16 WAV в памяти.
+
+### `Handler`
+
+[Исходник](../../tools/tts/qwen_server.py#L23)
+
+```python
+class Handler(BaseHTTPRequestHandler)
+```
+
+Loopback HTTP handler с JSON-only POST, запретом Origin и одним слотом генерации.
+
+### `Handler.do_GET`
+
+[Исходник](../../tools/tts/qwen_server.py#L24)
+
+```python
+def do_GET(self)
+```
+
+Возвращает health после загрузки модели; остальные GET получают 404.
+
+### `Handler.do_POST`
+
+[Исходник](../../tools/tts/qwen_server.py#L28)
+
+```python
+def do_POST(self)
+```
+
+Проверяет размер/тип текста и стиля, ограничивает concurrency и возвращает WAV без CORS.
+
+### `Handler.reply`
+
+[Исходник](../../tools/tts/qwen_server.py#L45)
+
+```python
+def reply(self, code, body, content_type)
+```
+
+Пишет ответ с явными Content-Type и Content-Length.
+
+### `Handler.log_message`
+
+[Исходник](../../tools/tts/qwen_server.py#L49)
+
+```python
+def log_message(self, format, *args)
+```
+
+Не сохраняет тексты и запросы пользователя в HTTP access log.
+
+### `main`
+
+[Исходник](../../tools/tts/qwen_server.py#L53)
+
+```python
+def main()
+```
+
+Загружает официальный VoiceDesign на CPU/CUDA и слушает только 127.0.0.1:9080.

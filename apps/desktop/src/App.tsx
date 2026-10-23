@@ -7,6 +7,8 @@ import { EditorPanel, type EditorHandle } from './EditorPanel';
 import { ModelSettings, defaultGeneration, type GenerationSettings } from './ModelSettings';
 import { VoicePanel, type WorkspaceMode } from './VoicePanel';
 import { TaskProgress, type TaskSnapshot } from './TaskProgress';
+import { NeuralAudio } from './NeuralAudio';
+import { WakeListener } from './WakeListener';
 
 type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
 type Message = { role: string; text: string; id?: string; streaming?: boolean };
@@ -15,6 +17,7 @@ const greeting: Message[] = [{role: 'assistant', text: 'Выберите пап�
 
 export default function App() {
   const [mode, setMode] = useState<WorkspaceMode>('chat');
+  const [activation,setActivation]=useState<{id:number;text:string;send:boolean}|null>(null);
   const modeRef = useRef<WorkspaceMode>('chat');
   const [showProgress, setShowProgress] = useState(false);
   const [project, setProject] = useState('Выберите проект');
@@ -167,6 +170,12 @@ export default function App() {
     setChats([]);
     if (next !== 'ide' || root) await refreshChats(next);
   }
+  async function activateMiya(text:string, send:boolean) {
+    if(active.current)return;
+    await window.lca.activateAssistant();
+    if(modeRef.current!=='voice')await switchMode('voice');
+    setActivation({id:Date.now(),text,send});
+  }
   async function openFile(item: FileItem) {
     if (item.kind === 'directory') { await refreshFiles(item.path); return; }
     const path = await editorRef.current?.open(item.path);
@@ -268,9 +277,9 @@ export default function App() {
     else { report(r.error); setStopping(false); }
   }
   const parent = directory.split(/[\\/]/).slice(0, -1).join('/') || '.';
-  return <div className={`app-shell mode-${mode}`}>
+  return <div className={`app-shell mode-${mode}`}><NeuralAudio/>
     {quickOpen&&<div className="search-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setQuickOpen(false);}}><ProjectSearch root={root} visible quick focus={searchFocus} onClose={()=>setQuickOpen(false)} onOpen={(path,line)=>void openSearchFile(path,line)}/></div>}
-    <header className="topbar"><div className="brand"><div className="brand-mark"><Code2 size={18}/></div><span>LOCAL<b>AGENT</b></span><span className="version">v6.1</span></div><button className="project-pill" onClick={chooseProject} disabled={busy}><FolderOpen size={15}/>{project}<ChevronDown size={14}/></button><div className="mode-tabs" role="tablist" aria-label="Режим работы">{(['chat','ide','voice'] as WorkspaceMode[]).map(m=><button role="tab" aria-selected={mode===m} disabled={busy} className={mode===m?'selected':''} key={m} onClick={()=>void switchMode(m)}>{m==='chat'?'Chat':m==='ide'?'IDE':'Ассистент'}</button>)}</div><div className="top-spacer"/><span className="status">{health}</span><button className="icon-button" title="Настройки модели" onClick={()=>setSettingsOpen(true)}><Settings2 size={17}/></button></header>
+    <header className="topbar"><div className="brand"><div className="brand-mark"><Code2 size={18}/></div><span>LOCAL<b>AGENT</b></span><span className="version">v6.2</span></div><button className="project-pill" onClick={chooseProject} disabled={busy}><FolderOpen size={15}/>{project}<ChevronDown size={14}/></button><div className="mode-tabs" role="tablist" aria-label="Режим работы">{(['chat','ide','voice'] as WorkspaceMode[]).map(m=><button role="tab" aria-selected={mode===m} disabled={busy} className={mode===m?'selected':''} key={m} onClick={()=>void switchMode(m)}>{m==='chat'?'Chat':m==='ide'?'IDE':'Ассистент'}</button>)}</div><div className="top-spacer"/><WakeListener busy={busy} onWake={activateMiya}/><span className="status">{health}</span><button className="icon-button" title="Настройки модели" onClick={()=>setSettingsOpen(true)}><Settings2 size={17}/></button></header>
     <div className="workarea">
       <nav className="activity-bar">{[{id:'Explorer',icon:Folder},{id:'Search',icon:Search},{id:'History',icon:History},{id:'Memory',icon:Brain},{id:'Models',icon:Settings2}].map(x=><button key={x.id} className={(x.id==='Models'?settingsOpen:nav===x.id)?'active':''} disabled={x.id==='Memory'&&(!root||mode!=='ide')} onClick={()=>x.id==='Models'?setSettingsOpen(true):x.id==='Memory'?setMemoryOpen(true):setNav(x.id)} title={x.id==='Memory'?'Память проекта':x.id}><x.icon size={19}/></button>)}</nav>
       <aside className="sidebar"><div className="side-heading"><span>{nav==='History'?(mode==='voice'?'ИСТОРИЯ МИИ':'ИСТОРИЯ ЧАТОВ'):nav==='Search'?'ПОИСК ПО ПРОЕКТУ':nav==='Models'?'НАСТРОЙКИ МОДЕЛИ':'ФАЙЛЫ ПРОЕКТА'}</span><button onClick={()=>nav==='History'?refreshChats():refreshFiles(directory)} title="Обновить"><ChevronDown size={15}/></button></div>
@@ -285,7 +294,7 @@ export default function App() {
       {handoffResult&&!busy&&<button className="handoff-return" onClick={()=>void returnToMiya()}>Результат готов · вернуться к Мие</button>}
       {desktopImage&&<div className="desktop-artifact"><button onClick={()=>setDesktopImage('')}>Закрыть скриншот</button><img src={desktopImage} alt="Скриншот по запросу пользователя"/></div>}
       {handoff&&<div className="handoff-card"><b>Мия передаёт задачу в {handoff.target.toUpperCase()}</b><p>{handoff.prompt}</p><button disabled={busy} onClick={()=>void acceptHandoff()}>Выполнить основной моделью</button><button disabled={busy} onClick={()=>void declineHandoff()}>Не выполнять</button></div>}
-      {mode==='voice'?<VoicePanel conversationKey={chatId.current} completed={task?.status==='completed'} messages={chat} busy={busy} onAsk={text=>void sendPrompt(false,text)} onCancel={()=>void cancel()} onChat={()=>void switchMode('chat')}/>:<aside className="agent-panel"><div className="agent-heading"><div><Bot size={17}/><b>{mode==='chat'?'Разговор с моделью':'Агент проекта'}</b></div><button className="icon-button" title="Новый чат" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={16}/></button></div><div className="agent-context"><span className="context-chip"><Folder size={13}/>{mode==='chat'?'Личный чат · без файловых инструментов':project}</span><span className="context-chip">Модель: {model||'не выбрана'}</span>{task&&<button className="progress-toggle" aria-expanded={showProgress} onClick={()=>setShowProgress(!showProgress)}>Ход задачи · {task.status==='completed'?'завершена':task.status==='paused'?'приостановлена':'в работе'} <ChevronDown size={13}/></button>}</div>
+      {mode==='voice'?<VoicePanel activation={activation} conversationKey={chatId.current} completed={task?.status==='completed'} messages={chat} busy={busy} onAsk={text=>void sendPrompt(false,text)} onCancel={()=>void cancel()} onChat={()=>void switchMode('chat')}/>:<aside className="agent-panel"><div className="agent-heading"><div><Bot size={17}/><b>{mode==='chat'?'Разговор с моделью':'Агент проекта'}</b></div><button className="icon-button" title="Новый чат" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={16}/></button></div><div className="agent-context"><span className="context-chip"><Folder size={13}/>{mode==='chat'?'Личный чат · без файловых инструментов':project}</span><span className="context-chip">Модель: {model||'не выбрана'}</span>{task&&<button className="progress-toggle" aria-expanded={showProgress} onClick={()=>setShowProgress(!showProgress)}>Ход задачи · {task.status==='completed'?'завершена':task.status==='paused'?'приостановлена':'в работе'} <ChevronDown size={13}/></button>}</div>
         {showProgress&&task&&<div className="progress-drawer"><TaskProgress task={task} busy={busy} onResume={()=>void sendPrompt(true)}/></div>}<div className="chat-messages" onScroll={event=>{const node=event.currentTarget;const bottom=node.scrollHeight-node.scrollTop-node.clientHeight<80;followChat.current=bottom;setAtBottom(bottom);}}>{chat.map((m,i)=><div className={`message ${m.role}`} key={i}>{m.role==='assistant'&&<div className="avatar"><Bot size={14}/></div>}<div className="message-content"><ChatText text={m.text}/>{m.streaming&&<span className="streaming-caret" aria-label="Ответ генерируется">▍</span>}</div></div>)}<div ref={messagesEnd}/></div>
         {!atBottom&&<button className="follow-chat" onClick={()=>{followChat.current=true;setAtBottom(true);messagesEnd.current?.scrollIntoView({behavior:'instant'});}}>К последнему сообщению ↓</button>}
         <div className="composer"><textarea aria-label="Задача агенту" value={prompt} disabled={busy} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendPrompt();}}} placeholder={mode==='ide'&&!root?'Сначала выберите проект':!model?'Укажите модель в настройках':'Опишите задачу…'}/><div className="composer-footer"><span>{stopping?'Останавливаем…':busy?'Агент работает…':'Enter для отправки'}</span>{busy?<button className="send-button" title="Остановить" disabled={stopping} onClick={cancel}><Square size={14}/></button>:<button className="send-button" title="Отправить" onClick={()=>sendPrompt()} disabled={!prompt.trim()||(mode==='ide'&&!root)||!model||!settingsReady}><Play size={14}/></button>}</div></div><div className="agent-foot"><ShieldCheck size={13}/> {mode==='ide'?'Подтверждение перед записью':'Локальная модель · история сохраняется на этом ПК'}</div>

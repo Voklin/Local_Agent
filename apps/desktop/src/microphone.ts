@@ -6,7 +6,10 @@ export class MicrophoneRecorder {
   private samples: Float32Array[] = [];
   private frames = 0;
   private stopped = false;
-  async start(onLimit:()=>void) {
+  private voicedBlocks = 0;
+  async start(onLimit:()=>void, seconds=60, silenceSeconds=0) {
+    const maximum=Math.max(1,Math.min(60,seconds))*16000;
+    let lastSpeech=0;
     this.stream = await navigator.mediaDevices.getUserMedia({audio:true, video:false});
     if(this.stopped) {this.dispose();return;}
     try {
@@ -16,15 +19,17 @@ export class MicrophoneRecorder {
       this.processor=this.context.createScriptProcessor(4096,1,1);
       const silent=this.context.createGain();silent.gain.value=0;
       this.processor.onaudioprocess=event=>{
-        const available=960000-this.frames;
+        const available=maximum-this.frames;
         if(available<=0)return;
         const block=event.inputBuffer.getChannelData(0).slice(0,available);
+        if(Math.sqrt(block.reduce((sum,value)=>sum+value*value,0)/block.length)>.012){this.voicedBlocks++;lastSpeech=this.frames+block.length;}
         this.samples.push(block);this.frames+=block.length;
-        if(this.frames>=960000)onLimit();
+        if(this.frames>=maximum||(silenceSeconds>0&&this.voicedBlocks>=2&&this.frames-lastSpeech>=silenceSeconds*16000))onLimit();
       };
       source.connect(this.processor);this.processor.connect(silent);silent.connect(this.context.destination);
     }catch(error){this.dispose();throw error;}
   }
+  hasSpeech() {return this.voicedBlocks>=2;}
   finish() {
     if(!this.frames){this.dispose();throw Error('Запись пуста; повторите после разрешения доступа к микрофону');}
     const buffer=new ArrayBuffer(44+this.frames*2),view=new DataView(buffer);

@@ -69,3 +69,7 @@ Chat работает без папки в области `project_root=""` с �
 Readonly preview заменён вкладками с draft, поиском/переходом к строке, reload и snapshot-подтверждением ручного Save. Вкладки сохраняются между режимами, но ручные drafts пока не переживают crash всего окна. Защита внешних изменений и порядок RPC — [глава 18](18-editor.md).
 
 Текущие новые главы: [поиск](19-project-search.md), [GGUF lifecycle](20-local-runtime.md), [память и чат](21-memory-and-chat.md), [Мия и TTS](22-voice-companion.md). Запись/STT через отдельный endpoint реализованы; Live2D и чистая VM приёмка по-прежнему не выполнены. Новая архитектура описана в главах [25](25-json-tools-and-cache.md), [26](26-miya-model-and-stt.md), [27](27-desktop-and-telegram.md).
+
+## Нейроозвучка и активация, 6.2
+
+Добавлены optional Qwen3-TTS VoiceDesign sidecar, PCM WAV плеер со Stop/sequence и явно включаемый wake listener во всех режимах. Два HTTP-теста, 12 контрактов профиля и настоящий Electron smoke с синтетическим микрофоном/STT и беззвучным WAV прошли. Активация из Chat открыла Мию и заполнила поле следующей командой без auto-send. Реальная модель не загружалась; качество нужно проверить прослушиванием после установки. [Архитектура и настройка](29-neural-voice-and-wake.md).

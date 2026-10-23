@@ -12,6 +12,11 @@
   ],
   "extraResources": [
     {
+      "from": "tools/tts",
+      "to": "tts",
+      "filter": ["*.py", "*.ps1", "*.txt", "*.md"]
+    },
+    {
       "from": "build/core/lca-core",
       "to": "core",
       "filter": [

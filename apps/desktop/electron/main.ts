@@ -189,6 +189,10 @@ handle('voice:status',()=>callBackend('voice_status'));
 handle('voice:refresh',()=>callBackend('voice_refresh'));
 handle('voice:speak',params=>callBackend('voice_speak',{text:params?.text,voice:params?.voice,rate:params?.rate,volume:params?.volume}));
 handle('voice:stop',()=>callBackend('voice_stop'));
+handle('voice:playback',params=>callBackend('voice_playback',{sequence:params?.sequence,error:params?.error===true}));
+handle('voice:tts-folder',()=>shell.openPath(app.isPackaged?path.join(process.resourcesPath,'tts'):path.resolve(__dirname,'../../../tools/tts')));
+handle('voice:activate',()=>{if(win?.isMinimized())win.restore();win?.show();win?.focus();return {ok:true};});
+handle('voice:listening',(enabled)=>{win?.webContents.setBackgroundThrottling(enabled!==true);return {ok:true};});
 handle('runtime:pick', async (kind) => {
   if(!win || !['model','runtime'].includes(kind)) return {ok:false,error:'Некорректный выбор файла'};
   const result=await dialog.showOpenDialog(win,{properties:['openFile'],title:kind==='model'?'Выберите GGUF':'Выберите установленный llama-server',filters:kind==='model'?[{name:'GGUF',extensions:['gguf']}]:[{name:'llama-server',extensions:process.platform==='win32'?['exe']:['*']}]});

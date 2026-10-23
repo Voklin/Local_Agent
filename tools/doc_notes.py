@@ -1196,3 +1196,61 @@ SearchResults.handle_data | Собирает до 600 символов заго�
 register('agent/json_tools.py', """
 parse_tool_json | Принимает JSON только в начале ответа, целый fenced JSON или Qwen tool_call wrapper; хвост комментария игнорируется, поиск команд внутри произвольного текста запрещён; имена и arguments строго проверяются.
 """)
+
+FILE_NOTES.update({
+ 'core/python/neural_speech.py':'Отменяемый HTTP TTS: bounded PCM WAV, события звука и точное подтверждение плеера по sequence.',
+ 'apps/desktop/src/NeuralAudio.tsx':'Единый плеер нейроозвучки: PCM WAV из Core, громкость/темп, Stop и подтверждение завершения.',
+ 'apps/desktop/src/WakeListener.tsx':'Явно включаемый микрофон во всех режимах: speech gate, STT, wake phrase, пауза при задаче/озвучке/ручной записи.',
+ 'apps/desktop/src/wakePhrase.ts':'Нормализация русской фразы и выделение команды только после совпадающего начала без потери пунктуации команды.',
+ 'tools/tts/qwen_server.py':'Отдельный localhost Qwen3-TTS VoiceDesign сервер с русским языком, описанием голоса и PCM16 WAV.',
+ 'tools/tts/start-tts.ps1':'Создаёт отдельную CPU TTS среду Python 3.12, устанавливает зависимости и запускает фиксированный локальный сервер.',
+ 'tools/tts/requirements.txt':'Дополнительные зависимости Qwen3-TTS; не добавляются в основной frozen Core.',
+ 'tools/tts/README.md':'Установка TTS, выбор аниме-профиля, ограничения ресурсов и настройка голосовой активации.',
+ 'tests/migration/test_neural_speech.py':'HTTP PCM fixture, точный sequence плеера и отмена зависшего синтеза без настоящего звука.',
+})
+register('core/python/neural_speech.py', """
+NeuralSpeech | Управляет отдельной нейроозвучкой через HTTP и плеер Electron, не импортируя PyTorch в Core.
+NeuralSpeech.status | Возвращает состояние и фиксированный профиль miya-anime-ru без аудиобуфера или текста.
+NeuralSpeech.speak | Проверяет текст/темп/громкость, запускает worker и ожидает подтверждения воспроизведения до 200 секунд с учётом замедленного темпа.
+NeuralSpeech.speak.run | Получает WAV, публикует voice_audio и завершает операцию после плеера, отмены либо deadline.
+NeuralSpeech.fetch | Выполняет bounded async POST и закрывает HTTP socket при отмене.
+NeuralSpeech.fetch.request | Читает максимум 15 МБ и проверяет PCM16 mono WAV 8–48 kHz до 120 секунд.
+NeuralSpeech.fetch.cancellation | Наблюдает Event отмены без блокировки event loop.
+NeuralSpeech.playback | Принимает только текущий sequence; устаревший ответ плеера не завершает новую озвучку.
+NeuralSpeech.stop | Отменяет сеть и публикует остановку глобальному плееру.
+NeuralSpeech.shutdown | Останавливает worker и ограниченно ждёт завершения.
+""")
+register('tools/tts/qwen_server.py', """
+synthesize | Генерирует русский звук с VoiceDesign, фиксированным seed и ограничением токенов; кодирует PCM16 WAV в памяти.
+Handler | Loopback HTTP handler с JSON-only POST, запретом Origin и одним слотом генерации.
+Handler.do_GET | Возвращает health после загрузки модели; остальные GET получают 404.
+Handler.do_POST | Проверяет размер/тип текста и стиля, ограничивает concurrency и возвращает WAV без CORS.
+Handler.reply | Пишет ответ с явными Content-Type и Content-Length.
+Handler.log_message | Не сохраняет тексты и запросы пользователя в HTTP access log.
+main | Загружает официальный VoiceDesign на CPU/CUDA и слушает только 127.0.0.1:9080.
+""")
+TS_NOTES.update({
+ 'NeuralAudio':'Проигрывает только события Core, останавливает старый Audio и подтверждает текущую озвучку.',
+ 'WakeListener':'Управляет явно включённым прослушиванием и паузами без обращения к чат-модели.',
+ 'WakeListener.refresh':'Обновляет профиль при сохранении настроек и не включает микрофон автоматически.',
+ 'WakeListener.capture':'Получает состояние ручной записи для исключения конкурентного STT.',
+ 'WakeListener.cycle':'Записывает фрагмент до тишины/12 секунд, распознаёт речь и активирует Мию по началу фразы.',
+ 'normalizeSpeech':'Приводит русскую фразу к нижнему регистру, ё→е и пробелам между словами.',
+ 'wakeCommand':'Проверяет фразу только в начале; возвращает исходный хвост с пунктуацией либо null.',
+ 'activateMiya':'Открывает/фокусирует окно, переключает режим и передаёт распознанный текст Мие.',
+ 'player.onended':'Подтверждает завершение только текущего Audio по sequence.',
+ 'player.onerror':'Сообщает Core о невозможности воспроизведения текущего Audio.',
+})
+TEST_PURPOSES.update({
+ 'http_audio_and_exact_playback_sequence':'Проверяет реальный HTTP WAV, русский язык/описание, предел текста и отказ устаревшему sequence.',
+ 'cancel_closes_stalled_synthesis':'Отменяет запрос до headers менее чем за две секунды и запрещает поздний playback ack.',
+})
+TEST_HELPERS['emit']='Собирает события тестовой нейроозвучки и сигнализирует о готовом WAV без вывода звука.'
+TS_NOTES.update({
+ 'voicePlayback':'Фиксированный IPC сообщает Core об окончании/ошибке текущего sequence звука.',
+ 'openTtsFolder':'Открывает только штатную папку sidecar TTS, без запуска команды из ответа модели.',
+ 'activateAssistant':'Показывает и фокусирует окно после явной включённой фразы активации.',
+ 'wakeListening':'Отключает background throttling только пока пользователь включил прослушивание.',
+})
+for _wake_symbol in ('WakeListener.refresh','WakeListener.capture','WakeListener.cycle'):
+    TS_NOTES['apps/desktop/src/WakeListener.tsx:'+_wake_symbol]=TS_NOTES.pop(_wake_symbol)

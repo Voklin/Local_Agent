@@ -14,8 +14,8 @@ export interface VoiceProfile {
   pushToTalk: boolean;
 }
 
-export function VoicePanel({ onChat, onAsk, onCancel, busy, messages, conversationKey, completed }: {
-  conversationKey:string;completed:boolean;
+export function VoicePanel({ activation, onChat, onAsk, onCancel, busy, messages, conversationKey, completed }: {
+  activation:{id:number;text:string;send:boolean}|null;conversationKey:string;completed:boolean;
   onChat:()=>void;onAsk:(text:string)=>void;onCancel:()=>void;busy:boolean;
   messages:{role:string;text:string;streaming?:boolean}[];
 }) {
@@ -33,6 +33,16 @@ export function VoicePanel({ onChat, onAsk, onCancel, busy, messages, conversati
   const conversation=useRef(conversationKey);
   useEffect(()=>{conversation.current=conversationKey;recorder.current?.dispose();recorder.current=null;setRecording(false);setTranscribing(false);setInput('');void window.lca.cancelTranscription();},[conversationKey]);
   const model=profile?.model||'';
+  const handledActivation=useRef(0);
+  useEffect(()=>{
+    if(!activation||!profile||busy||handledActivation.current===activation.id)return;
+    handledActivation.current=activation.id;setInput(activation.text);
+    setNotice(activation.text?'Команда распознана':'Мия активирована — говорите команду');
+    if(activation.send&&activation.text&&profile.model){onAsk(activation.text);setInput('');}
+  },[activation,profile,busy]);
+  useEffect(()=>{window.dispatchEvent(new CustomEvent('manual-microphone',{detail:recording||transcribing}));return()=>{window.dispatchEvent(new CustomEvent('manual-microphone',{detail:false}));};},[recording,transcribing]);
+  useEffect(()=>{if(profile)void window.lca.refreshVoices().then(result=>{if(result.ok)setStatus(result);});},[profile?.tts_provider]);
+
   useEffect(()=>{void window.lca.getCompanionSettings().then(result=>{if(result.ok){setProfile(result);setVoice(result.voice);setRate(result.rate);setVolume(result.volume);setAutoSpeak(result.auto_speak);}});return()=>{recorder.current?.dispose();recorder.current=null;void window.lca.cancelTranscription();};},[]);
   async function record() {
     if(recording){await finishRecording();return;}
@@ -46,7 +56,7 @@ export function VoicePanel({ onChat, onAsk, onCancel, busy, messages, conversati
     catch(error){if(alive.current&&conversation.current===origin)setNotice(String(error));}finally{if(alive.current&&conversation.current===origin)setTranscribing(false);}
   }
   async function saveVoice() {
-    try{const result=await window.lca.configureCompanion({...profile,voice,rate,volume,auto_speak:autoSpeak});if(!result.ok)throw Error(result.error);setProfile(result);setNotice('Голос сохранён');}
+    try{const result=await window.lca.configureCompanion({...profile,voice,rate,volume,auto_speak:autoSpeak});if(!result.ok)throw Error(result.error);setProfile(result);window.dispatchEvent(new Event('companion-profile'));setNotice('Голос сохранён');}
     catch(error){setNotice(String(error));}
   }
   const alive=useRef(true);
@@ -54,7 +64,7 @@ export function VoicePanel({ onChat, onAsk, onCancel, busy, messages, conversati
   const replyEntry=messages.map((message,index)=>({message,index})).reverse().find(entry=>entry.message.role==='assistant'&&!entry.message.streaming);
   const reply=replyEntry?.message.text||'';
   const replyKey=conversationKey+':'+replyEntry?.index+':'+reply;
-  const voiceActive=['loading','speaking','stopping'].includes(status.state);
+  const voiceActive=['loading','synthesizing','speaking','stopping'].includes(status.state);
   useEffect(()=>{
     alive.current=true;
     async function refresh() {
@@ -91,7 +101,7 @@ export function VoicePanel({ onChat, onAsk, onCancel, busy, messages, conversati
   },[replyKey,busy,autoSpeak,voice,voiceActive,completed]);
   async function speak(text:string) {
     setNotice('');
-    try{const result=await window.lca.speak({text:text.slice(0,6000),voice,rate,volume});if(!result.ok)throw new Error(result.error);setStatus(result);if(text.length>6000)setNotice('Озвучиваются первые 6000 символов.');}
+    try{const result=await window.lca.speak({text:text.slice(0,profile?.tts_provider==='qwen3'?1200:6000),voice,rate,volume});if(!result.ok)throw new Error(result.error);setStatus(result);if(text.length>(profile?.tts_provider==='qwen3'?1200:6000))setNotice('Озвучивается начало длинного ответа.');}
     catch(error){setNotice(String(error));}
   }
   async function stop() {
@@ -106,7 +116,7 @@ export function VoicePanel({ onChat, onAsk, onCancel, busy, messages, conversati
   const state:VoiceSessionState=recording?'listening':(busy||transcribing)?'thinking':status.state==='speaking'?'speaking':status.state==='error'?'error':voice?'idle':'disconnected';
   return <main className={`voice-panel voice-${state}`}>
 
-    <div className="voice-intro"><span className="eyebrow">LOCALAGENT / COMPANION</span><h1>Мия · ваш ассистент</h1><p>Локальная модель и системный голос Windows. Собственная история, отдельная модель и настраиваемый характер. Сложные задачи можно передать основной модели.</p><span className="context-chip">Модель Мии: {model||'не выбрана'}</span></div>
+    <div className="voice-intro"><span className="eyebrow">LOCALAGENT / COMPANION</span><h1>Мия · ваш ассистент</h1><p>Локальная модель, нейроозвучка и активация голосом. Собственная история, отдельная модель и настраиваемый характер. Сложные задачи можно передать основной модели.</p><span className="context-chip">Модель Мии: {model||'не выбрана'}</span></div>
     <div className="companion-stage">
       <div className="companion-orbit"/>
       <svg className="maid-concept" viewBox="0 0 240 290" role="img" aria-label="Эскиз аниме-горничной для будущего ассистента">
@@ -124,7 +134,7 @@ export function VoicePanel({ onChat, onAsk, onCancel, busy, messages, conversati
       </svg>
       <span className="concept-caption">Образ персонажа · анимация состояния</span>
     </div>
-    <div className="voice-state" role="status"><span/>{recording?'Слушаю…':transcribing?'Распознаю речь…':busy?'Мия думает…':status.state==='speaking'?'Озвучка…':status.state==='loading'?'Загрузка системных голосов…':status.state==='stopping'?'Остановка озвучки…':voice?'Готова к разговору':'Голос не подключён'}</div>
+    <div className="voice-state" role="status"><span/>{recording?'Слушаю…':transcribing?'Распознаю речь…':busy?'Мия думает…':status.state==='speaking'?'Озвучка…':status.state==='synthesizing'?'Создаю голос Мии…':status.state==='loading'?'Загрузка голосов…':status.state==='stopping'?'Остановка озвучки…':voice?'Готова к разговору':'Голос не подключён'}</div>
     <div className="voice-controls">
       <label>Голос<select aria-label="Голос ассистента" value={voice} disabled={voiceActive} onChange={event=>setVoice(event.target.value)}>{status.voices.map((item:any)=><option key={item.id} value={item.id}>{item.id} · {item.culture}</option>)}</select></label>
       <label>Темп<input aria-label="Темп речи" type="range" min={-5} max={5} value={rate} onChange={event=>setRate(Number(event.target.value))}/></label>
@@ -132,7 +142,7 @@ export function VoicePanel({ onChat, onAsk, onCancel, busy, messages, conversati
       <label className="auto-speak"><input type="checkbox" checked={autoSpeak} onChange={event=>{lastRead.current=replyKey;setAutoSpeak(event.target.checked);}}/>Озвучивать новые ответы автоматически</label>
       <div className="voice-buttons"><button className="secondary-button speak-reply" disabled={!voice||voiceActive||busy||!(reply||input.trim())} onClick={()=>void speak(reply||input.trim())}><Volume2 size={15}/>Озвучить {reply?'ответ':'текст'}</button><button className="secondary-button stop-speech" disabled={!voiceActive} onClick={()=>void stop()}>Stop · голос</button><button className="secondary-button" disabled={voiceActive} onClick={()=>void window.lca.refreshVoices()}>Обновить голоса</button><button className="secondary-button microphone-record" disabled={!recording&&(busy||transcribing||!profile||voiceActive)} onClick={()=>void record()}><Mic size={15}/>{recording?'Завершить запись':'Микрофон · запись'}</button>{transcribing&&<button className="secondary-button" onClick={()=>void window.lca.cancelTranscription()}>Отменить распознавание</button>}<button className="secondary-button" disabled={busy||!profile} onClick={()=>void saveVoice()}>Сохранить голос</button></div>
       <p className="voice-stt-note">{recording?'Идёт запись · до 60 секунд':transcribing?'Распознавание…':'Микрофон включается по нажатию. Распознанный текст появится в поле: проверьте его перед отправкой.'}</p>
-      {profile&&<CompanionSettings profile={{...profile,voice,rate,volume,auto_speak:autoSpeak}} busy={busy||recording||transcribing} onSaved={setProfile}/>}
+      {profile&&<CompanionSettings profile={{...profile,voice,rate,volume,auto_speak:autoSpeak}} busy={busy||recording||transcribing||voiceActive} onSaved={setProfile}/>}
       <button className="secondary-button" disabled={busy} onClick={onChat}><Sparkles size={14}/>Открыть Chat</button>
       {(notice||status.error)&&<p className="voice-error" role="alert">{notice||status.error}</p>}
     </div>

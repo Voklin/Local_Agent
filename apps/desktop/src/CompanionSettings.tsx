@@ -10,7 +10,7 @@ export function CompanionSettings({profile,busy,onSaved}:{profile:any;busy:boole
     try {
       const result=await window.lca.configureCompanion({...draft,voice:profile.voice,rate:profile.rate,volume:profile.volume,auto_speak:profile.auto_speak});
       if(!result.ok)throw Error(result.error);
-      onSaved(result);setDraft(result);setNotice('Профиль Мии сохранён. Ключи остаются только в памяти.');
+      onSaved(result);setDraft(result);window.dispatchEvent(new Event('companion-profile'));setNotice('Профиль Мии сохранён. Ключи остаются только в памяти.');
     }catch(error){setNotice(String(error));}finally{setWorking(false);}
   }
   async function discover() {
@@ -35,6 +35,16 @@ export function CompanionSettings({profile,busy,onSaved}:{profile:any;busy:boole
     ].map(field=><label key={field.key}>{field.label}<input type="number" min={field.min} max={field.max} step={field.step} value={draft.settings?.[field.key]??''} onChange={e=>setDraft({...draft,settings:{...draft.settings,[field.key]:Number(e.target.value)}})}/></label>)}</details>
     <label>Tool calling<select value={draft.tool_protocol||'native'} onChange={e=>setDraft({...draft,tool_protocol:e.target.value})}><option value="native">Native</option><option value="json">JSON</option></select></label>
     <label className="auto-speak"><input type="checkbox" checked={draft.auto_delegate!==false} onChange={e=>setDraft({...draft,auto_delegate:e.target.checked})}/>Автоматически передавать сложные задачи основной модели</label>
+    <label>Движок озвучки<select value={draft.tts_provider||'windows'} onChange={e=>setDraft({...draft,tts_provider:e.target.value})}><option value="windows">Голоса Windows</option><option value="qwen3">Qwen3-TTS · Мия, аниме на русском</option></select></label>
+    {draft.tts_provider==='qwen3'&&<>
+      <label>TTS URL<input value={draft.tts_url||''} onChange={e=>setDraft({...draft,tts_url:e.target.value})}/></label>
+      <label>Тембр и манера речи<textarea maxLength={1500} value={draft.tts_style||''} onChange={e=>setDraft({...draft,tts_style:e.target.value})}/></label>
+      <p className="settings-help">Qwen3-TTS VoiceDesign создаёт русский голос по описанию. Для локального сервера откройте папку и запустите start-tts.ps1. Первый запуск скачает зависимости и модель — несколько ГБ; нужен Python 3.12. На CPU синтез может быть медленным. Качество и постоянство тембра зависят от модели.</p>
+      <button type="button" className="secondary-button" onClick={()=>void window.lca.openTtsFolder()}>Открыть папку установки TTS</button>
+    </>}
+    <label>Фраза активации<input maxLength={80} value={draft.wake_phrase||''} onChange={e=>setDraft({...draft,wake_phrase:e.target.value})}/></label>
+    <label className="auto-speak"><input type="checkbox" checked={draft.wake_auto_send===true} onChange={e=>setDraft({...draft,wake_auto_send:e.target.checked})}/>Отправлять голосовую команду сразу после фразы</label>
+    <p className="settings-help">Сохраните профиль и включите «Активация голосом» в верхней панели. Микрофон слушает во всех режимах, пока приложение открыто. Распознавание использует STT URL ниже; передаются только фрагменты с обнаруженной речью. Скажите фразу и команду либо произнесите команду следующим фрагментом.</p>
     <label>STT URL<input value={draft.stt_url||''} onChange={e=>setDraft({...draft,stt_url:e.target.value})}/><small>whisper.cpp: http://127.0.0.1:8080/inference; OpenAI-совместимый сервер: полный URL /v1/audio/transcriptions.</small></label>
     <label>STT модель<input value={draft.stt_model||''} onChange={e=>setDraft({...draft,stt_model:e.target.value})}/></label>
     <label>Язык STT<input maxLength={16} value={draft.stt_language||''} onChange={e=>setDraft({...draft,stt_language:e.target.value})}/></label>

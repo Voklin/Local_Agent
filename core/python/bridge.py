@@ -18,6 +18,7 @@ from core.python.project_search import ProjectSearchService
 from core.python.runtime_service import RuntimeService
 from core.python.memory_service import read_memory, write_memory
 from core.python.speech_service import SpeechService
+from core.python.neural_speech import NeuralSpeech
 from core.python.telegram_service import TelegramService
 from core.python.desktop_service import DesktopService
 from core.python.transcription_service import TranscriptionService
@@ -36,6 +37,7 @@ editor = EditorService()
 project_search = ProjectSearchService()
 runtime = RuntimeService()
 speech = SpeechService()
+neural_speech = NeuralSpeech(emit)
 transcription = TranscriptionService()
 desktop = DesktopService(emit)
 tasks.desktop = desktop
@@ -86,13 +88,17 @@ def _handle(method: str, params: dict) -> dict:
     if method == 'cancel_transcription':
         return transcription.stop()
     if method == 'voice_status':
-        return speech.status()
+        return neural_speech.status() if tasks.companion_config['tts_provider']=='qwen3' else speech.status()
     if method == 'voice_refresh':
-        return speech.refresh()
+        return neural_speech.status() if tasks.companion_config['tts_provider']=='qwen3' else speech.refresh()
     if method == 'voice_speak':
-        return speech.speak(params)
+        return neural_speech.speak(params,tasks.companion_config) if tasks.companion_config['tts_provider']=='qwen3' else speech.speak(params)
+    if method == 'voice_playback':
+        return neural_speech.playback(params)
     if method == 'voice_stop':
-        return speech.stop()
+        neural_speech.stop()
+        speech.stop()
+        return neural_speech.status() if tasks.companion_config['tts_provider']=='qwen3' else speech.status()
     if method in ('runtime_start', 'runtime_stop'):
         tasks.idle()
         return runtime.start(params) if method == 'runtime_start' else runtime.stop()
@@ -225,6 +231,7 @@ def main() -> None:
     project_search.shutdown()
     transcription.shutdown()
     speech.shutdown()
+    neural_speech.shutdown()
     runtime.shutdown()
     tasks.shutdown()
 

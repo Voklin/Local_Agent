@@ -193,3 +193,5 @@
 ## Расширение 6.1
 
 Отдельный проверяемый план Мии/JSON tools/KV/STT/PC/Telegram — [EXPANSION_PLAN.md](EXPANSION_PLAN.md).
+
+Нейроозвучка/активация 6.2: [план](NEURAL_VOICE_PLAN.md), [реализация и инструкция](29-neural-voice-and-wake.md).

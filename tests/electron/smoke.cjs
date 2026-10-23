@@ -1,6 +1,7 @@
 // Run with Electron after building and starting Vite on 127.0.0.1:5173.
 // Uses the real main process, preload, renderer, bridge and engine.
 const { app, BrowserWindow, dialog, ipcMain, desktopCapturer, nativeImage } = require('electron');
+app.disableHardwareAcceleration();
 desktopCapturer.getSources=async()=>[{display_id:'fixture',thumbnail:nativeImage.createFromBitmap(Buffer.from([255,0,0,255]),{width:1,height:1})}];
 const fs = require('node:fs');
 const path = require('node:path');
@@ -9,7 +10,8 @@ const assert = require('node:assert/strict');
 app.commandLine.appendSwitch('use-fake-device-for-media-stream');
 app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
 let transcriptionRequests=0;
-const transcriptionFixture=http.createServer((request,response)=>{let body=[];request.on('data',chunk=>body.push(chunk));request.on('end',()=>{body=Buffer.concat(body);assert.ok(body.includes(Buffer.from('RIFF')));transcriptionRequests++;response.writeHead(200,{'Content-Type':'application/json'});response.end(JSON.stringify({text:'Микрофон fixture'}));});});
+let transcriptionText='Микрофон fixture';
+const transcriptionFixture=http.createServer((request,response)=>{let body=[];request.on('data',chunk=>body.push(chunk));request.on('end',()=>{body=Buffer.concat(body);assert.ok(body.includes(Buffer.from('RIFF')));transcriptionRequests++;response.writeHead(200,{'Content-Type':'application/json'});response.end(JSON.stringify({text:transcriptionText}));});});
 
 // Capture speech IPC in GUI tests: actual System.Speech is tested through WAV,
 // so this suite never plays audio on the user's speakers.
@@ -17,12 +19,14 @@ let simulatedSpeech=false;
 let capturedSpeech=null;
 let speechCalls=0;
 let companionRequest=false;
+let neuralMode=false;
+let neuralRequests=0;
 const registerIpc=ipcMain.handle.bind(ipcMain);
 let handlerForVoiceStatus=async()=>({ok:true,state:'idle',voices:[],recognizers:[]});
 ipcMain.handle=(channel,handler)=>{
   if(channel==='voice:status')handlerForVoiceStatus=handler;
   return registerIpc(channel,async(event,...args)=>{
-    if(channel==='voice:speak') {
+    if(channel==='voice:speak'&&!neuralMode) {
       capturedSpeech=args[0];speechCalls++;simulatedSpeech=true;
       const result=await handlerForVoiceStatus(event);
       return {...result,state:'speaking'};
@@ -63,6 +67,13 @@ const model = http.createServer((req, res) => {
   let raw = '';
   req.on('data', chunk => { raw += chunk; });
   req.on('end', () => {
+    if(req.url==='/tts') {
+      const input=JSON.parse(raw);assert.ok(input.instructions.includes('anime'));neuralRequests++;
+      const wav=Buffer.alloc(4844);wav.write('RIFF');wav.writeUInt32LE(4836,4);wav.write('WAVEfmt ',8);
+      wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(24000,24);
+      wav.writeUInt32LE(48000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(4800,40);
+      res.writeHead(200,{'Content-Type':'audio/wav'});res.end(wav);return;
+    }
     if (req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ data: [{ id: 'smoke-model' }] })); return;
@@ -429,12 +440,30 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `!!document.querySelector('.desktop-artifact img')&&!document.querySelector('[title="Остановить"]')`);
       assert.ok(await win.webContents.executeJavaScript(`document.querySelector('.desktop-artifact img').src.startsWith('data:image/png;base64,')`));
       await win.webContents.executeJavaScript(`document.querySelector('.desktop-artifact button').click();window.lca.configureDesktop(false)`);
-      console.log('PASS: Electron approval and stale-diff conflict, incremental text without duplicate answer, persisted preferences, fast network cancellation');
+      neuralMode=true;
+      await win.webContents.executeJavaScript(`window.lca.configureCompanion({base_url:${JSON.stringify(url)},model:'smoke-model',tts_provider:'qwen3',tts_url:${JSON.stringify(url.replace('/v1','/tts'))},stt_url:'http://127.0.0.1:${transcriptionFixture.address().port}/inference',wake_phrase:'Привет, Мия',wake_auto_send:false})`);
+      await win.webContents.executeJavaScript(`window.dispatchEvent(new Event('companion-profile'));true`);
+      const neural=await win.webContents.executeJavaScript(`window.lca.speak({text:'Привет, я Мия!',volume:0,rate:0})`);
+      assert.equal(neural.ok,true);
+      await poll(win, `(async()=>{const s=await window.lca.voiceStatus();return s.sequence>0&&s.state==='idle';})()`,15000);
+      assert.equal(neuralRequests,1);
+      transcriptionText='Привет, Мия';
+      await win.webContents.executeJavaScript(`document.querySelector('.wake-control button').click()`,true);
+      await poll(win, `!!document.querySelector('.voice-panel')`,20000);
+      await poll(win, `document.querySelector('.wake-control').textContent.includes('Мия активирована')`,5000);
+      transcriptionText='Расскажи про музыку';
+      await poll(win, `document.querySelector('[aria-label="Сообщение ассистенту"]').value==='Расскажи про музыку'`,20000);
+      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.voice-composer button[type=button]')`),false,'Wake command requires review by default');
+      await win.webContents.executeJavaScript(`document.querySelector('.wake-control button').click()`,true);
+      console.log('PASS: editor, approvals, streaming, voice profiles, silent neural WAV playback and wake phrase from Chat');
       fs.writeFileSync(resultPath, JSON.stringify({status:'passed',project}, null, 2));
       clearTimeout(deadline); model.close(); transcriptionFixture.close(); app.quit();
     } catch (error) {
-      fs.writeFileSync(path.join(testRoot, 'failure.png'), (await win.webContents.capturePage()).toPNG());
-      fs.writeFileSync(path.join(testRoot, 'failure-state.txt'), await win.webContents.executeJavaScript(`JSON.stringify({text:document.body.textContent,api:typeof window.lca,baseUrl:document.querySelector('input[name="base_url"]')?.value})`));
+      console.error(String(error.stack||error));
+      try {
+        fs.writeFileSync(path.join(testRoot, 'failure.png'), (await win.webContents.capturePage()).toPNG());
+        fs.writeFileSync(path.join(testRoot, 'failure-state.txt'), await win.webContents.executeJavaScript(`JSON.stringify({text:document.body.textContent,api:typeof window.lca,baseUrl:document.querySelector('input[name="base_url"]')?.value})`));
+      }catch(captureError){console.error('Failure snapshot unavailable: '+String(captureError));}
       model.close(); transcriptionFixture.close(); fail(error);
     }
   });

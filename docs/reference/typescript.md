@@ -19,12 +19,15 @@
 - [apps/desktop/src/LocalRuntimePanel.tsx](#module-apps-desktop-src-localruntimepanel-tsx)
 - [apps/desktop/src/MemoryPanel.tsx](#module-apps-desktop-src-memorypanel-tsx)
 - [apps/desktop/src/ModelSettings.tsx](#module-apps-desktop-src-modelsettings-tsx)
+- [apps/desktop/src/NeuralAudio.tsx](#module-apps-desktop-src-neuralaudio-tsx)
 - [apps/desktop/src/ProjectSearch.tsx](#module-apps-desktop-src-projectsearch-tsx)
 - [apps/desktop/src/TaskProgress.tsx](#module-apps-desktop-src-taskprogress-tsx)
 - [apps/desktop/src/VoicePanel.tsx](#module-apps-desktop-src-voicepanel-tsx)
+- [apps/desktop/src/WakeListener.tsx](#module-apps-desktop-src-wakelistener-tsx)
 - [apps/desktop/src/main.tsx](#module-apps-desktop-src-main-tsx)
 - [apps/desktop/src/microphone.ts](#module-apps-desktop-src-microphone-ts)
 - [apps/desktop/src/vite-env.d.ts](#module-apps-desktop-src-vite-env-d-ts)
+- [apps/desktop/src/wakePhrase.ts](#module-apps-desktop-src-wakephrase-ts)
 - [apps/desktop/vite.config.ts](#module-apps-desktop-vite-config-ts)
 - [tests/electron/packaged-smoke.mjs](#module-tests-electron-packaged-smoke-mjs)
 - [tests/electron/smoke.cjs](#module-tests-electron-smoke-cjs)
@@ -458,9 +461,49 @@ stopVoice()
 
 Запрашивает отмену собственного speech worker.
 
-### `searchProject`
+### `voicePlayback`
 
 [Исходник](../../apps/desktop/electron/preload.ts#L31)
+
+```typescript
+voicePlayback(params:unknown)
+```
+
+Фиксированный IPC сообщает Core об окончании/ошибке текущего sequence звука.
+
+### `openTtsFolder`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L32)
+
+```typescript
+openTtsFolder()
+```
+
+Открывает только штатную папку sidecar TTS, без запуска команды из ответа модели.
+
+### `activateAssistant`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L33)
+
+```typescript
+activateAssistant()
+```
+
+Показывает и фокусирует окно после явной включённой фразы активации.
+
+### `wakeListening`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L34)
+
+```typescript
+wakeListening(enabled:boolean)
+```
+
+Отключает background throttling только пока пользователь включил прослушивание.
+
+### `searchProject`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L35)
 
 ```typescript
 searchProject(params: unknown)
@@ -470,7 +513,7 @@ searchProject(params: unknown)
 
 ### `cancelProjectSearch`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L32)
+[Исходник](../../apps/desktop/electron/preload.ts#L36)
 
 ```typescript
 cancelProjectSearch()
@@ -480,7 +523,7 @@ cancelProjectSearch()
 
 ### `editorRead`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L33)
+[Исходник](../../apps/desktop/electron/preload.ts#L37)
 
 ```typescript
 editorRead(path: string)
@@ -490,7 +533,7 @@ editorRead(path: string)
 
 ### `editorPreview`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L34)
+[Исходник](../../apps/desktop/electron/preload.ts#L38)
 
 ```typescript
 editorPreview(path: string, content: string, revision: unknown)
@@ -500,7 +543,7 @@ editorPreview(path: string, content: string, revision: unknown)
 
 ### `editorResolve`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L35)
+[Исходник](../../apps/desktop/electron/preload.ts#L39)
 
 ```typescript
 editorResolve(proposalId: string, decision: string)
@@ -510,7 +553,7 @@ editorResolve(proposalId: string, decision: string)
 
 ### `setEditorDirty`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L36)
+[Исходник](../../apps/desktop/electron/preload.ts#L40)
 
 ```typescript
 setEditorDirty(dirty: boolean)
@@ -520,7 +563,7 @@ setEditorDirty(dirty: boolean)
 
 ### `confirmEditorDiscard`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L37)
+[Исходник](../../apps/desktop/electron/preload.ts#L41)
 
 ```typescript
 confirmEditorDiscard()
@@ -530,7 +573,7 @@ confirmEditorDiscard()
 
 ### `systemInfo`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L38)
+[Исходник](../../apps/desktop/electron/preload.ts#L42)
 
 ```typescript
 systemInfo()
@@ -540,7 +583,7 @@ Preload-запрос home/platform у main, без tool модели.
 
 ### `configureModel`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L39)
+[Исходник](../../apps/desktop/electron/preload.ts#L43)
 
 ```typescript
 configureModel(config: { base_url: string; model: string; api_key: string; settings?: Record<string, number> })
@@ -550,7 +593,7 @@ configureModel(config: { base_url: string; model: string; api_key: string; setti
 
 ### `listModels`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L40)
+[Исходник](../../apps/desktop/electron/preload.ts#L44)
 
 ```typescript
 listModels(config?: unknown)
@@ -560,7 +603,7 @@ listModels(config?: unknown)
 
 ### `testModel`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L41)
+[Исходник](../../apps/desktop/electron/preload.ts#L45)
 
 ```typescript
 testModel(config: unknown)
@@ -570,7 +613,7 @@ testModel(config: unknown)
 
 ### `cancelModelSetup`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L42)
+[Исходник](../../apps/desktop/electron/preload.ts#L46)
 
 ```typescript
 cancelModelSetup()
@@ -580,7 +623,7 @@ cancelModelSetup()
 
 ### `getModelSettings`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L43)
+[Исходник](../../apps/desktop/electron/preload.ts#L47)
 
 ```typescript
 getModelSettings()
@@ -590,7 +633,7 @@ getModelSettings()
 
 ### `listChats`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L44)
+[Исходник](../../apps/desktop/electron/preload.ts#L48)
 
 ```typescript
 listChats(mode = 'ide')
@@ -600,7 +643,7 @@ listChats(mode = 'ide')
 
 ### `newChat`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L45)
+[Исходник](../../apps/desktop/electron/preload.ts#L49)
 
 ```typescript
 newChat(mode = 'ide')
@@ -610,7 +653,7 @@ newChat(mode = 'ide')
 
 ### `loadChat`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L46)
+[Исходник](../../apps/desktop/electron/preload.ts#L50)
 
 ```typescript
 loadChat(chatId: string, mode = 'ide')
@@ -620,7 +663,7 @@ loadChat(chatId: string, mode = 'ide')
 
 ### `startTask`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L47)
+[Исходник](../../apps/desktop/electron/preload.ts#L51)
 
 ```typescript
 startTask(prompt: string, resume = false, mode = 'ide')
@@ -630,7 +673,7 @@ startTask(prompt: string, resume = false, mode = 'ide')
 
 ### `cancelTask`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L48)
+[Исходник](../../apps/desktop/electron/preload.ts#L52)
 
 ```typescript
 cancelTask()
@@ -640,7 +683,7 @@ cancelTask()
 
 ### `resolveApproval`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L49)
+[Исходник](../../apps/desktop/electron/preload.ts#L53)
 
 ```typescript
 resolveApproval(runId: string, approvalId: string, decision: string)
@@ -650,7 +693,7 @@ resolveApproval(runId: string, approvalId: string, decision: string)
 
 ### `onEvent`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L50)
+[Исходник](../../apps/desktop/electron/preload.ts#L54)
 
 ```typescript
 onEvent(callback: (event: unknown) => void)
@@ -660,7 +703,7 @@ onEvent(callback: (event: unknown) => void)
 
 ### `onEvent.listener`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L51)
+[Исходник](../../apps/desktop/electron/preload.ts#L55)
 
 ```typescript
 listener(_event: Electron.IpcRendererEvent, data: unknown)
@@ -676,7 +719,7 @@ React-состояние и представление проекта, наст�
 
 ### `FileItem`
 
-[Исходник](../../apps/desktop/src/App.tsx#L11)
+[Исходник](../../apps/desktop/src/App.tsx#L13)
 
 ```typescript
 type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
@@ -686,7 +729,7 @@ type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
 
 ### `Message`
 
-[Исходник](../../apps/desktop/src/App.tsx#L12)
+[Исходник](../../apps/desktop/src/App.tsx#L14)
 
 ```typescript
 type Message = { role: string; text: string; id?: string; streaming?: boolean };
@@ -696,7 +739,7 @@ type Message = { role: string; text: string; id?: string; streaming?: boolean };
 
 ### `ChatSummary`
 
-[Исходник](../../apps/desktop/src/App.tsx#L13)
+[Исходник](../../apps/desktop/src/App.tsx#L15)
 
 ```typescript
 type ChatSummary = { id: string; title: string };
@@ -706,7 +749,7 @@ type ChatSummary = { id: string; title: string };
 
 ### `App`
 
-[Исходник](../../apps/desktop/src/App.tsx#L16)
+[Исходник](../../apps/desktop/src/App.tsx#L18)
 
 ```typescript
 function App()
@@ -716,7 +759,7 @@ function App()
 
 ### `App.report`
 
-[Исходник](../../apps/desktop/src/App.tsx#L62)
+[Исходник](../../apps/desktop/src/App.tsx#L65)
 
 ```typescript
 function report(text: string)
@@ -726,7 +769,7 @@ function report(text: string)
 
 ### `App.showWarning`
 
-[Исходник](../../apps/desktop/src/App.tsx#L63)
+[Исходник](../../apps/desktop/src/App.tsx#L66)
 
 ```typescript
 function showWarning(text: string)
@@ -736,7 +779,7 @@ function showWarning(text: string)
 
 ### `App.refreshChats`
 
-[Исходник](../../apps/desktop/src/App.tsx#L67)
+[Исходник](../../apps/desktop/src/App.tsx#L70)
 
 ```typescript
 async function refreshChats(scope = modeRef.current)
@@ -746,7 +789,7 @@ async function refreshChats(scope = modeRef.current)
 
 ### `App.shortcuts`
 
-[Исходник](../../apps/desktop/src/App.tsx#L126)
+[Исходник](../../apps/desktop/src/App.tsx#L129)
 
 ```typescript
 function shortcuts(event:KeyboardEvent)
@@ -756,7 +799,7 @@ function shortcuts(event:KeyboardEvent)
 
 ### `App.openSearchFile`
 
-[Исходник](../../apps/desktop/src/App.tsx#L137)
+[Исходник](../../apps/desktop/src/App.tsx#L140)
 
 ```typescript
 async function openSearchFile(path:string, line:number)
@@ -766,7 +809,7 @@ async function openSearchFile(path:string, line:number)
 
 ### `App.refreshFiles`
 
-[Исходник](../../apps/desktop/src/App.tsx#L144)
+[Исходник](../../apps/desktop/src/App.tsx#L147)
 
 ```typescript
 async function refreshFiles(path = '.')
@@ -776,7 +819,7 @@ async function refreshFiles(path = '.')
 
 ### `App.chooseProject`
 
-[Исходник](../../apps/desktop/src/App.tsx#L148)
+[Исходник](../../apps/desktop/src/App.tsx#L151)
 
 ```typescript
 async function chooseProject()
@@ -786,7 +829,7 @@ async function chooseProject()
 
 ### `App.switchMode`
 
-[Исходник](../../apps/desktop/src/App.tsx#L161)
+[Исходник](../../apps/desktop/src/App.tsx#L164)
 
 ```typescript
 async function switchMode(next: WorkspaceMode)
@@ -794,9 +837,19 @@ async function switchMode(next: WorkspaceMode)
 
 Переключает Chat/IDE/voice только в idle, сбрасывает выбранный UI-чат и загружает историю соответствующей области.
 
+### `App.activateMiya`
+
+[Исходник](../../apps/desktop/src/App.tsx#L173)
+
+```typescript
+async function activateMiya(text:string, send:boolean)
+```
+
+Открывает/фокусирует окно, переключает режим и передаёт распознанный текст Мие.
+
 ### `App.openFile`
 
-[Исходник](../../apps/desktop/src/App.tsx#L170)
+[Исходник](../../apps/desktop/src/App.tsx#L179)
 
 ```typescript
 async function openFile(item: FileItem)
@@ -806,7 +859,7 @@ async function openFile(item: FileItem)
 
 ### `App.selectChat`
 
-[Исходник](../../apps/desktop/src/App.tsx#L175)
+[Исходник](../../apps/desktop/src/App.tsx#L184)
 
 ```typescript
 async function selectChat(id?: string)
@@ -816,7 +869,7 @@ async function selectChat(id?: string)
 
 ### `App.moveChat`
 
-[Исходник](../../apps/desktop/src/App.tsx#L186)
+[Исходник](../../apps/desktop/src/App.tsx#L195)
 
 ```typescript
 async function moveChat(id:string)
@@ -826,7 +879,7 @@ async function moveChat(id:string)
 
 ### `App.returnToMiya`
 
-[Исходник](../../apps/desktop/src/App.tsx#L190)
+[Исходник](../../apps/desktop/src/App.tsx#L199)
 
 ```typescript
 async function returnToMiya()
@@ -836,7 +889,7 @@ async function returnToMiya()
 
 ### `App.declineHandoff`
 
-[Исходник](../../apps/desktop/src/App.tsx#L195)
+[Исходник](../../apps/desktop/src/App.tsx#L204)
 
 ```typescript
 async function declineHandoff()
@@ -846,7 +899,7 @@ async function declineHandoff()
 
 ### `App.acceptHandoff`
 
-[Исходник](../../apps/desktop/src/App.tsx#L200)
+[Исходник](../../apps/desktop/src/App.tsx#L209)
 
 ```typescript
 async function acceptHandoff()
@@ -856,7 +909,7 @@ async function acceptHandoff()
 
 ### `App.renameChat`
 
-[Исходник](../../apps/desktop/src/App.tsx#L216)
+[Исходник](../../apps/desktop/src/App.tsx#L225)
 
 ```typescript
 async function renameChat()
@@ -866,7 +919,7 @@ async function renameChat()
 
 ### `App.configure`
 
-[Исходник](../../apps/desktop/src/App.tsx#L225)
+[Исходник](../../apps/desktop/src/App.tsx#L234)
 
 ```typescript
 async function configure()
@@ -876,7 +929,7 @@ async function configure()
 
 ### `App.sendPrompt`
 
-[Исходник](../../apps/desktop/src/App.tsx#L229)
+[Исходник](../../apps/desktop/src/App.tsx#L238)
 
 ```typescript
 async function sendPrompt(resume = false, voiceText?:string)
@@ -886,7 +939,7 @@ async function sendPrompt(resume = false, voiceText?:string)
 
 ### `App.decide`
 
-[Исходник](../../apps/desktop/src/App.tsx#L255)
+[Исходник](../../apps/desktop/src/App.tsx#L264)
 
 ```typescript
 async function decide(decision: string)
@@ -896,7 +949,7 @@ async function decide(decision: string)
 
 ### `App.cancel`
 
-[Исходник](../../apps/desktop/src/App.tsx#L264)
+[Исходник](../../apps/desktop/src/App.tsx#L273)
 
 ```typescript
 async function cancel()
@@ -1417,6 +1470,42 @@ function handleKeys(event: React.KeyboardEvent<HTMLElement>)
 
 Закрывает окно по Escape вне операции и удерживает Tab-навигацию в доступных контролах диалога.
 
+<a id="module-apps-desktop-src-neuralaudio-tsx"></a>
+
+## `apps/desktop/src/NeuralAudio.tsx`
+
+Единый плеер нейроозвучки: PCM WAV из Core, громкость/темп, Stop и подтверждение завершения.
+
+### `NeuralAudio`
+
+[Исходник](../../apps/desktop/src/NeuralAudio.tsx#L3)
+
+```typescript
+function NeuralAudio()
+```
+
+Проигрывает только события Core, останавливает старый Audio и подтверждает текущую озвучку.
+
+### `NeuralAudio.player.onended`
+
+[Исходник](../../apps/desktop/src/NeuralAudio.tsx#L14)
+
+```typescript
+player.onended()
+```
+
+Подтверждает завершение только текущего Audio по sequence.
+
+### `NeuralAudio.player.onerror`
+
+[Исходник](../../apps/desktop/src/NeuralAudio.tsx#L15)
+
+```typescript
+player.onerror()
+```
+
+Сообщает Core о невозможности воспроизведения текущего Audio.
+
 <a id="module-apps-desktop-src-projectsearch-tsx"></a>
 
 ## `apps/desktop/src/ProjectSearch.tsx`
@@ -1569,8 +1658,8 @@ export interface VoiceProfile {
 [Исходник](../../apps/desktop/src/VoicePanel.tsx#L17)
 
 ```typescript
-function VoicePanel({ onChat, onAsk, onCancel, busy, messages, conversationKey, completed }: {
-  conversationKey:string;completed:boolean;
+function VoicePanel({ activation, onChat, onAsk, onCancel, busy, messages, conversationKey, completed }: {
+  activation:{id:number;text:string;send:boolean}|null;conversationKey:string;completed:boolean;
   onChat:()=>void;onAsk:(text:string)=>void;onCancel:()=>void;busy:boolean;
   messages:{role:string;text:string;streaming?:boolean}[];
 })
@@ -1580,7 +1669,7 @@ function VoicePanel({ onChat, onAsk, onCancel, busy, messages, conversationKey, 
 
 ### `VoicePanel.record`
 
-[Исходник](../../apps/desktop/src/VoicePanel.tsx#L37)
+[Исходник](../../apps/desktop/src/VoicePanel.tsx#L47)
 
 ```typescript
 async function record()
@@ -1590,7 +1679,7 @@ async function record()
 
 ### `VoicePanel.finishRecording`
 
-[Исходник](../../apps/desktop/src/VoicePanel.tsx#L43)
+[Исходник](../../apps/desktop/src/VoicePanel.tsx#L53)
 
 ```typescript
 async function finishRecording()
@@ -1600,7 +1689,7 @@ async function finishRecording()
 
 ### `VoicePanel.saveVoice`
 
-[Исходник](../../apps/desktop/src/VoicePanel.tsx#L48)
+[Исходник](../../apps/desktop/src/VoicePanel.tsx#L58)
 
 ```typescript
 async function saveVoice()
@@ -1610,7 +1699,7 @@ async function saveVoice()
 
 ### `VoicePanel.refresh`
 
-[Исходник](../../apps/desktop/src/VoicePanel.tsx#L60)
+[Исходник](../../apps/desktop/src/VoicePanel.tsx#L70)
 
 ```typescript
 async function refresh()
@@ -1620,7 +1709,7 @@ async function refresh()
 
 ### `VoicePanel.speak`
 
-[Исходник](../../apps/desktop/src/VoicePanel.tsx#L92)
+[Исходник](../../apps/desktop/src/VoicePanel.tsx#L102)
 
 ```typescript
 async function speak(text:string)
@@ -1630,7 +1719,7 @@ async function speak(text:string)
 
 ### `VoicePanel.stop`
 
-[Исходник](../../apps/desktop/src/VoicePanel.tsx#L97)
+[Исходник](../../apps/desktop/src/VoicePanel.tsx#L107)
 
 ```typescript
 async function stop()
@@ -1640,13 +1729,59 @@ async function stop()
 
 ### `VoicePanel.send`
 
-[Исходник](../../apps/desktop/src/VoicePanel.tsx#L102)
+[Исходник](../../apps/desktop/src/VoicePanel.tsx#L112)
 
 ```typescript
 function send()
 ```
 
 Передаёт введённую фразу в общий task flow voice без файловых инструментов.
+
+<a id="module-apps-desktop-src-wakelistener-tsx"></a>
+
+## `apps/desktop/src/WakeListener.tsx`
+
+Явно включаемый микрофон во всех режимах: speech gate, STT, wake phrase, пауза при задаче/озвучке/ручной записи.
+
+### `WakeListener`
+
+[Исходник](../../apps/desktop/src/WakeListener.tsx#L5)
+
+```typescript
+function WakeListener({busy,onWake}:{busy:boolean;onWake:(text:string,send:boolean)=>Promise<void>})
+```
+
+Управляет явно включённым прослушиванием и паузами без обращения к чат-модели.
+
+### `WakeListener.refresh`
+
+[Исходник](../../apps/desktop/src/WakeListener.tsx#L15)
+
+```typescript
+refresh()
+```
+
+Обновляет профиль при сохранении настроек и не включает микрофон автоматически.
+
+### `WakeListener.capture`
+
+[Исходник](../../apps/desktop/src/WakeListener.tsx#L16)
+
+```typescript
+capture(event:Event)
+```
+
+Получает состояние ручной записи для исключения конкурентного STT.
+
+### `WakeListener.cycle`
+
+[Исходник](../../apps/desktop/src/WakeListener.tsx#L25)
+
+```typescript
+async function cycle()
+```
+
+Записывает фрагмент до тишины/12 секунд, распознаёт речь и активирует Мию по началу фразы.
 
 <a id="module-apps-desktop-src-main-tsx"></a>
 
@@ -1664,7 +1799,7 @@ function send()
 
 ### `this.processor.onaudioprocess`
 
-[Исходник](../../apps/desktop/src/microphone.ts#L18)
+[Исходник](../../apps/desktop/src/microphone.ts#L21)
 
 ```typescript
 this.processor.onaudioprocess(event)
@@ -1674,7 +1809,7 @@ this.processor.onaudioprocess(event)
 
 ### `ascii`
 
-[Исходник](../../apps/desktop/src/microphone.ts#L31)
+[Исходник](../../apps/desktop/src/microphone.ts#L36)
 
 ```typescript
 ascii(offset:number, text:string)
@@ -1715,6 +1850,8 @@ interface Window { lca: {
   prepareHandoff:(id:string)=>Promise<any>;
   getCompanionSettings:()=>Promise<any>;configureCompanion:(params:unknown)=>Promise<any>;
   transcribe:(audio:string)=>Promise<any>;cancelTranscription:()=>Promise<any>;
+  voicePlayback:(params:unknown)=>Promise<any>;openTtsFolder:()=>Promise<any>;
+  activateAssistant:()=>Promise<any>;wakeListening:(enabled:boolean)=>Promise<any>;
   voiceStatus: () => Promise<any>; refreshVoices: () => Promise<any>; speak: (params:unknown) => Promise<any>; stopVoice: () => Promise<any>;
   searchProject: (params: unknown) => Promise<any>; cancelProjectSearch: () => Promise<any>;
   editorRead: (path: string) => Promise<any>; editorPreview: (path: string, content: string, revision: unknown) => Promise<any>;
@@ -1731,6 +1868,32 @@ interface Window { lca: {
 ```
 
 Расширение глобального Window контрактом фиксированного lca API.
+
+<a id="module-apps-desktop-src-wakephrase-ts"></a>
+
+## `apps/desktop/src/wakePhrase.ts`
+
+Нормализация русской фразы и выделение команды только после совпадающего начала без потери пунктуации команды.
+
+### `normalizeSpeech`
+
+[Исходник](../../apps/desktop/src/wakePhrase.ts#L1)
+
+```typescript
+function normalizeSpeech(text:string)
+```
+
+Приводит русскую фразу к нижнему регистру, ё→е и пробелам между словами.
+
+### `wakeCommand`
+
+[Исходник](../../apps/desktop/src/wakePhrase.ts#L5)
+
+```typescript
+function wakeCommand(text:string, phrase:string): string|null
+```
+
+Проверяет фразу только в начале; возвращает исходный хвост с пунктуацией либо null.
 
 <a id="module-apps-desktop-vite-config-ts"></a>
 
@@ -1814,7 +1977,7 @@ async function main()
 
 ### `desktopCapturer.getSources`
 
-[Исходник](../../tests/electron/smoke.cjs#L4)
+[Исходник](../../tests/electron/smoke.cjs#L5)
 
 ```typescript
 desktopCapturer.getSources()
@@ -1824,7 +1987,7 @@ GUI fixture возвращает синтетический 1×1 NativeImage в�
 
 ### `handlerForVoiceStatus`
 
-[Исходник](../../tests/electron/smoke.cjs#L21)
+[Исходник](../../tests/electron/smoke.cjs#L25)
 
 ```typescript
 handlerForVoiceStatus()
@@ -1834,7 +1997,7 @@ handlerForVoiceStatus()
 
 ### `ipcMain.handle`
 
-[Исходник](../../tests/electron/smoke.cjs#L22)
+[Исходник](../../tests/electron/smoke.cjs#L26)
 
 ```typescript
 ipcMain.handle(channel, handler)
@@ -1844,7 +2007,7 @@ ipcMain.handle(channel, handler)
 
 ### `fail`
 
-[Исходник](../../tests/electron/smoke.cjs#L41)
+[Исходник](../../tests/electron/smoke.cjs#L45)
 
 ```typescript
 function fail(error)
@@ -1854,7 +2017,7 @@ function fail(error)
 
 ### `BrowserWindow.prototype.show`
 
-[Исходник](../../tests/electron/smoke.cjs#L51)
+[Исходник](../../tests/electron/smoke.cjs#L55)
 
 ```typescript
 BrowserWindow.prototype.show()
@@ -1864,7 +2027,7 @@ BrowserWindow.prototype.show()
 
 ### `dialog.showMessageBox`
 
-[Исходник](../../tests/electron/smoke.cjs#L53)
+[Исходник](../../tests/electron/smoke.cjs#L57)
 
 ```typescript
 dialog.showMessageBox()
@@ -1874,7 +2037,7 @@ dialog.showMessageBox()
 
 ### `dialog.showOpenDialog`
 
-[Исходник](../../tests/electron/smoke.cjs#L56)
+[Исходник](../../tests/electron/smoke.cjs#L60)
 
 ```typescript
 dialog.showOpenDialog(_win, options)
@@ -1884,7 +2047,7 @@ dialog.showOpenDialog(_win, options)
 
 ### `encode`
 
-[Исходник](../../tests/electron/smoke.cjs#L75)
+[Исходник](../../tests/electron/smoke.cjs#L86)
 
 ```typescript
 encode(delta)
@@ -1894,7 +2057,7 @@ encode(delta)
 
 ### `releaseModelText`
 
-[Исходник](../../tests/electron/smoke.cjs#L85)
+[Исходник](../../tests/electron/smoke.cjs#L96)
 
 ```typescript
 releaseModelText()
@@ -1904,7 +2067,7 @@ releaseModelText()
 
 ### `releaseModelText`
 
-[Исходник](../../tests/electron/smoke.cjs#L95)
+[Исходник](../../tests/electron/smoke.cjs#L106)
 
 ```typescript
 releaseModelText()
@@ -1914,7 +2077,7 @@ releaseModelText()
 
 ### `poll`
 
-[Исходник](../../tests/electron/smoke.cjs#L102)
+[Исходник](../../tests/electron/smoke.cjs#L113)
 
 ```typescript
 async function poll(win, expression, timeout=10000)

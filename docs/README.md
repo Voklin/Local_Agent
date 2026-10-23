@@ -88,3 +88,5 @@ python tools/check_docs.py
 Инструменты ПК, prompt-only папки и Telegram — [глава 27](27-desktop-and-telegram.md).
 
 Проверки расширения, реальная Qwen и границы готовности — [глава 28](28-expansion-validation.md).
+
+Нейроозвучка на русском и фраза активации — [глава 29](29-neural-voice-and-wake.md).

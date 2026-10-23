@@ -60,13 +60,16 @@
 | [apps/desktop/src/LocalRuntimePanel.tsx](../../apps/desktop/src/LocalRuntimePanel.tsx) | Реальный GGUF picker, context/GPU, lifecycle status и явный перенос endpoint в настройки. |
 | [apps/desktop/src/MemoryPanel.tsx](../../apps/desktop/src/MemoryPanel.tsx) | Редактор семи полей памяти выбранного проекта с сохранением draft при конфликте. |
 | [apps/desktop/src/ModelSettings.tsx](../../apps/desktop/src/ModelSettings.tsx) | Модальное окно draft-настроек: endpoint, ключ, список моделей, тест ответа, генерация, лимиты, сохранение и focus trap. |
+| [apps/desktop/src/NeuralAudio.tsx](../../apps/desktop/src/NeuralAudio.tsx) | Единый плеер нейроозвучки: PCM WAV из Core, громкость/темп, Stop и подтверждение завершения. |
 | [apps/desktop/src/ProjectSearch.tsx](../../apps/desktop/src/ProjectSearch.tsx) | Боковой поиск и Ctrl+P: один IPC-запрос за раз, отмена и защита от устаревших результатов. |
 | [apps/desktop/src/TaskProgress.tsx](../../apps/desktop/src/TaskProgress.tsx) | Типизированная панель этапов, инструментов, результатов и продолжения задачи. |
 | [apps/desktop/src/VoicePanel.tsx](../../apps/desktop/src/VoicePanel.tsx) | Рабочий разговор с Мией без file tools, системная озвучка, голос/темп/громкость/Stop и честный отключённый STT. |
+| [apps/desktop/src/WakeListener.tsx](../../apps/desktop/src/WakeListener.tsx) | Явно включаемый микрофон во всех режимах: speech gate, STT, wake phrase, пауза при задаче/озвучке/ручной записи. |
 | [apps/desktop/src/main.tsx](../../apps/desktop/src/main.tsx) | Подключает CSS, создаёт React root и отображает App в StrictMode. |
 | [apps/desktop/src/microphone.ts](../../apps/desktop/src/microphone.ts) | Запись только по действию пользователя: 16 kHz mono PCM16 WAV, максимум 60 секунд, остановка MediaStream tracks. |
 | [apps/desktop/src/style.css](../../apps/desktop/src/style.css) | Стили IDE-панелей, сообщений, формы, modal и индикатора streaming. |
 | [apps/desktop/src/vite-env.d.ts](../../apps/desktop/src/vite-env.d.ts) | Vite reference, CoreEvent и TypeScript-контракт Window.lca. |
+| [apps/desktop/src/wakePhrase.ts](../../apps/desktop/src/wakePhrase.ts) | Нормализация русской фразы и выделение команды только после совпадающего начала без потери пунктуации команды. |
 | [apps/desktop/tsconfig.electron.json](../../apps/desktop/tsconfig.electron.json) | Статическая проверка Node/Electron main и preload без emit. |
 | [apps/desktop/tsconfig.json](../../apps/desktop/tsconfig.json) | Статическая проверка React/DOM/JSX-кода renderer. |
 | [apps/desktop/vite.config.ts](../../apps/desktop/vite.config.ts) | React-плагин, относительные assets, фиксированный локальный dev-порт и outDir. |
@@ -74,6 +77,7 @@
 | [core/python/desktop_service.py](../../core/python/desktop_service.py) | Явно включаемые PC tools: human-prompt folder grants, read-only файлы, bounded web search и host screenshot broker. |
 | [core/python/editor_service.py](../../core/python/editor_service.py) | Ручной editor-протокол: strict UTF-8 чтение с revision, preview, одноразовый Apply через существующую атомарную snapshot-запись. |
 | [core/python/memory_service.py](../../core/python/memory_service.py) | Строгий read/edit API памяти проекта с byte revision и защитой повреждённых файлов. |
+| [core/python/neural_speech.py](../../core/python/neural_speech.py) | Отменяемый HTTP TTS: bounded PCM WAV, события звука и точное подтверждение плеера по sequence. |
 | [core/python/project_search.py](../../core/python/project_search.py) | Ограниченный read-only поиск текста и путей с отменяемым отдельным worker. |
 | [core/python/runtime_service.py](../../core/python/runtime_service.py) | Неблокирующий сервис запуска/остановки GGUF и состояний собственного llama-server. |
 | [core/python/speech_service.py](../../core/python/speech_service.py) | Windows System.Speech через фиксированный PowerShell script и stdin JSON: каталог, TTS, Stop и owned job. |
@@ -110,8 +114,10 @@
 | [docs/26-miya-model-and-stt.md](../../docs/26-miya-model-and-stt.md) | Ручная учебная глава или исторический материал: 26. Мия: характер, своя модель, голос и распознавание. |
 | [docs/27-desktop-and-telegram.md](../../docs/27-desktop-and-telegram.md) | Ручная учебная глава или исторический материал: 27. Инструменты ПК и Telegram. |
 | [docs/28-expansion-validation.md](../../docs/28-expansion-validation.md) | Ручная учебная глава или исторический материал: Проверка расширения 6.1. |
+| [docs/29-neural-voice-and-wake.md](../../docs/29-neural-voice-and-wake.md) | Ручная учебная глава или исторический материал: 29. Нейроозвучка Мии и фраза активации. |
 | [docs/AUTONOMOUS_PLAN_2026-10-23.md](../../docs/AUTONOMOUS_PLAN_2026-10-23.md) | Ручная учебная глава или исторический материал: Автономный план LocalAgent — 23 октября 2026. |
 | [docs/EXPANSION_PLAN.md](../../docs/EXPANSION_PLAN.md) | Ручная учебная глава или исторический материал: План расширения LocalAgent. |
+| [docs/NEURAL_VOICE_PLAN.md](../../docs/NEURAL_VOICE_PLAN.md) | Ручная учебная глава или исторический материал: План нейроозвучки и фразы активации. |
 | [docs/README.md](../../docs/README.md) | Ручная учебная глава или исторический материал: LocalAgent: подробное руководство по проекту. |
 | [docs/WORK_PLAN.md](../../docs/WORK_PLAN.md) | Ручная учебная глава или исторический материал: План дальнейшей разработки LocalAgent. |
 | [docs/history/legacy-readme.md](../../docs/history/legacy-readme.md) | Ручная учебная глава или исторический материал: Исторические README до учебной документации. |
@@ -148,6 +154,7 @@
 | [tests/migration/test_json_protocol.py](../../tests/migration/test_json_protocol.py) | Реальный HTTP-сервер без native tools: JSON read/write через тот же diff и approval executor. |
 | [tests/migration/test_model_discovery.py](../../tests/migration/test_model_discovery.py) | HTTP-фикстура discovery: валидация ответа, медленный поток, общий deadline и отмена сокета. |
 | [tests/migration/test_model_probe.py](../../tests/migration/test_model_probe.py) | Реальный HTTP-стенд проверки ответа, пустого/некорректного/слишком большого результата, deadline и отмены. |
+| [tests/migration/test_neural_speech.py](../../tests/migration/test_neural_speech.py) | HTTP PCM fixture, точный sequence плеера и отмена зависшего синтеза без настоящего звука. |
 | [tests/migration/test_streaming.py](../../tests/migration/test_streaming.py) | Задержанный HTTP/SSE: отмена сокета, частичный текст, пакетирование и настройки. |
 | [tests/migration/test_task_service.py](../../tests/migration/test_task_service.py) | HTTP-фикстура и реальный engine: apply/reject/cancel, чаты, recovery и конфигурация. |
 | [tests/migration/test_transcription.py](../../tests/migration/test_transcription.py) | Реальный multipart WAV запрос к HTTP STT fixture и отмена зависшего сервера без доступа к микрофону. |
@@ -179,3 +186,7 @@
 | [tools/extract_ts_symbols.cjs](../../tools/extract_ts_symbols.cjs) | TypeScript Compiler API: структурные объявления TS/JS без исполнения приложения. |
 | [tools/generate_code_reference.py](../../tools/generate_code_reference.py) | Извлекает объявления из Python/TypeScript AST и создаёт Markdown-каталоги. |
 | [tools/prepare_windows_dependencies.py](../../tools/prepare_windows_dependencies.py) | Загрузка официальных зависимостей по SHA256, выбор server/DLL и подготовка офлайн-пакета без запуска установщиков. |
+| [tools/tts/README.md](../../tools/tts/README.md) | Установка TTS, выбор аниме-профиля, ограничения ресурсов и настройка голосовой активации. |
+| [tools/tts/qwen_server.py](../../tools/tts/qwen_server.py) | Отдельный localhost Qwen3-TTS VoiceDesign сервер с русским языком, описанием голоса и PCM16 WAV. |
+| [tools/tts/requirements.txt](../../tools/tts/requirements.txt) | Дополнительные зависимости Qwen3-TTS; не добавляются в основной frozen Core. |
+| [tools/tts/start-tts.ps1](../../tools/tts/start-tts.ps1) | Создаёт отдельную CPU TTS среду Python 3.12, устанавливает зависимости и запускает фиксированный локальный сервер. |

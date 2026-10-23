@@ -14,6 +14,7 @@
 - [tests/migration/test_json_protocol.py](#module-tests-migration-test-json-protocol-py)
 - [tests/migration/test_model_discovery.py](#module-tests-migration-test-model-discovery-py)
 - [tests/migration/test_model_probe.py](#module-tests-migration-test-model-probe-py)
+- [tests/migration/test_neural_speech.py](#module-tests-migration-test-neural-speech-py)
 - [tests/migration/test_streaming.py](#module-tests-migration-test-streaming-py)
 - [tests/migration/test_task_service.py](#module-tests-migration-test-task-service-py)
 - [tests/migration/test_transcription.py](#module-tests-migration-test-transcription-py)
@@ -734,6 +735,112 @@ def test_probe_deadline_and_cancellation_are_bounded(self)
 ```
 
 Проверка: Зависший HTTP прерывается общим deadline и Event отмены.
+
+<a id="module-tests-migration-test-neural-speech-py"></a>
+
+## `tests/migration/test_neural_speech.py`
+
+HTTP PCM fixture, точный sequence плеера и отмена зависшего синтеза без настоящего звука.
+
+### `NeuralSpeechTests`
+
+[Исходник](../../tests/migration/test_neural_speech.py#L14)
+
+```python
+class NeuralSpeechTests(unittest.TestCase)
+```
+
+Тестовый класс/фикстура: HTTP PCM fixture, точный sequence плеера и отмена зависшего синтеза без настоящего звука.
+
+### `NeuralSpeechTests.test_http_audio_and_exact_playback_sequence`
+
+[Исходник](../../tests/migration/test_neural_speech.py#L15)
+
+```python
+def test_http_audio_and_exact_playback_sequence(self)
+```
+
+Проверка: Проверяет реальный HTTP WAV, русский язык/описание, предел текста и отказ устаревшему sequence.
+
+### `NeuralSpeechTests.test_http_audio_and_exact_playback_sequence.Handler`
+
+[Исходник](../../tests/migration/test_neural_speech.py#L20)
+
+```python
+class Handler(BaseHTTPRequestHandler)
+```
+
+Тестовый класс/фикстура: HTTP PCM fixture, точный sequence плеера и отмена зависшего синтеза без настоящего звука.
+
+### `NeuralSpeechTests.test_http_audio_and_exact_playback_sequence.Handler.do_POST`
+
+[Исходник](../../tests/migration/test_neural_speech.py#L21)
+
+```python
+def do_POST(self)
+```
+
+Исполняет сценарий тестовой модели: чанки, tool call или намеренное ожидание отмены.
+
+### `NeuralSpeechTests.test_http_audio_and_exact_playback_sequence.Handler.log_message`
+
+[Исходник](../../tests/migration/test_neural_speech.py#L24)
+
+```python
+def log_message(self, *args)
+```
+
+Отключает стандартный HTTP-log тестовой фикстуры.
+
+### `NeuralSpeechTests.test_http_audio_and_exact_playback_sequence.emit`
+
+[Исходник](../../tests/migration/test_neural_speech.py#L28)
+
+```python
+def emit(event)
+```
+
+Собирает события тестовой нейроозвучки и сигнализирует о готовом WAV без вывода звука.
+
+### `NeuralSpeechTests.test_cancel_closes_stalled_synthesis`
+
+[Исходник](../../tests/migration/test_neural_speech.py#L44)
+
+```python
+def test_cancel_closes_stalled_synthesis(self)
+```
+
+Проверка: Отменяет запрос до headers менее чем за две секунды и запрещает поздний playback ack.
+
+### `NeuralSpeechTests.test_cancel_closes_stalled_synthesis.Handler`
+
+[Исходник](../../tests/migration/test_neural_speech.py#L46)
+
+```python
+class Handler(BaseHTTPRequestHandler)
+```
+
+Тестовый класс/фикстура: HTTP PCM fixture, точный sequence плеера и отмена зависшего синтеза без настоящего звука.
+
+### `NeuralSpeechTests.test_cancel_closes_stalled_synthesis.Handler.do_POST`
+
+[Исходник](../../tests/migration/test_neural_speech.py#L47)
+
+```python
+def do_POST(self)
+```
+
+Исполняет сценарий тестовой модели: чанки, tool call или намеренное ожидание отмены.
+
+### `NeuralSpeechTests.test_cancel_closes_stalled_synthesis.Handler.log_message`
+
+[Исходник](../../tests/migration/test_neural_speech.py#L48)
+
+```python
+def log_message(self, *args)
+```
+
+Отключает стандартный HTTP-log тестовой фикстуры.
 
 <a id="module-tests-migration-test-streaming-py"></a>
 

@@ -76,3 +76,5 @@ llama.cpp CPU runtime для текстовых GGUF сам по себе не �
 
 Официальный протокол локального сервера:
 [whisper.cpp server](https://github.com/ggml-org/whisper.cpp/blob/master/examples/server/README.md).
+
+В 6.2 доступны Qwen3-TTS VoiceDesign и фраза активации во всех режимах: [глава 29](29-neural-voice-and-wake.md).
