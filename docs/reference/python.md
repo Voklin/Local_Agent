@@ -43,6 +43,7 @@
 - [main.py](#module-main-py)
 - [tools/build_windows_core.py](#module-tools-build-windows-core-py)
 - [tools/check_docs.py](#module-tools-check-docs-py)
+- [tools/check_live_model.py](#module-tools-check-live-model-py)
 - [tools/doc_notes.py](#module-tools-doc-notes-py)
 - [tools/generate_code_reference.py](#module-tools-generate-code-reference-py)
 
@@ -3273,6 +3274,42 @@ def main()
 ```
 
 Сопоставляет структурные справочники с AST и завершает проверку ошибкой при расхождении/битой ссылке.
+
+<a id="module-tools-check-live-model-py"></a>
+
+## `tools/check_live_model.py`
+
+Opt-in smoke реальной модели: disposable AppData/проект, Chat/IDE/Мия, без approvals записи, JSON отчёт.
+
+### `fingerprint`
+
+[Исходник](../../tools/check_live_model.py#L13)
+
+```python
+def fingerprint(root)
+```
+
+Хеширует только искусственные исходники, чтобы обнаружить неожиданную запись модели.
+
+### `scenario`
+
+[Исходник](../../tools/check_live_model.py#L19)
+
+```python
+def scenario(service, events, mode, root, timeout)
+```
+
+Запускает реальный task flow; все write approvals отклоняет, результат проверяет по событиям/истории.
+
+### `main`
+
+[Исходник](../../tools/check_live_model.py#L60)
+
+```python
+def main()
+```
+
+Изолирует AppData до импорта Core, проверяет выбранную модель без загрузок и записывает JSON-отчёт.
 
 <a id="module-tools-doc-notes-py"></a>
 

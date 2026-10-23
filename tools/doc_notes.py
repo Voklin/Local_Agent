@@ -1020,3 +1020,5 @@ TEST_PURPOSES.update({
  'voice_persona_uses_chat_scope_without_file_tools':'Мия включается только для voice, uses empty Chat scope без tools/auto-memory.',
  'voice_catalog_and_cancel_keep_bridge_responsive_without_microphone':'Настоящий bridge разрешает voice без root, каталог/Stop не блокируют health, неизвестный voice отвергается.',
 })
+
+FILE_NOTES['tools/check_live_model.py']='Opt-in smoke реальной модели: disposable AppData/проект, Chat/IDE/Мия, без approvals записи, JSON отчёт.'

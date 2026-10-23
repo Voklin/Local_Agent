@@ -76,3 +76,5 @@ python tools/check_docs.py
 Память, названия чатов и code blocks — [глава 21](21-memory-and-chat.md).
 
 Мия, системный TTS, Stop и границы STT — [глава 22](22-voice-companion.md).
+
+Результаты сеанса, проверки, артефакт и следующие шаги — [глава 23](23-autonomous-verification.md).

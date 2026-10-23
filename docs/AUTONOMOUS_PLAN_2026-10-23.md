@@ -95,5 +95,7 @@ UI: вкладки, dirty-индикатор, номера строк, пере�
 | A2. Поиск | Выполнен | commit 4a1225e; 75 основных + 57 migration; Windows validation/package passed run 39911954853; глава 19 |
 | A3. Локальные модели | Выполнен; commit 705cc45, CI 39913953887 passed | 82 основных + 58 migration (140; один symlink skip), Electron с реальным CPU GGUF/отменой/ответом/Stop, 11 frozen scenarios и реальный frozen GGUF (42/4000 мс); глава 20 |
 | A4. Память/чат | Выполнен; acb82b1, CI 39916447915 passed | 86 основных + 61 migration (147; один symlink skip), build, Electron с memory/rename/escaped code/copy capture/stream scroll; глава 21 |
-| A5. Голос | Реализован первый аудиослой, публикация/CI | 91 основных + 63 migration (154; один symlink skip), реальный WAV/каталог, Electron persona/TTS IPC/Stop/auto-play; STT не подключён — нет системного распознавателя и установленных whisper/vosk; глава 22 |
-| A6. Интеграция | Ожидает | Финальный отчёт не позднее границы сеанса |
+| A5. Голос | Выполнен первый аудиослой; 38e9d94, CI 39918489540 passed | 91 основных + 63 migration (154; один symlink skip), реальный WAV/каталог, Electron persona/TTS IPC/Stop/auto-play; STT не подключён — нет системного распознавателя и установленных whisper/vosk; глава 22 |
+| A6. Интеграция | Выполнена локально; integration CI в PR | 154 Python, 13 frozen, live LM Studio Chat/IDE/Мия, NSIS и два packaged запуска; глава 23 |
+
+Локальный итог и ограничения: [глава 23](23-autonomous-verification.md). После публикации integration отчёта проверяется CI и выключается heartbeat; дальнейший backlog не запускается без нового сеанса.

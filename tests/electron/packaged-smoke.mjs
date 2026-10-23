@@ -77,6 +77,20 @@ async function run(executable, directory, first, modelUrl) {
     assert.equal((await evaluate(socket, 'window.lca.getModelSettings()')).settings.max_tokens, 1536);
     assert.deepEqual((await evaluate(socket, 'window.lca.listModels()')).models, ['packaged-smoke']);
     assert.equal((await evaluate(socket, `window.lca.testModel({base_url:${JSON.stringify(modelUrl)},model:'packaged-smoke'})`)).ok, true);
+    await evaluate(socket, `document.querySelector('.mode-tabs button:last-child').click();true`);
+    let speech;
+    for(let attempt=0;attempt<100;attempt++) {
+      speech=await evaluate(socket,'window.lca.voiceStatus()');
+      if(speech.sequence>0&&['idle','error'].includes(speech.state))break;
+      await delay(100);
+    }
+    assert.ok(speech.sequence>0,'Companion must request the real system voice catalog');
+    assert.ok(['idle','error'].includes(speech.state),'Voice catalog must not remain busy');
+    if(process.env.LCA_EXPECT_SYSTEM_VOICE==='1') {
+      assert.equal(speech.state,'idle',speech.error);
+      assert.ok(speech.voices.length>0,'Expected an installed system voice');
+    }
+    assert.equal(await evaluate(socket,`document.querySelector('.voice-buttons button[title="STT-провайдер пока не подключён"]').disabled`),true);
     await evaluate(socket, 'setTimeout(() => window.close(), 50); true');
     const code = await Promise.race([exited, delay(10_000).then(() => 'timeout')]);
     assert.equal(code, 0, stderr);
@@ -105,7 +119,7 @@ async function main() {
     const log = await fs.readFile(path.join(directory, 'profile/logs/main.log'), 'utf8');
     assert.ok(log.includes('packaged=true') && log.includes('app:quit'));
     assert.ok(!log.includes('packaging-test-secret'));
-    console.log(JSON.stringify({ status: 'passed', executable, directory, checks: ['bundled-core', 'stripped-PATH', 'file-renderer', 'discovery', 'restart-preferences', 'clean-exit', 'no-secret-in-preferences-or-log'] }));
+    console.log(JSON.stringify({ status: 'passed', executable, directory, checks: ['bundled-core', 'stripped-PATH', 'file-renderer', 'discovery', 'restart-preferences', 'clean-exit', 'no-secret-in-preferences-or-log','system-voice-catalog-no-audio','microphone-disabled'] }));
   } finally {
     await new Promise(resolve => model.close(resolve));
   }

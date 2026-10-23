@@ -1460,7 +1460,7 @@ async function run(executable, directory, first, modelUrl)
 
 ### `main`
 
-[Исходник](../../tests/electron/packaged-smoke.mjs#L90)
+[Исходник](../../tests/electron/packaged-smoke.mjs#L104)
 
 ```typescript
 async function main()
