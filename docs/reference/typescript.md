@@ -13,6 +13,7 @@
 - [apps/desktop/electron/preload.ts](#module-apps-desktop-electron-preload-ts)
 - [apps/desktop/src/App.tsx](#module-apps-desktop-src-app-tsx)
 - [apps/desktop/src/EditorPanel.tsx](#module-apps-desktop-src-editorpanel-tsx)
+- [apps/desktop/src/LocalRuntimePanel.tsx](#module-apps-desktop-src-localruntimepanel-tsx)
 - [apps/desktop/src/ModelSettings.tsx](#module-apps-desktop-src-modelsettings-tsx)
 - [apps/desktop/src/ProjectSearch.tsx](#module-apps-desktop-src-projectsearch-tsx)
 - [apps/desktop/src/TaskProgress.tsx](#module-apps-desktop-src-taskprogress-tsx)
@@ -58,7 +59,7 @@ fileName()
 
 ### `diagnostic`
 
-[Исходник](../../apps/desktop/electron/main.ts#L14)
+[Исходник](../../apps/desktop/electron/main.ts#L17)
 
 ```typescript
 function diagnostic(message: string)
@@ -68,7 +69,7 @@ function diagnostic(message: string)
 
 ### `publish`
 
-[Исходник](../../apps/desktop/electron/main.ts#L23)
+[Исходник](../../apps/desktop/electron/main.ts#L26)
 
 ```typescript
 function publish(message: any)
@@ -78,7 +79,7 @@ function publish(message: any)
 
 ### `startBackend`
 
-[Исходник](../../apps/desktop/electron/main.ts#L26)
+[Исходник](../../apps/desktop/electron/main.ts#L29)
 
 ```typescript
 function startBackend()
@@ -88,7 +89,7 @@ function startBackend()
 
 ### `startBackend.stopped`
 
-[Исходник](../../apps/desktop/electron/main.ts#L45)
+[Исходник](../../apps/desktop/electron/main.ts#L48)
 
 ```typescript
 stopped()
@@ -98,7 +99,7 @@ stopped()
 
 ### `callBackend`
 
-[Исходник](../../apps/desktop/electron/main.ts#L57)
+[Исходник](../../apps/desktop/electron/main.ts#L60)
 
 ```typescript
 function callBackend(method: string, params: Record<string, unknown> = {})
@@ -108,7 +109,7 @@ function callBackend(method: string, params: Record<string, unknown> = {})
 
 ### `createWindow`
 
-[Исходник](../../apps/desktop/electron/main.ts#L68)
+[Исходник](../../apps/desktop/electron/main.ts#L71)
 
 ```typescript
 function createWindow()
@@ -118,7 +119,7 @@ function createWindow()
 
 ### `handle`
 
-[Исходник](../../apps/desktop/electron/main.ts#L89)
+[Исходник](../../apps/desktop/electron/main.ts#L99)
 
 ```typescript
 function handle(channel: string, handler: (...args: any[]) => any)
@@ -128,7 +129,7 @@ function handle(channel: string, handler: (...args: any[]) => any)
 
 ### `modelConfig`
 
-[Исходник](../../apps/desktop/electron/main.ts#L103)
+[Исходник](../../apps/desktop/electron/main.ts#L113)
 
 ```typescript
 function modelConfig(config: any)
@@ -138,7 +139,7 @@ function modelConfig(config: any)
 
 ### `confirmEditorDiscard`
 
-[Исходник](../../apps/desktop/electron/main.ts#L106)
+[Исходник](../../apps/desktop/electron/main.ts#L116)
 
 ```typescript
 async function confirmEditorDiscard()
@@ -192,9 +193,49 @@ readFile(relativePath: string)
 
 Preload-запрос readonly текста файла.
 
-### `searchProject`
+### `pickRuntimeFile`
 
 [Исходник](../../apps/desktop/electron/preload.ts#L7)
+
+```typescript
+pickRuntimeFile(kind:string)
+```
+
+Вызывает системный выбор GGUF или установленного llama-server.
+
+### `startRuntime`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L8)
+
+```typescript
+startRuntime(params:unknown)
+```
+
+Передаёт только context/GPU; пути берутся main из предыдущего file picker.
+
+### `runtimeStatus`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L9)
+
+```typescript
+runtimeStatus()
+```
+
+Читает lifecycle собственного сервера без управления внешним LM Studio.
+
+### `stopRuntime`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L10)
+
+```typescript
+stopRuntime()
+```
+
+Останавливает только собственный локальный runtime через фиксированный IPC.
+
+### `searchProject`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L11)
 
 ```typescript
 searchProject(params: unknown)
@@ -204,7 +245,7 @@ searchProject(params: unknown)
 
 ### `cancelProjectSearch`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L8)
+[Исходник](../../apps/desktop/electron/preload.ts#L12)
 
 ```typescript
 cancelProjectSearch()
@@ -214,7 +255,7 @@ cancelProjectSearch()
 
 ### `editorRead`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L9)
+[Исходник](../../apps/desktop/electron/preload.ts#L13)
 
 ```typescript
 editorRead(path: string)
@@ -224,7 +265,7 @@ editorRead(path: string)
 
 ### `editorPreview`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L10)
+[Исходник](../../apps/desktop/electron/preload.ts#L14)
 
 ```typescript
 editorPreview(path: string, content: string, revision: unknown)
@@ -234,7 +275,7 @@ editorPreview(path: string, content: string, revision: unknown)
 
 ### `editorResolve`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L11)
+[Исходник](../../apps/desktop/electron/preload.ts#L15)
 
 ```typescript
 editorResolve(proposalId: string, decision: string)
@@ -244,7 +285,7 @@ editorResolve(proposalId: string, decision: string)
 
 ### `setEditorDirty`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L12)
+[Исходник](../../apps/desktop/electron/preload.ts#L16)
 
 ```typescript
 setEditorDirty(dirty: boolean)
@@ -254,7 +295,7 @@ setEditorDirty(dirty: boolean)
 
 ### `confirmEditorDiscard`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L13)
+[Исходник](../../apps/desktop/electron/preload.ts#L17)
 
 ```typescript
 confirmEditorDiscard()
@@ -264,7 +305,7 @@ confirmEditorDiscard()
 
 ### `systemInfo`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L14)
+[Исходник](../../apps/desktop/electron/preload.ts#L18)
 
 ```typescript
 systemInfo()
@@ -274,7 +315,7 @@ Preload-запрос home/platform у main, без tool модели.
 
 ### `configureModel`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L15)
+[Исходник](../../apps/desktop/electron/preload.ts#L19)
 
 ```typescript
 configureModel(config: { base_url: string; model: string; api_key: string; settings?: Record<string, number> })
@@ -284,7 +325,7 @@ configureModel(config: { base_url: string; model: string; api_key: string; setti
 
 ### `listModels`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L16)
+[Исходник](../../apps/desktop/electron/preload.ts#L20)
 
 ```typescript
 listModels(config?: unknown)
@@ -294,7 +335,7 @@ listModels(config?: unknown)
 
 ### `testModel`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L17)
+[Исходник](../../apps/desktop/electron/preload.ts#L21)
 
 ```typescript
 testModel(config: unknown)
@@ -304,7 +345,7 @@ testModel(config: unknown)
 
 ### `cancelModelSetup`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L18)
+[Исходник](../../apps/desktop/electron/preload.ts#L22)
 
 ```typescript
 cancelModelSetup()
@@ -314,7 +355,7 @@ cancelModelSetup()
 
 ### `getModelSettings`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L19)
+[Исходник](../../apps/desktop/electron/preload.ts#L23)
 
 ```typescript
 getModelSettings()
@@ -324,7 +365,7 @@ getModelSettings()
 
 ### `listChats`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L20)
+[Исходник](../../apps/desktop/electron/preload.ts#L24)
 
 ```typescript
 listChats(mode = 'ide')
@@ -334,7 +375,7 @@ listChats(mode = 'ide')
 
 ### `newChat`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L21)
+[Исходник](../../apps/desktop/electron/preload.ts#L25)
 
 ```typescript
 newChat(mode = 'ide')
@@ -344,7 +385,7 @@ newChat(mode = 'ide')
 
 ### `loadChat`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L22)
+[Исходник](../../apps/desktop/electron/preload.ts#L26)
 
 ```typescript
 loadChat(chatId: string, mode = 'ide')
@@ -354,7 +395,7 @@ loadChat(chatId: string, mode = 'ide')
 
 ### `startTask`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L23)
+[Исходник](../../apps/desktop/electron/preload.ts#L27)
 
 ```typescript
 startTask(prompt: string, resume = false, mode = 'ide')
@@ -364,7 +405,7 @@ startTask(prompt: string, resume = false, mode = 'ide')
 
 ### `cancelTask`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L24)
+[Исходник](../../apps/desktop/electron/preload.ts#L28)
 
 ```typescript
 cancelTask()
@@ -374,7 +415,7 @@ cancelTask()
 
 ### `resolveApproval`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L25)
+[Исходник](../../apps/desktop/electron/preload.ts#L29)
 
 ```typescript
 resolveApproval(runId: string, approvalId: string, decision: string)
@@ -384,7 +425,7 @@ resolveApproval(runId: string, approvalId: string, decision: string)
 
 ### `onEvent`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L26)
+[Исходник](../../apps/desktop/electron/preload.ts#L30)
 
 ```typescript
 onEvent(callback: (event: unknown) => void)
@@ -394,7 +435,7 @@ onEvent(callback: (event: unknown) => void)
 
 ### `onEvent.listener`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L27)
+[Исходник](../../apps/desktop/electron/preload.ts#L31)
 
 ```typescript
 listener(_event: Electron.IpcRendererEvent, data: unknown)
@@ -780,6 +821,52 @@ function shortcuts(event:KeyboardEvent)
 
 Обрабатывает Ctrl+S/F/G/Shift+R только в видимом editor и вне модальных диалогов.
 
+<a id="module-apps-desktop-src-localruntimepanel-tsx"></a>
+
+## `apps/desktop/src/LocalRuntimePanel.tsx`
+
+Реальный GGUF picker, context/GPU, lifecycle status и явный перенос endpoint в настройки.
+
+### `LocalRuntimePanel`
+
+[Исходник](../../apps/desktop/src/LocalRuntimePanel.tsx#L3)
+
+```typescript
+function LocalRuntimePanel({locked,onUse}:{locked:boolean;onUse:(url:string,model:string)=>void})
+```
+
+Панель собственного GGUF с file picker, реальным lifecycle и явным переносом endpoint без сохранения.
+
+### `LocalRuntimePanel.refresh`
+
+[Исходник](../../apps/desktop/src/LocalRuntimePanel.tsx#L14)
+
+```typescript
+async function refresh()
+```
+
+Раз в секунду читает runtime status и игнорирует ответ после unmount.
+
+### `LocalRuntimePanel.pick`
+
+[Исходник](../../apps/desktop/src/LocalRuntimePanel.tsx#L21)
+
+```typescript
+async function pick(kind:'model'|'runtime')
+```
+
+Получает только выбранный системным диалогом путь GGUF/runtime; отмена не меняет выбор.
+
+### `LocalRuntimePanel.control`
+
+[Исходник](../../apps/desktop/src/LocalRuntimePanel.tsx#L25)
+
+```typescript
+async function control(start:boolean)
+```
+
+Отправляет start/stop собственного сервера и показывает ошибку без блокировки настроек на время загрузки.
+
 <a id="module-apps-desktop-src-modelsettings-tsx"></a>
 
 ## `apps/desktop/src/ModelSettings.tsx`
@@ -788,7 +875,7 @@ function shortcuts(event:KeyboardEvent)
 
 ### `GenerationSettings`
 
-[Исходник](../../apps/desktop/src/ModelSettings.tsx#L4)
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L5)
 
 ```typescript
 export type GenerationSettings = {
@@ -801,7 +888,7 @@ export type GenerationSettings = {
 
 ### `ModelConfig`
 
-[Исходник](../../apps/desktop/src/ModelSettings.tsx#L8)
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L9)
 
 ```typescript
 export type ModelConfig = { base_url: string; model: string; api_key: string; settings: GenerationSettings };
@@ -811,7 +898,7 @@ export type ModelConfig = { base_url: string; model: string; api_key: string; se
 
 ### `ModelSettings`
 
-[Исходник](../../apps/desktop/src/ModelSettings.tsx#L23)
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L24)
 
 ```typescript
 function ModelSettings({ initial, busy, onSaved, onClose }: {
@@ -823,7 +910,7 @@ function ModelSettings({ initial, busy, onSaved, onClose }: {
 
 ### `ModelSettings.change`
 
-[Исходник](../../apps/desktop/src/ModelSettings.tsx#L39)
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L40)
 
 ```typescript
 function change(key: K, value: ModelConfig[K])
@@ -833,7 +920,7 @@ function change(key: K, value: ModelConfig[K])
 
 ### `ModelSettings.validate`
 
-[Исходник](../../apps/desktop/src/ModelSettings.tsx#L44)
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L45)
 
 ```typescript
 function validate()
@@ -843,7 +930,7 @@ function validate()
 
 ### `ModelSettings.perform`
 
-[Исходник](../../apps/desktop/src/ModelSettings.tsx#L56)
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L57)
 
 ```typescript
 async function perform(action: 'discover' | 'probe' | 'save')
@@ -853,7 +940,7 @@ async function perform(action: 'discover' | 'probe' | 'save')
 
 ### `ModelSettings.resetGeneration`
 
-[Исходник](../../apps/desktop/src/ModelSettings.tsx#L83)
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L84)
 
 ```typescript
 function resetGeneration()
@@ -863,7 +950,7 @@ function resetGeneration()
 
 ### `ModelSettings.handleKeys`
 
-[Исходник](../../apps/desktop/src/ModelSettings.tsx#L86)
+[Исходник](../../apps/desktop/src/ModelSettings.tsx#L87)
 
 ```typescript
 function handleKeys(event: React.KeyboardEvent<HTMLElement>)
@@ -1060,6 +1147,7 @@ type CoreEvent = { event: string; chat_id?: string; run_id?: string; [key: strin
 interface Window { lca: {
   health: () => Promise<any>; chooseProject: () => Promise<any>;
   listFiles: (path?: string) => Promise<any>; readFile: (path: string) => Promise<any>; systemInfo: () => Promise<any>;
+  pickRuntimeFile: (kind:string) => Promise<any>; startRuntime: (params:unknown) => Promise<any>; runtimeStatus: () => Promise<any>; stopRuntime: () => Promise<any>;
   searchProject: (params: unknown) => Promise<any>; cancelProjectSearch: () => Promise<any>;
   editorRead: (path: string) => Promise<any>; editorPreview: (path: string, content: string, revision: unknown) => Promise<any>;
   editorResolve: (proposalId: string, decision: string) => Promise<any>; setEditorDirty: (dirty: boolean) => Promise<any>;
@@ -1191,7 +1279,7 @@ dialog.showMessageBox()
 [Исходник](../../tests/electron/smoke.cjs#L27)
 
 ```typescript
-dialog.showOpenDialog()
+dialog.showOpenDialog(_win, options)
 ```
 
 Только в smoke-тесте возвращает учебный каталог вместо настоящего системного диалога.
@@ -1221,7 +1309,7 @@ releaseModelText()
 [Исходник](../../tests/electron/smoke.cjs#L65)
 
 ```typescript
-async function poll(win, expression)
+async function poll(win, expression, timeout=10000)
 ```
 
 В тесте ожидает DOM-условие с ограничением времени.

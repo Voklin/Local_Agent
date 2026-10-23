@@ -10,6 +10,7 @@ import time
 import unittest
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from agent.process_job import ProcessJob
 from test_task_service import ModelHandler
 from test_model_discovery import DiscoveryHandler
 from test_model_probe import ProbeHandler
@@ -41,6 +42,7 @@ class BridgeProcessTests(unittest.TestCase):
         self.process = subprocess.Popen(command, cwd=self.root,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding='utf-8', env=env)
+        self.process_job = ProcessJob(self.process)
         self.reader = threading.Thread(target=self.read_output, daemon=True)
         self.reader.start()
 
@@ -53,7 +55,9 @@ class BridgeProcessTests(unittest.TestCase):
 
     def stop_process(self, kill=False):
         if kill and self.process.poll() is None:
-            self.process.kill()
+            self.process_job.close()
+            if self.process.poll() is None:
+                self.process.kill()
         try:
             self.process.stdin.close()
         except OSError:
@@ -63,6 +67,7 @@ class BridgeProcessTests(unittest.TestCase):
         except subprocess.TimeoutExpired:
             self.process.kill()
             self.process.wait(5)
+        self.process_job.close()
         self.reader.join(2)
         self.process.stdout.close()
         self.process.stderr.close()
@@ -101,6 +106,13 @@ class BridgeProcessTests(unittest.TestCase):
         result = self.call('load_chat', chat_id=chat_id)
         self.assertTrue(result['ok'], result)
         return result
+
+    def test_runtime_commands_validate_without_blocking_other_commands(self):
+        result=self.call('runtime_status')
+        self.assertTrue(result['ok']);self.assertEqual(result['state'],'stopped')
+        self.assertFalse(self.call('runtime_start',runtime_path='missing.exe',model_path='missing.gguf')['ok'])
+        self.assertEqual(self.call('runtime_stop')['state'],'stopped')
+        self.assertTrue(self.call('health')['ok'])
 
     def test_project_search_requires_root_and_does_not_block_bridge(self):
         self.assertFalse(self.call('search_project',query='needle')['ok'])

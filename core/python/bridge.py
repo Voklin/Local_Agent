@@ -15,6 +15,7 @@ if not getattr(sys, 'frozen', False):
 from core.python.task_service import TaskService
 from core.python.editor_service import EditorService
 from core.python.project_search import ProjectSearchService
+from core.python.runtime_service import RuntimeService
 
 output_lock = threading.Lock()
 
@@ -26,6 +27,7 @@ def emit(message):
 tasks = TaskService(emit)
 editor = EditorService()
 project_search = ProjectSearchService()
+runtime = RuntimeService()
 
 MAX_READ_BYTES = 1_000_000
 MAX_ENTRIES = 1000
@@ -43,6 +45,11 @@ def resolve_inside(relative: str) -> Path:
 
 def handle(method: str, params: dict) -> dict:
     global project_root
+    if method in ('runtime_start', 'runtime_stop'):
+        tasks.idle()
+        return runtime.start(params) if method == 'runtime_start' else runtime.stop()
+    if method == 'runtime_status':
+        return runtime.status()
     if method == 'health':
         return {'ok': True, 'service': 'python-core-bridge', 'protocol': 1, 'project': str(project_root) if project_root else None}
     if method == 'set_project':
@@ -149,6 +156,7 @@ def main() -> None:
             response = {'id': req_id, 'ok': False, 'error': str(exc)[:500]}
         emit(response)
     project_search.shutdown()
+    runtime.shutdown()
     tasks.shutdown()
 
 if __name__ == '__main__':

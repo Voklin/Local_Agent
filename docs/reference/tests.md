@@ -27,6 +27,7 @@
 - [tests/test_project_memory.py](#module-tests-test-project-memory-py)
 - [tests/test_project_search.py](#module-tests-test-project-search-py)
 - [tests/test_runtime_architecture.py](#module-tests-test-runtime-architecture-py)
+- [tests/test_runtime_service.py](#module-tests-test-runtime-service-py)
 - [tests/test_sandbox.py](#module-tests-test-sandbox-py)
 - [tests/test_task_activity.py](#module-tests-test-task-activity-py)
 - [tests/test_task_store.py](#module-tests-test-task-store-py)
@@ -155,7 +156,7 @@ def test_write_is_not_exposed(self)
 
 ### `BridgeProcessTests`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L21)
+[Исходник](../../tests/migration/test_bridge_process.py#L22)
 
 ```python
 class BridgeProcessTests(unittest.TestCase)
@@ -165,7 +166,7 @@ class BridgeProcessTests(unittest.TestCase)
 
 ### `BridgeProcessTests.setUp`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L22)
+[Исходник](../../tests/migration/test_bridge_process.py#L23)
 
 ```python
 def setUp(self)
@@ -175,7 +176,7 @@ def setUp(self)
 
 ### `BridgeProcessTests.start_process`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L33)
+[Исходник](../../tests/migration/test_bridge_process.py#L34)
 
 ```python
 def start_process(self)
@@ -185,7 +186,7 @@ def start_process(self)
 
 ### `BridgeProcessTests.read_output`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L47)
+[Исходник](../../tests/migration/test_bridge_process.py#L49)
 
 ```python
 def read_output(self)
@@ -195,7 +196,7 @@ def read_output(self)
 
 ### `BridgeProcessTests.stop_process`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L54)
+[Исходник](../../tests/migration/test_bridge_process.py#L56)
 
 ```python
 def stop_process(self, kill=False)
@@ -205,7 +206,7 @@ def stop_process(self, kill=False)
 
 ### `BridgeProcessTests.tearDown`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L70)
+[Исходник](../../tests/migration/test_bridge_process.py#L75)
 
 ```python
 def tearDown(self)
@@ -215,7 +216,7 @@ def tearDown(self)
 
 ### `BridgeProcessTests.start_crash_scenario`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L82)
+[Исходник](../../tests/migration/test_bridge_process.py#L87)
 
 ```python
 def start_crash_scenario(self, handler, mode=None)
@@ -225,7 +226,7 @@ def start_crash_scenario(self, handler, mode=None)
 
 ### `BridgeProcessTests.reopen_after_kill`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L95)
+[Исходник](../../tests/migration/test_bridge_process.py#L100)
 
 ```python
 def reopen_after_kill(self, chat_id)
@@ -233,9 +234,19 @@ def reopen_after_kill(self, chat_id)
 
 Убивает тестовый subprocess, запускает новый и открывает сохранённый чат.
 
+### `BridgeProcessTests.test_runtime_commands_validate_without_blocking_other_commands`
+
+[Исходник](../../tests/migration/test_bridge_process.py#L110)
+
+```python
+def test_runtime_commands_validate_without_blocking_other_commands(self)
+```
+
+Проверка: Bridge status/start validation/stop не нарушают health без модели.
+
 ### `BridgeProcessTests.test_project_search_requires_root_and_does_not_block_bridge`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L105)
+[Исходник](../../tests/migration/test_bridge_process.py#L117)
 
 ```python
 def test_project_search_requires_root_and_does_not_block_bridge(self)
@@ -245,7 +256,7 @@ def test_project_search_requires_root_and_does_not_block_bridge(self)
 
 ### `BridgeProcessTests.test_process_kill_before_headers_recovers_user_request_and_paused_task`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L115)
+[Исходник](../../tests/migration/test_bridge_process.py#L127)
 
 ```python
 def test_process_kill_before_headers_recovers_user_request_and_paused_task(self)
@@ -255,7 +266,7 @@ def test_process_kill_before_headers_recovers_user_request_and_paused_task(self)
 
 ### `BridgeProcessTests.test_approved_write_and_preferences_survive_process_restart`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L122)
+[Исходник](../../tests/migration/test_bridge_process.py#L134)
 
 ```python
 def test_approved_write_and_preferences_survive_process_restart(self)
@@ -265,7 +276,7 @@ def test_approved_write_and_preferences_survive_process_restart(self)
 
 ### `BridgeProcessTests.test_process_kill_during_stream_recovers_partial_once`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L136)
+[Исходник](../../tests/migration/test_bridge_process.py#L148)
 
 ```python
 def test_process_kill_during_stream_recovers_partial_once(self)
@@ -275,7 +286,7 @@ def test_process_kill_during_stream_recovers_partial_once(self)
 
 ### `BridgeProcessTests.test_process_kill_during_approval_never_replays_permission`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L159)
+[Исходник](../../tests/migration/test_bridge_process.py#L171)
 
 ```python
 def test_process_kill_during_approval_never_replays_permission(self)
@@ -285,7 +296,7 @@ def test_process_kill_during_approval_never_replays_permission(self)
 
 ### `BridgeProcessTests.start_discovery_server`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L175)
+[Исходник](../../tests/migration/test_bridge_process.py#L187)
 
 ```python
 def start_discovery_server(self, mode)
@@ -295,7 +306,7 @@ def start_discovery_server(self, mode)
 
 ### `BridgeProcessTests.test_bridge_models_discovery_keeps_commands_responsive_and_pins_config`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L190)
+[Исходник](../../tests/migration/test_bridge_process.py#L202)
 
 ```python
 def test_bridge_models_discovery_keeps_commands_responsive_and_pins_config(self)
@@ -305,7 +316,7 @@ def test_bridge_models_discovery_keeps_commands_responsive_and_pins_config(self)
 
 ### `BridgeProcessTests.test_draft_probe_keeps_bridge_responsive_and_can_be_cancelled`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L200)
+[Исходник](../../tests/migration/test_bridge_process.py#L212)
 
 ```python
 def test_draft_probe_keeps_bridge_responsive_and_can_be_cancelled(self)
@@ -315,7 +326,7 @@ def test_draft_probe_keeps_bridge_responsive_and_can_be_cancelled(self)
 
 ### `BridgeProcessTests.test_bridge_cancel_closes_discovery_socket`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L221)
+[Исходник](../../tests/migration/test_bridge_process.py#L233)
 
 ```python
 def test_bridge_cancel_closes_discovery_socket(self)
@@ -325,7 +336,7 @@ def test_bridge_cancel_closes_discovery_socket(self)
 
 ### `BridgeProcessTests.until`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L229)
+[Исходник](../../tests/migration/test_bridge_process.py#L241)
 
 ```python
 def until(self, predicate)
@@ -335,7 +346,7 @@ def until(self, predicate)
 
 ### `BridgeProcessTests.call`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L240)
+[Исходник](../../tests/migration/test_bridge_process.py#L252)
 
 ```python
 def call(self, method, **params)
@@ -345,7 +356,7 @@ def call(self, method, **params)
 
 ### `BridgeProcessTests.test_malformed_input_does_not_reuse_previous_request_id`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L247)
+[Исходник](../../tests/migration/test_bridge_process.py#L259)
 
 ```python
 def test_malformed_input_does_not_reuse_previous_request_id(self)
@@ -355,7 +366,7 @@ def test_malformed_input_does_not_reuse_previous_request_id(self)
 
 ### `BridgeProcessTests.test_bridge_remains_responsive_during_write_approval`
 
-[Исходник](../../tests/migration/test_bridge_process.py#L256)
+[Исходник](../../tests/migration/test_bridge_process.py#L268)
 
 ```python
 def test_bridge_remains_responsive_during_write_approval(self)
@@ -2227,6 +2238,134 @@ def test_verifier_rejects_stopped_stage(self)
 ```
 
 Проверка: Verifier отклоняет завершение при stop_reason.
+
+<a id="module-tests-test-runtime-service-py"></a>
+
+## `tests/test_runtime_service.py`
+
+Проверки lifecycle, bounded output, отмены, ошибок и Windows crash cleanup.
+
+### `RuntimeServiceTests`
+
+[Исходник](../../tests/test_runtime_service.py#L16)
+
+```python
+class RuntimeServiceTests(unittest.TestCase)
+```
+
+Тестовый класс/фикстура: Проверки lifecycle, bounded output, отмены, ошибок и Windows crash cleanup.
+
+### `RuntimeServiceTests.setUp`
+
+[Исходник](../../tests/test_runtime_service.py#L17)
+
+```python
+def setUp(self)
+```
+
+Создаёт изолированные данные и подмены перед каждым тестом этого класса.
+
+### `RuntimeServiceTests.tearDown`
+
+[Исходник](../../tests/test_runtime_service.py#L25)
+
+```python
+def tearDown(self)
+```
+
+Закрывает ресурсы и удаляет временные данные после теста.
+
+### `RuntimeServiceTests.test_validation_does_not_launch_arbitrary_files`
+
+[Исходник](../../tests/test_runtime_service.py#L28)
+
+```python
+def test_validation_does_not_launch_arbitrary_files(self)
+```
+
+Проверка: Имя executable, GGUF header и integer/range проверяются до старта.
+
+### `RuntimeServiceTests.test_start_cancel_is_nonblocking_and_cannot_restart_until_worker_finishes`
+
+[Исходник](../../tests/test_runtime_service.py#L35)
+
+```python
+def test_start_cancel_is_nonblocking_and_cannot_restart_until_worker_finishes(self)
+```
+
+Проверка: Start возвращает сразу, Stop отменяет worker, параллельный restart запрещён.
+
+### `RuntimeServiceTests.test_start_cancel_is_nonblocking_and_cannot_restart_until_worker_finishes.launching`
+
+[Исходник](../../tests/test_runtime_service.py#L37)
+
+```python
+def launching(model, **kwargs)
+```
+
+Управляемая barrier-фикстура долгой загрузки с cooperative cancel.
+
+### `RuntimeServiceTests.test_start_failure_is_visible_without_busy_deadlock`
+
+[Исходник](../../tests/test_runtime_service.py#L49)
+
+```python
+def test_start_failure_is_visible_without_busy_deadlock(self)
+```
+
+Проверка: Ошибка старта становится видимым error и не оставляет вечный busy.
+
+### `RuntimeServiceTests.test_output_drain_is_bounded_even_without_newlines`
+
+[Исходник](../../tests/test_runtime_service.py#L55)
+
+```python
+def test_output_drain_is_bounded_even_without_newlines(self)
+```
+
+Проверка: 500 КБ вывода без newline не превышают 100 порций в памяти.
+
+### `RuntimeServiceTests.test_output_drain_is_bounded_even_without_newlines.Output`
+
+[Исходник](../../tests/test_runtime_service.py#L56)
+
+```python
+class Output
+```
+
+Тестовый класс/фикстура: Проверки lifecycle, bounded output, отмены, ошибок и Windows crash cleanup.
+
+### `RuntimeServiceTests.test_readiness_timeout_cleans_only_owned_process`
+
+[Исходник](../../tests/test_runtime_service.py#L62)
+
+```python
+def test_readiness_timeout_cleans_only_owned_process(self)
+```
+
+Проверка: Timeout завершает реальный собственный процесс и закрывает его job.
+
+### `RuntimeServiceTests.test_parent_crash_closes_job_and_terminates_child`
+
+[Исходник](../../tests/test_runtime_service.py#L71)
+
+```python
+@unittest.skipUnless(sys.platform == 'win32', 'Windows job only')
+def test_parent_crash_closes_job_and_terminates_child(self)
+```
+
+Проверка: Авария владельца job автоматически завершает его дочернее дерево.
+
+### `RuntimeServiceTests.test_windows_job_close_terminates_owned_child`
+
+[Исходник](../../tests/test_runtime_service.py#L95)
+
+```python
+@unittest.skipUnless(sys.platform == 'win32', 'Windows job only')
+def test_windows_job_close_terminates_owned_child(self)
+```
+
+Проверка: Закрытие Windows job завершает присоединённого потомка.
 
 <a id="module-tests-test-sandbox-py"></a>
 

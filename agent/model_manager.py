@@ -14,10 +14,12 @@ import socket
 import subprocess
 import sys
 import time
+import threading
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from .process_job import ProcessJob
 
 
 APP_DIR = Path(os.getenv("LOCALAPPDATA", Path.home() / ".local")) / "LocalCodingAgent"
@@ -83,6 +85,9 @@ class LocalRuntime:
         self.port: int | None = None
         self.model: LocalModel | None = None
         self.logs: list[str] = []
+        self.log_reader = None
+        self.process_job = None
+        self.process_lock = threading.RLock()
 
     @staticmethod
     def find_executable(explicit: str = "") -> str | None:
@@ -114,73 +119,109 @@ class LocalRuntime:
     def base_url(self) -> str:
         return f"http://127.0.0.1:{self.port}/v1" if self.port else ""
 
-    def start(self, model: LocalModel, *, ctx_size=32768, gpu_layers=-1, port=None, extra_args=None):
+    def start(self, model: LocalModel, *, ctx_size=32768, gpu_layers=-1, port=None, extra_args=None, cancelled=None, timeout=120):
         if self.running:
-            self.stop()
+            raise RuntimeError("Сначала остановите собственный сервер")
         executable = self.find_executable(self.runtime_path)
         if not executable:
-            raise FileNotFoundError(
-                "llama-server не найден. Укажите путь к llama-server.exe в Model Manager "
-                "или добавьте его в PATH."
-            )
+            raise FileNotFoundError("llama-server не найден. Выберите установленный llama-server.exe.")
+        cancelled = cancelled or threading.Event()
+        if cancelled.is_set():
+            raise InterruptedError("Запуск отменён")
         self.port = int(port or self.free_port())
-        args = [
-            executable, "--model", model.path, "--host", "127.0.0.1", "--port", str(self.port),
-            "--ctx-size", str(int(ctx_size)), "--n-gpu-layers", str(int(gpu_layers)),
-            "--jinja",
-        ]
+        args = [executable, "--model", model.path, "--host", "127.0.0.1", "--port", str(self.port),
+                "--ctx-size", str(int(ctx_size)), "--n-gpu-layers", str(int(gpu_layers)), "--jinja"]
         if extra_args:
             args.extend(extra_args)
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
-        self.process = subprocess.Popen(
-            args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            encoding="utf-8", errors="replace", creationflags=creationflags,
-        )
-        self.model = model
-        self.logs.clear()
-        deadline = time.time() + 45
-        while time.time() < deadline:
-            if self.process.poll() is not None:
-                output = self.process.stdout.read() if self.process.stdout else ""
-                raise RuntimeError(f"llama-server завершился с кодом {self.process.returncode}.\n{output[-4000:]}")
-            if self._healthy():
-                return self.base_url
-            time.sleep(0.25)
-        self.stop()
-        raise TimeoutError("llama-server запустился, но OpenAI API не стал доступен за 45 секунд.")
+        with self.process_lock:
+            self.logs.clear()
+            process = self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                creationflags=creationflags)
+            try:
+                self.process_job = ProcessJob(process)
+            except Exception:
+                process.kill()
+                process.wait(timeout=3)
+                if process.stdout:
+                    process.stdout.close()
+                self.process = None
+                self.port = None
+                raise
+            self.model = model
+        self.log_reader = threading.Thread(target=self._drain_output, args=(process,), daemon=True, name='llama-output')
+        self.log_reader.start()
+        ready = False
+        try:
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                if cancelled.is_set():
+                    raise InterruptedError("Запуск отменён")
+                if process.poll() is not None:
+                    self.log_reader.join(timeout=1)
+                    raise RuntimeError(f"llama-server завершился с кодом {process.returncode}.\n{''.join(self.logs)[-4000:]}")
+                if self._healthy() and process.poll() is None and not cancelled.is_set():
+                    ready = True
+                    return self.base_url
+                cancelled.wait(0.2)
+            raise TimeoutError(f"API llama-server не стал доступен за {timeout} секунд")
+        finally:
+            if not ready:
+                self.stop()
+
+    def _drain_output(self, process):
+        try:
+            while process.stdout:
+                chunk = process.stdout.read(1024)
+                if not chunk:
+                    break
+                with self.process_lock:
+                    self.logs.append(chunk.decode('utf-8', errors='replace'))
+                    del self.logs[:-100]
+        except (OSError, ValueError):
+            pass
 
     def _healthy(self) -> bool:
         if not self.base_url:
             return False
         try:
-            with urllib.request.urlopen(self.base_url + "/models", timeout=1.5) as response:
+            with urllib.request.urlopen(self.base_url + "/models", timeout=0.5) as response:
                 return 200 <= response.status < 300
         except (OSError, urllib.error.URLError):
             return False
 
     def stop(self):
-        process, self.process = self.process, None
-        if process is None:
-            return
-        try:
-            process.terminate()
-            process.wait(timeout=5)
-        except Exception:
+        with self.process_lock:
+            process, self.process = self.process, None
+        if process is not None:
             try:
-                process.kill()
-            except Exception:
-                pass
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=3)
+            finally:
+                if self.process_job:
+                    self.process_job.close()
+                    self.process_job = None
+                if self.log_reader and self.log_reader is not threading.current_thread():
+                    self.log_reader.join(timeout=1)
+                if process.stdout:
+                    process.stdout.close()
         self.port = None
         self.model = None
 
     def status(self) -> dict:
-        return {
-            "running": self.running,
-            "pid": self.process.pid if self.running else None,
-            "port": self.port,
-            "base_url": self.base_url,
-            "model": self.model.to_dict() if self.model else None,
-        }
+        with self.process_lock:
+            return {
+                "running": self.running,
+                "pid": self.process.pid if self.running else None,
+                "port": self.port,
+                "base_url": self.base_url,
+                "model": self.model.to_dict() if self.model else None,
+            }
 
     def __del__(self):
         try:

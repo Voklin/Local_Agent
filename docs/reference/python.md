@@ -22,6 +22,7 @@
 - [agent/model_preferences.py](#module-agent-model-preferences-py)
 - [agent/model_probe.py](#module-agent-model-probe-py)
 - [agent/planner.py](#module-agent-planner-py)
+- [agent/process_job.py](#module-agent-process-job-py)
 - [agent/project_memory.py](#module-agent-project-memory-py)
 - [agent/runtime.py](#module-agent-runtime-py)
 - [agent/security.py](#module-agent-security-py)
@@ -35,6 +36,7 @@
 - [core/python/bridge.py](#module-core-python-bridge-py)
 - [core/python/editor_service.py](#module-core-python-editor-service-py)
 - [core/python/project_search.py](#module-core-python-project-search-py)
+- [core/python/runtime_service.py](#module-core-python-runtime-service-py)
 - [core/python/task_service.py](#module-core-python-task-service-py)
 - [main.py](#module-main-py)
 - [tools/build_windows_core.py](#module-tools-build-windows-core-py)
@@ -925,7 +927,7 @@ def status(self)
 
 ### `LocalModel`
 
-[Исходник](../../agent/model_manager.py#L29)
+[Исходник](../../agent/model_manager.py#L31)
 
 ```python
 @dataclass
@@ -946,7 +948,7 @@ architecture: str = 'unknown'
 
 ### `LocalModel.size_gb`
 
-[Исходник](../../agent/model_manager.py#L37)
+[Исходник](../../agent/model_manager.py#L39)
 
 ```python
 @property
@@ -957,7 +959,7 @@ Property размера файла в GiB-подобном делении на 1
 
 ### `LocalModel.to_dict`
 
-[Исходник](../../agent/model_manager.py#L40)
+[Исходник](../../agent/model_manager.py#L42)
 
 ```python
 def to_dict(self)
@@ -967,7 +969,7 @@ def to_dict(self)
 
 ### `ModelManager`
 
-[Исходник](../../agent/model_manager.py#L46)
+[Исходник](../../agent/model_manager.py#L48)
 
 ```python
 class ModelManager
@@ -977,7 +979,7 @@ class ModelManager
 
 ### `ModelManager.__init__`
 
-[Исходник](../../agent/model_manager.py#L47)
+[Исходник](../../agent/model_manager.py#L49)
 
 ```python
 def __init__(self, models_dir: str | Path | None=None)
@@ -987,7 +989,7 @@ def __init__(self, models_dir: str | Path | None=None)
 
 ### `ModelManager._quantization`
 
-[Исходник](../../agent/model_manager.py#L52)
+[Исходник](../../agent/model_manager.py#L54)
 
 ```python
 @staticmethod
@@ -998,7 +1000,7 @@ def _quantization(name: str) -> str
 
 ### `ModelManager.scan`
 
-[Исходник](../../agent/model_manager.py#L56)
+[Исходник](../../agent/model_manager.py#L58)
 
 ```python
 def scan(self) -> list[LocalModel]
@@ -1008,7 +1010,7 @@ def scan(self) -> list[LocalModel]
 
 ### `ModelManager.import_model`
 
-[Исходник](../../agent/model_manager.py#L65)
+[Исходник](../../agent/model_manager.py#L67)
 
 ```python
 def import_model(self, source: str | Path, *, copy=True) -> LocalModel
@@ -1018,7 +1020,7 @@ def import_model(self, source: str | Path, *, copy=True) -> LocalModel
 
 ### `LocalRuntime`
 
-[Исходник](../../agent/model_manager.py#L78)
+[Исходник](../../agent/model_manager.py#L80)
 
 ```python
 class LocalRuntime
@@ -1028,7 +1030,7 @@ class LocalRuntime
 
 ### `LocalRuntime.__init__`
 
-[Исходник](../../agent/model_manager.py#L80)
+[Исходник](../../agent/model_manager.py#L82)
 
 ```python
 def __init__(self, *, runtime_path: str | Path | None=None)
@@ -1038,7 +1040,7 @@ def __init__(self, *, runtime_path: str | Path | None=None)
 
 ### `LocalRuntime.find_executable`
 
-[Исходник](../../agent/model_manager.py#L88)
+[Исходник](../../agent/model_manager.py#L93)
 
 ```python
 @staticmethod
@@ -1049,7 +1051,7 @@ def find_executable(explicit: str='') -> str | None
 
 ### `LocalRuntime.free_port`
 
-[Исходник](../../agent/model_manager.py#L104)
+[Исходник](../../agent/model_manager.py#L109)
 
 ```python
 @staticmethod
@@ -1060,7 +1062,7 @@ def free_port(host='127.0.0.1') -> int
 
 ### `LocalRuntime.running`
 
-[Исходник](../../agent/model_manager.py#L110)
+[Исходник](../../agent/model_manager.py#L115)
 
 ```python
 @property
@@ -1071,7 +1073,7 @@ Property: процесс существует и ещё не завершилс�
 
 ### `LocalRuntime.base_url`
 
-[Исходник](../../agent/model_manager.py#L114)
+[Исходник](../../agent/model_manager.py#L119)
 
 ```python
 @property
@@ -1082,17 +1084,27 @@ Property URL /v1 для назначенного порта.
 
 ### `LocalRuntime.start`
 
-[Исходник](../../agent/model_manager.py#L117)
+[Исходник](../../agent/model_manager.py#L122)
 
 ```python
-def start(self, model: LocalModel, *, ctx_size=32768, gpu_layers=-1, port=None, extra_args=None)
+def start(self, model: LocalModel, *, ctx_size=32768, gpu_layers=-1, port=None, extra_args=None, cancelled=None, timeout=120)
 ```
 
-Запускает llama-server с model/context/GPU flags и ждёт health до 45 секунд.
+Запускает собственный llama-server с model/context/GPU flags, job и output drain; readiness до 120 секунд, отмена очищает процесс.
+
+### `LocalRuntime._drain_output`
+
+[Исходник](../../agent/model_manager.py#L172)
+
+```python
+def _drain_output(self, process)
+```
+
+Читает бинарный PIPE порциями 1024 байта без ожидания newline; хранит последние 100 порций.
 
 ### `LocalRuntime._healthy`
 
-[Исходник](../../agent/model_manager.py#L152)
+[Исходник](../../agent/model_manager.py#L184)
 
 ```python
 def _healthy(self) -> bool
@@ -1102,7 +1114,7 @@ def _healthy(self) -> bool
 
 ### `LocalRuntime.stop`
 
-[Исходник](../../agent/model_manager.py#L161)
+[Исходник](../../agent/model_manager.py#L193)
 
 ```python
 def stop(self)
@@ -1112,7 +1124,7 @@ def stop(self)
 
 ### `LocalRuntime.status`
 
-[Исходник](../../agent/model_manager.py#L176)
+[Исходник](../../agent/model_manager.py#L216)
 
 ```python
 def status(self) -> dict
@@ -1122,7 +1134,7 @@ def status(self) -> dict
 
 ### `LocalRuntime.__del__`
 
-[Исходник](../../agent/model_manager.py#L185)
+[Исходник](../../agent/model_manager.py#L226)
 
 ```python
 def __del__(self)
@@ -1299,6 +1311,72 @@ def advance(self, reason='')
 ```
 
 Помечает этап done, активирует следующий и записывает пояснение.
+
+<a id="module-agent-process-job-py"></a>
+
+## `agent/process_job.py`
+
+Windows Job Object: kill-on-close только для собственного Popen и его потомков.
+
+### `ProcessJob`
+
+[Исходник](../../agent/process_job.py#L7)
+
+```python
+class ProcessJob
+```
+
+Владеет ненаследуемым Windows Job handle; закрытие завершает только присоединённое дерево.
+
+### `ProcessJob.__init__`
+
+[Исходник](../../agent/process_job.py#L8)
+
+```python
+def __init__(self, process)
+```
+
+Инициализирует состояние экземпляра ProcessJob; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `ProcessJob.__init__.BasicLimits`
+
+[Исходник](../../agent/process_job.py#L14)
+
+```python
+class BasicLimits(ctypes.Structure)
+```
+
+ctypes структура JOBOBJECT_BASIC_LIMIT_INFORMATION с корректным pointer-size alignment.
+
+### `ProcessJob.__init__.IoCounters`
+
+[Исходник](../../agent/process_job.py#L19)
+
+```python
+class IoCounters(ctypes.Structure)
+```
+
+Шесть 64-битных IO_COUNTERS полей Windows API.
+
+### `ProcessJob.__init__.ExtendedLimits`
+
+[Исходник](../../agent/process_job.py#L22)
+
+```python
+class ExtendedLimits(ctypes.Structure)
+```
+
+ctypes JOBOBJECT_EXTENDED_LIMIT_INFORMATION для JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE.
+
+### `ProcessJob.close`
+
+[Исходник](../../agent/process_job.py#L46)
+
+```python
+def close(self)
+```
+
+Идемпотентно закрывает последний job handle, завершая присоединённые процессы.
 
 <a id="module-agent-project-memory-py"></a>
 
@@ -2400,7 +2478,7 @@ JSON-lines вход процесса, dispatch команд, UI-файловый
 
 ### `emit`
 
-[Исходник](../../core/python/bridge.py#L21)
+[Исходник](../../core/python/bridge.py#L22)
 
 ```python
 def emit(message)
@@ -2410,7 +2488,7 @@ def emit(message)
 
 ### `resolve_inside`
 
-[Исходник](../../core/python/bridge.py#L34)
+[Исходник](../../core/python/bridge.py#L36)
 
 ```python
 def resolve_inside(relative: str) -> Path
@@ -2420,7 +2498,7 @@ def resolve_inside(relative: str) -> Path
 
 ### `handle`
 
-[Исходник](../../core/python/bridge.py#L44)
+[Исходник](../../core/python/bridge.py#L46)
 
 ```python
 def handle(method: str, params: dict) -> dict
@@ -2430,7 +2508,7 @@ Whitelist диспетчер RPC: состояние, проект, модель
 
 ### `main`
 
-[Исходник](../../core/python/bridge.py#L126)
+[Исходник](../../core/python/bridge.py#L133)
 
 ```python
 def main() -> None
@@ -2589,6 +2667,92 @@ def shutdown(self)
 ```
 
 Запрашивает отмену и ограниченно ожидает собственный поток.
+
+<a id="module-core-python-runtime-service-py"></a>
+
+## `core/python/runtime_service.py`
+
+Неблокирующий сервис запуска/остановки GGUF и состояний собственного llama-server.
+
+### `RuntimeService`
+
+[Исходник](../../core/python/runtime_service.py#L8)
+
+```python
+class RuntimeService
+```
+
+Отдельные lifecycle lock/thread/Event и состояния stopped/starting/running/stopping/error.
+
+### `RuntimeService.__init__`
+
+[Исходник](../../core/python/runtime_service.py#L9)
+
+```python
+def __init__(self)
+```
+
+Инициализирует состояние экземпляра RuntimeService; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `RuntimeService.start`
+
+[Исходник](../../core/python/runtime_service.py#L17)
+
+```python
+def start(self, params)
+```
+
+Проверяет выбранные файлы, GGUF magic и integer параметры; создаёт один background worker.
+
+### `RuntimeService.start.launch`
+
+[Исходник](../../core/python/runtime_service.py#L40)
+
+```python
+def launch()
+```
+
+Ждёт readiness вне stdin bridge, публикует running/error и очищает отменённый запуск.
+
+### `RuntimeService.status`
+
+[Исходник](../../core/python/runtime_service.py#L59)
+
+```python
+def status(self)
+```
+
+Снимок состояния/метаданных/последнего вывода; обнаруживает завершение ранее готового сервера.
+
+### `RuntimeService.stop`
+
+[Исходник](../../core/python/runtime_service.py#L66)
+
+```python
+def stop(self)
+```
+
+Отменяет старт либо запускает собственный terminate worker; повторный Stop не создаёт новый поток.
+
+### `RuntimeService.stop.terminate`
+
+[Исходник](../../core/python/runtime_service.py#L74)
+
+```python
+def terminate()
+```
+
+Завершает только owned runtime и переводит сервис в stopped.
+
+### `RuntimeService.shutdown`
+
+[Исходник](../../core/python/runtime_service.py#L87)
+
+```python
+def shutdown(self)
+```
+
+Отменяет lifecycle, ограниченно ждёт worker и закрывает оставшийся owned runtime.
 
 <a id="module-core-python-task-service-py"></a>
 

@@ -24,7 +24,7 @@ let discardChoice = 1;
 dialog.showMessageBox = async () => ({response:discardChoice});
 fs.writeFileSync(path.join(project,'editor-a.txt'),'first\nsecond\n');
 fs.writeFileSync(path.join(project,'editor-b.py'),'print(1)\n');
-dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [project] });
+dialog.showOpenDialog = async (_win,options) => ({ canceled:false,filePaths:[options?.title==='Выберите GGUF'?process.env.LCA_TEST_GGUF:options?.title==='Выберите установленный llama-server'?process.env.LCA_TEST_RUNTIME:project] });
 
 let modelMode = 'write';
 let releaseModelText = null;
@@ -62,15 +62,15 @@ const model = http.createServer((req, res) => {
   });
 });
 
-async function poll(win, expression) {
-  const deadline = Date.now() + 15000;
+async function poll(win, expression, timeout=10000) {
+  const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     if (await win.webContents.executeJavaScript(expression)) return;
     await new Promise(r => setTimeout(r, 100));
   }
   throw new Error('Timed out: ' + expression);
 }
-const deadline = setTimeout(() => fail(new Error('Smoke timed out')), 45000);
+const deadline = setTimeout(() => fail(new Error('Smoke timed out')), process.env.LCA_TEST_RUNTIME?180000:45000);
 app.on('browser-window-created', (_event, win) => {
   win.webContents.setBackgroundThrottling(false);
   win.webContents.on('preload-error', (_event, preloadPath, error) => {
@@ -140,6 +140,32 @@ app.on('browser-window-created', (_event, win) => {
 
       await win.webContents.executeJavaScript(`document.querySelector('[title="Настройки модели"]').click()`);
       await poll(win, `!!document.querySelector('.model-settings input')`);
+      if(process.env.LCA_TEST_RUNTIME&&process.env.LCA_TEST_GGUF) {
+        await win.webContents.executeJavaScript(`document.querySelector('.pick-runtime').click()`);
+        await poll(win, `document.querySelector('.runtime-path').textContent.includes('llama-server')`);
+        await win.webContents.executeJavaScript(`document.querySelector('.pick-gguf').click()`);
+        await poll(win, `!document.querySelector('.start-runtime').disabled`);
+        await win.webContents.executeJavaScript(`document.querySelector('.start-runtime').click()`);
+        await poll(win, `!document.querySelector('.stop-runtime').disabled`);
+        await win.webContents.executeJavaScript(`document.querySelector('.stop-runtime').click()`);
+        await poll(win, `document.querySelector('.runtime-status').textContent==='Остановлен'`);
+        await win.webContents.executeJavaScript(`document.querySelector('.start-runtime').click()`);
+        await poll(win, `document.querySelector('.runtime-status').textContent.includes('Готов')`,120000);
+        const runtime=await win.webContents.executeJavaScript('window.lca.runtimeStatus()');
+        assert.equal(runtime.state,'running');
+        assert.equal((await win.webContents.executeJavaScript('window.lca.health()')).ok,true);
+        await win.webContents.executeJavaScript(`document.querySelector('.use-runtime').click()`);
+        await poll(win, `document.querySelector('input[name="base_url"]').value===${JSON.stringify(runtime.base_url)}`);
+        const answer=await win.webContents.executeJavaScript(`window.lca.testModel({base_url:${JSON.stringify(runtime.base_url)},model:${JSON.stringify(runtime.model.name)},api_key:'',settings:{max_tokens:128,temperature:0}})`);
+        assert.equal(answer.ok,true,JSON.stringify(answer));
+        fs.writeFileSync(path.join(testRoot,'runtime-result.json'),JSON.stringify({runtime,answer},null,2));
+        await win.webContents.executeJavaScript(`document.querySelector('.local-runtime').scrollIntoView({block:'start'})`);
+        await win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+        fs.writeFileSync(path.join(testRoot,'runtime.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
+        await win.webContents.executeJavaScript(`document.querySelector('.stop-runtime').click()`);
+        await poll(win, `document.querySelector('.runtime-status').textContent==='Остановлен'`);
+        await win.webContents.executeJavaScript(`{const input=document.querySelector('input[name="model"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      }
       const url = `http://127.0.0.1:${model.address().port}/v1`;
       await win.webContents.executeJavaScript(`{
         const input = document.querySelector('.model-settings input');

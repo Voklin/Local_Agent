@@ -277,7 +277,7 @@ LocalRuntime.find_executable | Ищет явно заданный путь, сл
 LocalRuntime.free_port | Получает свободный локальный TCP-порт через временный bind.
 LocalRuntime.running | Property: процесс существует и ещё не завершился.
 LocalRuntime.base_url | Property URL /v1 для назначенного порта.
-LocalRuntime.start | Запускает llama-server с model/context/GPU flags и ждёт health до 45 секунд.
+LocalRuntime.start | Запускает собственный llama-server с model/context/GPU flags, job и output drain; readiness до 120 секунд, отмена очищает процесс.
 LocalRuntime._healthy | Проверяет HTTP /models с коротким timeout.
 LocalRuntime.stop | Завершает процесс, при необходимости убивает и очищает runtime-состояние.
 LocalRuntime.status | Возвращает состояние процесса, порт, URL и метаданные модели.
@@ -899,3 +899,47 @@ TEST_PURPOSES.update({
  'project_search_requires_root_and_does_not_block_bridge':'Настоящий bridge требует root, возвращает строку поиска и остаётся доступен health/cancel.',
 })
 TEST_HELPERS['slow']='Управляемая barrier-фикстура поискового worker для детерминированной проверки отмены.'
+
+FILE_NOTES.update({
+ 'agent/process_job.py':'Windows Job Object: kill-on-close только для собственного Popen и его потомков.',
+ 'core/python/runtime_service.py':'Неблокирующий сервис запуска/остановки GGUF и состояний собственного llama-server.',
+ 'apps/desktop/src/LocalRuntimePanel.tsx':'Реальный GGUF picker, context/GPU, lifecycle status и явный перенос endpoint в настройки.',
+ 'tests/test_runtime_service.py':'Проверки lifecycle, bounded output, отмены, ошибок и Windows crash cleanup.',
+})
+SYMBOL_NOTES.update({
+ 'agent/model_manager.py:LocalRuntime._drain_output':'Читает бинарный PIPE порциями 1024 байта без ожидания newline; хранит последние 100 порций.',
+ 'agent/process_job.py:ProcessJob':'Владеет ненаследуемым Windows Job handle; закрытие завершает только присоединённое дерево.',
+ 'agent/process_job.py:ProcessJob.__init__.BasicLimits':'ctypes структура JOBOBJECT_BASIC_LIMIT_INFORMATION с корректным pointer-size alignment.',
+ 'agent/process_job.py:ProcessJob.__init__.IoCounters':'Шесть 64-битных IO_COUNTERS полей Windows API.',
+ 'agent/process_job.py:ProcessJob.__init__.ExtendedLimits':'ctypes JOBOBJECT_EXTENDED_LIMIT_INFORMATION для JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE.',
+ 'agent/process_job.py:ProcessJob.close':'Идемпотентно закрывает последний job handle, завершая присоединённые процессы.',
+ 'core/python/runtime_service.py:RuntimeService':'Отдельные lifecycle lock/thread/Event и состояния stopped/starting/running/stopping/error.',
+ 'core/python/runtime_service.py:RuntimeService.start':'Проверяет выбранные файлы, GGUF magic и integer параметры; создаёт один background worker.',
+ 'core/python/runtime_service.py:RuntimeService.start.launch':'Ждёт readiness вне stdin bridge, публикует running/error и очищает отменённый запуск.',
+ 'core/python/runtime_service.py:RuntimeService.status':'Снимок состояния/метаданных/последнего вывода; обнаруживает завершение ранее готового сервера.',
+ 'core/python/runtime_service.py:RuntimeService.stop':'Отменяет старт либо запускает собственный terminate worker; повторный Stop не создаёт новый поток.',
+ 'core/python/runtime_service.py:RuntimeService.stop.terminate':'Завершает только owned runtime и переводит сервис в stopped.',
+ 'core/python/runtime_service.py:RuntimeService.shutdown':'Отменяет lifecycle, ограниченно ждёт worker и закрывает оставшийся owned runtime.',
+})
+TS_NOTES.update({
+ 'LocalRuntimePanel':'Панель собственного GGUF с file picker, реальным lifecycle и явным переносом endpoint без сохранения.',
+ 'apps/desktop/src/LocalRuntimePanel.tsx:LocalRuntimePanel.refresh':'Раз в секунду читает runtime status и игнорирует ответ после unmount.',
+ 'pick':'Получает только выбранный системным диалогом путь GGUF/runtime; отмена не меняет выбор.',
+ 'control':'Отправляет start/stop собственного сервера и показывает ошибку без блокировки настроек на время загрузки.',
+ 'pickRuntimeFile':'Вызывает системный выбор GGUF или установленного llama-server.',
+ 'startRuntime':'Передаёт только context/GPU; пути берутся main из предыдущего file picker.',
+ 'runtimeStatus':'Читает lifecycle собственного сервера без управления внешним LM Studio.',
+ 'stopRuntime':'Останавливает только собственный локальный runtime через фиксированный IPC.',
+})
+TEST_PURPOSES.update({
+ 'validation_does_not_launch_arbitrary_files':'Имя executable, GGUF header и integer/range проверяются до старта.',
+ 'start_cancel_is_nonblocking_and_cannot_restart_until_worker_finishes':'Start возвращает сразу, Stop отменяет worker, параллельный restart запрещён.',
+ 'start_failure_is_visible_without_busy_deadlock':'Ошибка старта становится видимым error и не оставляет вечный busy.',
+ 'output_drain_is_bounded_even_without_newlines':'500 КБ вывода без newline не превышают 100 порций в памяти.',
+ 'readiness_timeout_cleans_only_owned_process':'Timeout завершает реальный собственный процесс и закрывает его job.',
+ 'windows_job_close_terminates_owned_child':'Закрытие Windows job завершает присоединённого потомка.',
+ 'parent_crash_closes_job_and_terminates_child':'Авария владельца job автоматически завершает его дочернее дерево.',
+ 'runtime_commands_validate_without_blocking_other_commands':'Bridge status/start validation/stop не нарушают health без модели.',
+})
+TEST_HELPERS['launching']='Управляемая barrier-фикстура долгой загрузки с cooperative cancel.'
+TEST_HELPERS['Output']='BytesIO-фикстура длинного stdout без перевода строки.'

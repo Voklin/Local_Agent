@@ -10,6 +10,9 @@ let backend: ChildProcessWithoutNullStreams | null = null;
 let requestId = 0;
 let editorDirty = false;
 let confirmingClose = false;
+let quitting = false;
+let selectedRuntime = '';
+let selectedModel = '';
 const pending = new Map<number, { resolve: (value: any) => void; timer: ReturnType<typeof setTimeout> }>();
 function diagnostic(message: string) {
   try {
@@ -84,7 +87,14 @@ function createWindow() {
   if (app.isPackaged) win.loadFile(path.join(__dirname, '../dist/index.html')); else win.loadURL('http://127.0.0.1:5173');
 }
 app.whenReady().then(() => { diagnostic(`app:start version=${app.getVersion()} packaged=${app.isPackaged} platform=${process.platform} arch=${process.arch}`); createWindow(); app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); }); });
-app.on('will-quit', () => { diagnostic('app:quit'); if (backend) { backend.stdin.end(); backend.kill(); } });
+app.on('will-quit', event => {
+  if (quitting || !backend) return;
+  event.preventDefault(); quitting = true; diagnostic('app:quit');
+  const child=backend;
+  const deadline=setTimeout(()=>{child.kill();app.quit();},15000);
+  child.once('exit',()=>{clearTimeout(deadline);app.quit();});
+  child.stdin.end();
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 function handle(channel: string, handler: (...args: any[]) => any) {
   ipcMain.handle(channel, (event, ...args) => {
@@ -115,6 +125,19 @@ handle('editor:preview', (path, content, revision) => callBackend('editor_previe
 handle('editor:resolve', (proposalId, decision) => callBackend('editor_resolve', {proposal_id:proposalId, decision}));
 handle('editor:dirty', (dirty) => { editorDirty = dirty === true; return {ok:true}; });
 handle('editor:confirm-discard', () => confirmEditorDiscard());
+handle('runtime:pick', async (kind) => {
+  if(!win || !['model','runtime'].includes(kind)) return {ok:false,error:'Некорректный выбор файла'};
+  const result=await dialog.showOpenDialog(win,{properties:['openFile'],title:kind==='model'?'Выберите GGUF':'Выберите установленный llama-server',filters:kind==='model'?[{name:'GGUF',extensions:['gguf']}]:[{name:'llama-server',extensions:process.platform==='win32'?['exe']:['*']}]});
+  if(result.canceled||!result.filePaths[0])return {canceled:true};
+  if(kind==='model')selectedModel=result.filePaths[0];else selectedRuntime=result.filePaths[0];
+  return {ok:true,path:result.filePaths[0]};
+});
+handle('runtime:start', params => {
+  if(!selectedRuntime||!selectedModel)return {ok:false,error:'Выберите сервер и модель через диалог файлов'};
+  return callBackend('runtime_start',{runtime_path:selectedRuntime,model_path:selectedModel,ctx_size:params?.ctx_size,gpu_layers:params?.gpu_layers});
+});
+handle('runtime:status',()=>callBackend('runtime_status'));
+handle('runtime:stop',()=>callBackend('runtime_stop'));
 handle('model:configure', (config) => callBackend('configure_model', modelConfig(config)));
 handle('model:list', (config) => callBackend('list_models', config ? modelConfig(config) : {}));
 handle('model:test', (config) => callBackend('test_model', modelConfig(config)));
