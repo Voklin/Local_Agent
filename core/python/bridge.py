@@ -13,6 +13,7 @@ for stream in (sys.stdin, sys.stdout, sys.stderr):
 if not getattr(sys, 'frozen', False):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from core.python.task_service import TaskService
+from core.python.editor_service import EditorService
 
 output_lock = threading.Lock()
 
@@ -22,6 +23,7 @@ def emit(message):
         sys.stdout.flush()
 
 tasks = TaskService(emit)
+editor = EditorService()
 
 MAX_READ_BYTES = 1_000_000
 MAX_ENTRIES = 1000
@@ -47,8 +49,18 @@ def handle(method: str, params: dict) -> dict:
         if not root.is_dir():
             raise ValueError('Выбранный путь не является папкой')
         project_root = root
+        editor.clear()
         tasks.chat = None
         return {'ok': True, 'root': str(root), 'name': root.name}
+    if method in ('editor_read', 'editor_preview', 'editor_resolve'):
+        if project_root is None:
+            raise ValueError('Сначала выберите папку проекта')
+        if method == 'editor_read':
+            return editor.read(project_root, str(params.get('path', '')))
+        tasks.idle()
+        if method == 'editor_preview':
+            return editor.preview(project_root, params)
+        return editor.resolve(project_root, params)
     if method == 'configure_model':
         return tasks.configure(params)
     if method == 'get_model_settings':
@@ -68,6 +80,8 @@ def handle(method: str, params: dict) -> dict:
             return tasks.chats(scope)
         if method in ('new_chat', 'load_chat'):
             return tasks.select_chat(scope, params.get('chat_id') if method == 'load_chat' else None)
+        if editor.pending:
+            raise ValueError('Сначала завершите подтверждение изменения в редакторе')
         return tasks.start(scope, params)
     if method == 'cancel_task':
         return tasks.cancel()

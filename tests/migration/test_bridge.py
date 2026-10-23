@@ -16,9 +16,11 @@ class BridgeTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / 'hello.py').write_text('print("hi")', encoding='utf-8')
         bridge.project_root = self.root.resolve()
+        bridge.editor.clear()
     def tearDown(self):
         self.temp.cleanup()
         bridge.project_root = None
+        bridge.editor.clear()
     def test_chat_scope_does_not_require_selected_folder(self):
         bridge.project_root = None
         with patch.object(bridge.tasks, 'chats', return_value={'ok': True}) as chats:
@@ -30,6 +32,24 @@ class BridgeTests(unittest.TestCase):
     def test_unknown_mode_is_rejected(self):
         with self.assertRaises(ValueError):
             bridge.handle('new_chat', {'mode': 'voice'})
+
+    def test_editor_preview_blocks_task_and_project_switch_invalidates_approval(self):
+        document = bridge.handle('editor_read', {'path':'hello.py'})
+        proposal = bridge.handle('editor_preview', {'path':'hello.py','content':'changed','revision':document['revision']})
+        self.assertTrue(proposal['ok'])
+        with self.assertRaises(ValueError):
+            bridge.handle('start_task', {'prompt':'hello'})
+        bridge.handle('set_project', {'root':str(self.root)})
+        with self.assertRaises(ValueError):
+            bridge.handle('editor_resolve', {'proposal_id':proposal['proposal_id'],'decision':'apply'})
+        self.assertEqual((self.root/'hello.py').read_text(),'print("hi")')
+
+    def test_editor_writes_are_rejected_while_agent_is_running(self):
+        document = bridge.handle('editor_read', {'path':'hello.py'})
+        with patch.object(bridge.tasks,'idle',side_effect=ValueError('busy')):
+            with self.assertRaises(ValueError):
+                bridge.handle('editor_preview', {'path':'hello.py','content':'changed','revision':document['revision']})
+        self.assertEqual((self.root/'hello.py').read_text(),'print("hi")')
 
     def test_health(self):
         self.assertTrue(bridge.handle('health', {})['ok'])

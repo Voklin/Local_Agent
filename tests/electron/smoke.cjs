@@ -20,6 +20,10 @@ const project = fs.mkdtempSync(path.join(testRoot, 'project-'));
 process.env.LOCALAPPDATA = testRoot;
 app.setPath('userData', path.join(testRoot, 'electron-profile'));
 BrowserWindow.prototype.show = function () {}; // Keep the test window hidden.
+let discardChoice = 1;
+dialog.showMessageBox = async () => ({response:discardChoice});
+fs.writeFileSync(path.join(project,'editor-a.txt'),'first\nsecond\n');
+fs.writeFileSync(path.join(project,'editor-b.py'),'print(1)\n');
 dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [project] });
 
 let modelMode = 'write';
@@ -78,6 +82,48 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(await win.webContents.executeJavaScript('typeof require'), 'undefined');
       await win.webContents.executeJavaScript(`document.querySelector('.project-pill').click()`);
       await poll(win, `document.querySelector('.project-pill').textContent.includes(${JSON.stringify(path.basename(project))})`);
+      await poll(win, `Array.from(document.querySelectorAll('.sidebar .file-row')).some(button=>button.textContent.includes('editor-a.txt'))`);
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.sidebar .file-row')).find(button=>button.textContent.includes('editor-a.txt')).click()`);
+      await poll(win, `!!document.querySelector('.editor-input')`);
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('.editor-input'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'edited\\nsecond\\n'); input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      await poll(win, `!!document.querySelector('.editor-dirty')`);
+      await win.webContents.executeJavaScript(`document.querySelector('.mode-tabs button:first-child').click()`);
+      await poll(win, `!!document.querySelector('.mode-chat')`);
+      await win.webContents.executeJavaScript(`document.querySelector('.mode-tabs button:nth-child(2)').click()`);
+      await poll(win, `document.querySelector('.editor-input').value.startsWith('edited')`);
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.sidebar .file-row')).find(button=>button.textContent.includes('editor-b.py')).click()`);
+      await poll(win, `document.querySelectorAll('.editor-tabs [role=tab]').length===2`);
+      await win.webContents.executeJavaScript(`document.querySelector('.editor-tabs [title="editor-a.txt"]').click()`);
+      await win.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'s',ctrlKey:true,bubbles:true}))`);
+      await poll(win, `!!document.querySelector('.editor-approval')`);
+      assert.equal(fs.readFileSync(path.join(project,'editor-a.txt'),'utf8'),'first\nsecond\n');
+      await win.webContents.executeJavaScript(`document.querySelector('.editor-approval .primary-button').click()`);
+      await poll(win, `!document.querySelector('.editor-approval') && !document.querySelector('.editor-dirty')`);
+      assert.equal(fs.readFileSync(path.join(project,'editor-a.txt'),'utf8'),'edited\nsecond\n');
+      await win.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'f',ctrlKey:true,bubbles:true}))`);
+      await poll(win, `!!document.querySelector('.editor-find')`);
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Поиск в файле"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'second'); input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      await win.webContents.executeJavaScript(`document.querySelector('.editor-find button').click()`);
+      assert.equal(await win.webContents.executeJavaScript(`{const input=document.querySelector('.editor-input'); input.value.slice(input.selectionStart,input.selectionEnd)}`),'second');
+      await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      fs.writeFileSync(path.join(testRoot,'editor.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
+
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('.editor-input'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'my draft'); input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      discardChoice=0;
+      win.close();
+      assert.equal((await win.webContents.executeJavaScript('window.lca.health()')).ok,true);
+      assert.equal(win.isDestroyed(),false);
+      fs.writeFileSync(path.join(project,'editor-a.txt'),'external change');
+      await win.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'s',ctrlKey:true,bubbles:true}))`);
+      await poll(win, `document.querySelector('.editor-notice').textContent.includes('изменился на диске')`);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.editor-input').value`),'my draft');
+      discardChoice=0;
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Перечитать · Ctrl+Shift+R"]').click()`);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.editor-input').value`),'my draft');
+      discardChoice=1;
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Перечитать · Ctrl+Shift+R"]').click()`);
+      await poll(win, `document.querySelector('.editor-input').value==='external change' && !document.querySelector('.editor-dirty')`);
+
       await win.webContents.executeJavaScript(`document.querySelector('[title="Настройки модели"]').click()`);
       await poll(win, `!!document.querySelector('.model-settings input')`);
       const url = `http://127.0.0.1:${model.address().port}/v1`;
@@ -122,7 +168,7 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `!document.querySelector('.settings-dialog')`);
 
       await win.webContents.executeJavaScript(`{
-        const input = document.querySelector('textarea');
+        const input = document.querySelector('.composer textarea');
         Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'hello');
         input.dispatchEvent(new Event('input', { bubbles:true }));
       }`);
@@ -161,7 +207,7 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `document.querySelector('.chat-messages').textContent.includes('исходный файл сохранён')`);
       assert.equal(fs.readFileSync(corruptChat, 'utf8'), '{broken source');
       await win.webContents.executeJavaScript(`{
-        const input = document.querySelector('textarea');
+        const input = document.querySelector('.composer textarea');
         Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'hello conflict');
         input.dispatchEvent(new Event('input', { bubbles:true }));
       }`);
@@ -192,7 +238,7 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `document.querySelector('.project-pill').textContent.includes(${JSON.stringify(path.basename(project))})`);
       modelMode = 'stall';
       await win.webContents.executeJavaScript(`{
-        const input = document.querySelector('textarea');
+        const input = document.querySelector('.composer textarea');
         Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'hello');
         input.dispatchEvent(new Event('input', { bubbles:true }));
       }`);
@@ -217,7 +263,7 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.voice-panel').textContent.includes('голос ещё не подключён')`), true);
       await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:first-child').click()`);
       await poll(win, `!!document.querySelector('.mode-chat') && !document.querySelector('.main-panel')`);
-      await win.webContents.executeJavaScript(`{ const input=document.querySelector('textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'chat without files'); input.dispatchEvent(new Event('input',{bubbles:true})); }`);
+      await win.webContents.executeJavaScript(`{ const input=document.querySelector('.composer textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'chat without files'); input.dispatchEvent(new Event('input',{bubbles:true})); }`);
       await poll(win, `!document.querySelector('[title="Отправить"]').disabled`);
       await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
       await poll(win, `document.querySelector('.chat-messages').textContent.includes('Standalone Chat reply') && !document.querySelector('[title="Остановить"]')`);

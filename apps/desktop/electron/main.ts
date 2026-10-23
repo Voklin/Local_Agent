@@ -8,6 +8,8 @@ import fs from 'node:fs';
 let win: BrowserWindow | null = null;
 let backend: ChildProcessWithoutNullStreams | null = null;
 let requestId = 0;
+let editorDirty = false;
+let confirmingClose = false;
 const pending = new Map<number, { resolve: (value: any) => void; timer: ReturnType<typeof setTimeout> }>();
 function diagnostic(message: string) {
   try {
@@ -65,6 +67,15 @@ function callBackend(method: string, params: Record<string, unknown> = {}) {
 }
 function createWindow() {
   win = new BrowserWindow({ show: false, width: 1500, height: 940, minWidth: 1050, minHeight: 680, backgroundColor: '#15171c', title: 'Local Coding Agent', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  win.on('close', (event) => {
+    if (!editorDirty) return;
+    event.preventDefault();
+    if (confirmingClose) return;
+    confirmingClose = true;
+    void confirmEditorDiscard().then(result => {
+      if (result.discard) { editorDirty = false; win?.close(); }
+    }).finally(() => { confirmingClose = false; });
+  });
   win.once('ready-to-show', () => win?.show());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (event) => event.preventDefault());
@@ -73,7 +84,7 @@ function createWindow() {
   if (app.isPackaged) win.loadFile(path.join(__dirname, '../dist/index.html')); else win.loadURL('http://127.0.0.1:5173');
 }
 app.whenReady().then(() => { diagnostic(`app:start version=${app.getVersion()} packaged=${app.isPackaged} platform=${process.platform} arch=${process.arch}`); createWindow(); app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); }); });
-app.on('before-quit', () => { diagnostic('app:quit'); if (backend) { backend.stdin.end(); backend.kill(); } });
+app.on('will-quit', () => { diagnostic('app:quit'); if (backend) { backend.stdin.end(); backend.kill(); } });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 function handle(channel: string, handler: (...args: any[]) => any) {
   ipcMain.handle(channel, (event, ...args) => {
@@ -92,6 +103,16 @@ handle('project:read', (rel) => callBackend('read_file', { path: String(rel).sli
 function modelConfig(config: any) {
   return { base_url: String(config?.base_url || '').slice(0, 2000), model: String(config?.model || '').slice(0, 300), api_key: String(config?.api_key || '').slice(0, 4000), settings: config?.settings ?? {} };
 }
+async function confirmEditorDiscard() {
+  if (!win) return {discard:false};
+  const result = await dialog.showMessageBox(win, {type:'warning', title:'Несохранённые изменения', message:'В редакторе есть несохранённые изменения.', detail:'Если продолжить, эти черновики будут потеряны. Сначала сохраните их через просмотр diff.', buttons:['Отмена','Не сохранять'], defaultId:0, cancelId:0, noLink:true});
+  return {discard:result.response === 1};
+}
+handle('editor:read', (path) => callBackend('editor_read', {path:String(path).slice(0,1000)}));
+handle('editor:preview', (path, content, revision) => callBackend('editor_preview', {path:String(path).slice(0,1000), content, revision}));
+handle('editor:resolve', (proposalId, decision) => callBackend('editor_resolve', {proposal_id:proposalId, decision}));
+handle('editor:dirty', (dirty) => { editorDirty = dirty === true; return {ok:true}; });
+handle('editor:confirm-discard', () => confirmEditorDiscard());
 handle('model:configure', (config) => callBackend('configure_model', modelConfig(config)));
 handle('model:list', (config) => callBackend('list_models', config ? modelConfig(config) : {}));
 handle('model:test', (config) => callBackend('test_model', modelConfig(config)));

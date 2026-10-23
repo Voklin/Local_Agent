@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, ChevronDown, Code2, FileCode2, Folder, FolderOpen, GitBranch, History, Play, Plus, Settings2, ShieldCheck, Square, SquareTerminal } from 'lucide-react';
+import { EditorPanel, type EditorHandle } from './EditorPanel';
 import { ModelSettings, defaultGeneration, type GenerationSettings } from './ModelSettings';
 import { VoicePanel, type WorkspaceMode } from './VoicePanel';
 import { TaskProgress, type TaskSnapshot } from './TaskProgress';
@@ -18,7 +19,7 @@ export default function App() {
   const [directory, setDirectory] = useState('.');
   const [files, setFiles] = useState<FileItem[]>([]);
   const [selectedFile, setSelectedFile] = useState('');
-  const [fileText, setFileText] = useState('');
+  const editorRef = useRef<EditorHandle>(null);
   const [health, setHealth] = useState('Подключение к Python Core…');
   const [prompt, setPrompt] = useState('');
   const [nav, setNav] = useState('History');
@@ -89,7 +90,7 @@ export default function App() {
         report(`${e.change.status}: ${e.change.path}${e.change.error ? ': ' + e.change.error : ''}`);
         if (e.change.status === 'error') setChat(c => [...c, {role: 'system', text: `${e.change.path}: ${e.change.error}`}]);
         if (e.change.status === 'applied' && e.change.path === selectedRef.current)
-          void window.lca.readFile(selectedRef.current).then(r => { if (r.ok) setFileText(r.content); });
+          void editorRef.current?.refresh(selectedRef.current);
       }
       if (e.event === 'task_end') {
         setBusy(false); setStopping(false); active.current = false; setApproval(null); runId.current = '';
@@ -106,10 +107,12 @@ export default function App() {
   }
   async function chooseProject() {
     if (active.current) return;
+    if (editorRef.current?.hasDirty() && !(await window.lca.confirmEditorDiscard()).discard) return;
     const r = await window.lca.chooseProject();
     if (r.canceled) return;
     if (!r.ok) { report(r.error); return; }
     setMode('ide'); modeRef.current = 'ide'; setNav('Explorer');
+    editorRef.current?.reset();
     setRoot(r.root); setProject(r.name); setSelectedFile(''); selectedRef.current = '';
     setChat(greeting); chatId.current = ''; setTask(null); setShowProgress(false);
     await refreshFiles('.'); await refreshChats();
@@ -124,9 +127,8 @@ export default function App() {
   }
   async function openFile(item: FileItem) {
     if (item.kind === 'directory') { await refreshFiles(item.path); return; }
-    const r = await window.lca.readFile(item.path);
-    if (r.ok) { setSelectedFile(item.path); selectedRef.current = item.path; setFileText(r.content); }
-    else report(r.error);
+    const path = await editorRef.current?.open(item.path);
+    if (path) { setSelectedFile(path); selectedRef.current=path; }
   }
   async function selectChat(id?: string) {
     if (active.current) return;
@@ -192,9 +194,9 @@ export default function App() {
         {nav==='History' && <div className="file-list"><button className="file-row" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={15}/>Новый чат</button>{chats.map(c=><button className="file-row" key={c.id} disabled={busy} onClick={()=>selectChat(c.id)}><History size={15}/><span>{c.title}</span></button>)}</div>}
         <div className="sidebar-footer"><div className="project-status"><GitBranch size={14}/><span>{root?'Локальный проект':'Проект не выбран'}</span></div></div>
       </aside>
-      {mode==='ide'&&<main className="main-panel"><div className="editor-tabs"><div className="tab active"><FileCode2 size={14}/>{selectedFile.split(/[\\/]/).pop()||'Welcome'}</div></div><div className="editor-area">{selectedFile?<><div className="breadcrumbs">{selectedFile}</div><pre className="code-view">{fileText}</pre></>:<div className="welcome"><div className="welcome-logo"><Code2 size={28}/></div><h1>Agent Studio</h1><p>Рабочее пространство Local Coding Agent</p><div className="welcome-actions"><button onClick={chooseProject} disabled={busy}><FolderOpen size={16}/>Открыть проект</button><button onClick={()=>setSettingsOpen(true)}><Settings2 size={16}/>Настроить модель</button></div><div className="migration-note"><ShieldCheck size={17}/><span><b>Контроль изменений</b><br/>Агент покажет diff и запросит разрешение перед записью каждого файла.</span></div></div>}</div>
+      <main className={mode==='ide'?'main-panel':'editor-hidden'}><EditorPanel ref={editorRef} root={root} busy={busy} visible={mode==='ide'} onActive={path=>{setSelectedFile(path);selectedRef.current=path;}} onDirty={dirty=>{void window.lca.setEditorDirty(dirty);}} onProject={()=>void chooseProject()} onModels={()=>setSettingsOpen(true)} onLog={report}/>
         <div className="bottom-panel"><div className="bottom-tabs"><span className="bottom-tab active"><SquareTerminal size={14}/>ВЫВОД</span></div><div className="output-log">{logs.length?logs.map((l,i)=><pre key={i}>{l}</pre>):<div className="output-line dim">События агента появятся здесь.</div>}</div></div>
-      </main>}
+      </main>
       {mode==='voice'?<VoicePanel onChat={()=>void switchMode('chat')}/>:<aside className="agent-panel"><div className="agent-heading"><div><Bot size={17}/><b>{mode==='chat'?'Разговор с моделью':'Агент проекта'}</b></div><button className="icon-button" title="Новый чат" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={16}/></button></div><div className="agent-context"><span className="context-chip"><Folder size={13}/>{mode==='chat'?'Личный чат · без файловых инструментов':project}</span><span className="context-chip">Модель: {model||'не выбрана'}</span>{task&&<button className="progress-toggle" aria-expanded={showProgress} onClick={()=>setShowProgress(!showProgress)}>Ход задачи · {task.status==='completed'?'завершена':task.status==='paused'?'приостановлена':'в работе'} <ChevronDown size={13}/></button>}</div>
         {showProgress&&task&&<div className="progress-drawer"><TaskProgress task={task} busy={busy} onResume={()=>void sendPrompt(true)}/></div>}<div className="chat-messages">{chat.map((m,i)=><div className={`message ${m.role}`} key={i}>{m.role==='assistant'&&<div className="avatar"><Bot size={14}/></div>}<div className="message-content">{m.text}{m.streaming&&<span className="streaming-caret" aria-label="Ответ генерируется">▍</span>}</div></div>)}<div ref={messagesEnd}/></div>
         <div className="composer"><textarea aria-label="Задача агенту" value={prompt} disabled={busy} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendPrompt();}}} placeholder={mode==='ide'&&!root?'Сначала выберите проект':!model?'Укажите модель в настройках':'Опишите задачу…'}/><div className="composer-footer"><span>{stopping?'Останавливаем…':busy?'Агент работает…':'Enter для отправки'}</span>{busy?<button className="send-button" title="Остановить" disabled={stopping} onClick={cancel}><Square size={14}/></button>:<button className="send-button" title="Отправить" onClick={()=>sendPrompt()} disabled={!prompt.trim()||(mode==='ide'&&!root)||!model||!settingsReady}><Play size={14}/></button>}</div></div><div className="agent-foot"><ShieldCheck size={13}/> {mode==='ide'?'Подтверждение перед записью':'Локальная модель · история сохраняется на этом ПК'}</div>

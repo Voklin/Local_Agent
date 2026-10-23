@@ -814,3 +814,54 @@ TEST_PURPOSES.update({
 
 TS_NOTES.pop('discoverModels', None)
 TS_NOTES.pop('saveSettings', None)
+FILE_NOTES.update({
+    'core/python/editor_service.py': 'Ручной editor-протокол: strict UTF-8 чтение с revision, preview, одноразовый Apply через существующую атомарную snapshot-запись.',
+    'apps/desktop/src/EditorPanel.tsx': 'Рабочие вкладки/черновики редактора, виртуальный gutter, поиск/строка, hotkeys, reload и подтверждённое сохранение.',
+    'tests/test_editor_service.py': 'Контракты editor revisions, CRLF, отсутствия записи до Apply, stale/replay, бинарных/больших/внешних файлов и project scope.',
+})
+register('core/python/editor_service.py', '''
+EditorService | Хранит одно ручное предложение в памяти и использует общий sandbox/atomic write без автоматического подтверждения.
+EditorService.clear | Забывает pending proposal при новой подготовке, решении или смене проекта.
+EditorService.read | Читает ограниченные UTF-8 байты, отвергает NUL, возвращает LF-представление, newline-стиль и хеш исходных байтов.
+EditorService.preview | Сверяет editor revision с диском, готовит конкретный diff и сохраняет одноразовый proposal без записи.
+EditorService.resolve | Проверяет ID/root/решение, потребляет proposal и выполняет Apply с повторной проверкой snapshot; Reject/Cancel не пишут.
+''')
+TS_NOTES.update({
+    'EditorDocument': 'Документ вкладки: текущий текст, исходный текст, byte revision и стиль строк.',
+    'EditorHandle': 'Узкая ref-поверхность open/refresh/reset/hasDirty, сохраняющая drafts при переключении режимов.',
+    'EditorProps': 'Корень/видимость/busy и callbacks редактора; file access остаётся в Core.',
+    'EditorPanel': 'Компонент редактора с сохраняемыми между режимами вкладками и snapshot-approval.',
+    'selectDocument': 'Добавляет или заменяет документ вкладки и выбирает его активным.',
+    'read': 'Запрашивает strict editor_read и отбрасывает ответ, относящийся к уже сменившемуся корню.',
+    'open': 'Открывает существующую вкладку без потери draft либо читает файл; может перейти к нужной строке.',
+    'refresh': 'Обновляет только чистую вкладку после записи агента, dirty draft сохраняет и предупреждает о конфликте.',
+    'closeTab': 'Закрывает вкладку; грязный текст требует явного подтверждения отказа от сохранения.',
+    'reload': 'Перечитывает активный файл после подтверждения потери draft; при ошибке текст остаётся.',
+    'save': 'Получает preview по исходной byte revision, не пишет файл и показывает отдельный диалог.',
+    'decide': 'Отправляет решение editor proposal либо агентского approval в зависимости от компонента; сохраняет локальный draft при отказе.',
+    'updatePosition': 'Вычисляет line/column по положению selectionStart в UTF-16 textarea.',
+    'moveToLine': 'Ограничивает номер строки, вычисляет offset и перемещает курсор/прокрутку.',
+    'findNext': 'Ищет следующую текстовую строку без учёта регистра с циклическим возвратом в начало файла.',
+    'shortcuts': 'Обрабатывает Ctrl+S/F/G/Shift+R только в видимом editor и вне модальных диалогов.',
+    'confirmEditorDiscard': 'Показывает нативное предупреждение с безопасным default Cancel; возвращает только явный отказ от сохранения.',
+    'editorRead': 'Вызывает отдельное strict editor_read через фиксированный IPC.',
+    'editorPreview': 'Передаёт draft и исходную revision для preview без записи.',
+    'editorResolve': 'Передаёт только proposal ID и явное решение, не произвольную команду записи.',
+    'setEditorDirty': 'Сообщает main о несохранённых вкладках для защиты закрытия окна.',
+})
+TEST_PURPOSES.update({
+    'read_preview_and_one_shot_apply_preserve_crlf': 'Read сохраняет byte hash/CRLF; preview не пишет, Apply пишет один раз и обновляет revision.',
+    'external_change_before_preview_and_after_approval_is_never_overwritten': 'Оба момента внешнего изменения возвращают FILE_CHANGED без перезаписи.',
+    'reject_cancel_and_replaced_proposals_do_not_write': 'Отказ/отмена и старый ID после новой подготовки не меняют файл.',
+    'unchanged_text_has_no_pending_write': 'Неизменённый текст не создаёт write approval.',
+    'outside_binary_invalid_utf8_and_large_files_are_rejected': 'Editor отвергает traversal, неверную кодировку, NUL и превышение 1 МБ.',
+    'proposal_cannot_be_applied_to_another_project': 'Proposal одного корня не применяется к другому проекту.',
+    'editor_preview_blocks_task_and_project_switch_invalidates_approval': 'Bridge не запускает агента во время editor approval, set_project сбрасывает старый ID.',
+    'editor_writes_are_rejected_while_agent_is_running': 'Ручной preview не начинается, пока task service занят.',
+})
+TEST_HELPERS['proposal'] = 'Читает текущую revision и создаёт тестовый editor preview без записи.'
+TS_NOTES['reset'] = 'Сбрасывает editor-вкладки, pending diff и уведомления после подтверждённой смены проекта.'
+TS_NOTES['apps/desktop/src/EditorPanel.tsx:EditorPanel.decide'] = 'Потребляет editor proposal через Apply/Reject/Cancel; при отказе или конфликте сохраняет draft, после успеха обновляет revision.'
+TS_NOTES['decide'] = 'Передаёт явное решение по текущему approval агента, защищая от повторных кликов.'
+TS_NOTES['hasDirty'] = 'Читает актуальные editor tabs через ref для проверки unsaved перед нативной сменой проекта.'
+TS_NOTES['dialog.showMessageBox'] = 'В Electron smoke подменяет нативное подтверждение несохранённых изменений управляемым ответом Cancel/Discard.'

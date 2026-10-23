@@ -18,6 +18,7 @@
 - [tests/test_chat_store.py](#module-tests-test-chat-store-py)
 - [tests/test_conversation_history.py](#module-tests-test-conversation-history-py)
 - [tests/test_editor_io.py](#module-tests-test-editor-io-py)
+- [tests/test_editor_service.py](#module-tests-test-editor-service-py)
 - [tests/test_file_editing.py](#module-tests-test-file-editing-py)
 - [tests/test_limits.py](#module-tests-test-limits-py)
 - [tests/test_model_gateway.py](#module-tests-test-model-gateway-py)
@@ -57,7 +58,7 @@ def setUp(self)
 
 ### `BridgeTests.tearDown`
 
-[Исходник](../../tests/migration/test_bridge.py#L19)
+[Исходник](../../tests/migration/test_bridge.py#L20)
 
 ```python
 def tearDown(self)
@@ -67,7 +68,7 @@ def tearDown(self)
 
 ### `BridgeTests.test_chat_scope_does_not_require_selected_folder`
 
-[Исходник](../../tests/migration/test_bridge.py#L22)
+[Исходник](../../tests/migration/test_bridge.py#L24)
 
 ```python
 def test_chat_scope_does_not_require_selected_folder(self)
@@ -77,7 +78,7 @@ def test_chat_scope_does_not_require_selected_folder(self)
 
 ### `BridgeTests.test_unknown_mode_is_rejected`
 
-[Исходник](../../tests/migration/test_bridge.py#L30)
+[Исходник](../../tests/migration/test_bridge.py#L32)
 
 ```python
 def test_unknown_mode_is_rejected(self)
@@ -85,9 +86,29 @@ def test_unknown_mode_is_rejected(self)
 
 Проверка: Bridge отклоняет voice и прочие неисполняемые режимы до сервиса.
 
+### `BridgeTests.test_editor_preview_blocks_task_and_project_switch_invalidates_approval`
+
+[Исходник](../../tests/migration/test_bridge.py#L36)
+
+```python
+def test_editor_preview_blocks_task_and_project_switch_invalidates_approval(self)
+```
+
+Проверка: Bridge не запускает агента во время editor approval, set_project сбрасывает старый ID.
+
+### `BridgeTests.test_editor_writes_are_rejected_while_agent_is_running`
+
+[Исходник](../../tests/migration/test_bridge.py#L47)
+
+```python
+def test_editor_writes_are_rejected_while_agent_is_running(self)
+```
+
+Проверка: Ручной preview не начинается, пока task service занят.
+
 ### `BridgeTests.test_health`
 
-[Исходник](../../tests/migration/test_bridge.py#L34)
+[Исходник](../../tests/migration/test_bridge.py#L54)
 
 ```python
 def test_health(self)
@@ -97,7 +118,7 @@ def test_health(self)
 
 ### `BridgeTests.test_list_and_read`
 
-[Исходник](../../tests/migration/test_bridge.py#L36)
+[Исходник](../../tests/migration/test_bridge.py#L56)
 
 ```python
 def test_list_and_read(self)
@@ -107,7 +128,7 @@ def test_list_and_read(self)
 
 ### `BridgeTests.test_parent_traversal_rejected`
 
-[Исходник](../../tests/migration/test_bridge.py#L39)
+[Исходник](../../tests/migration/test_bridge.py#L59)
 
 ```python
 def test_parent_traversal_rejected(self)
@@ -117,7 +138,7 @@ def test_parent_traversal_rejected(self)
 
 ### `BridgeTests.test_write_is_not_exposed`
 
-[Исходник](../../tests/migration/test_bridge.py#L41)
+[Исходник](../../tests/migration/test_bridge.py#L61)
 
 ```python
 def test_write_is_not_exposed(self)
@@ -1471,6 +1492,112 @@ def test_nonexistent_file_cannot_be_saved(self)
 ```
 
 Проверка: Editor I/O не создаёт отсутствующий файл через save.
+
+<a id="module-tests-test-editor-service-py"></a>
+
+## `tests/test_editor_service.py`
+
+Контракты editor revisions, CRLF, отсутствия записи до Apply, stale/replay, бинарных/больших/внешних файлов и project scope.
+
+### `EditorServiceTests`
+
+[Исходник](../../tests/test_editor_service.py#L9)
+
+```python
+class EditorServiceTests(unittest.TestCase)
+```
+
+Тестовый класс/фикстура: Контракты editor revisions, CRLF, отсутствия записи до Apply, stale/replay, бинарных/больших/внешних файлов и project scope.
+
+### `EditorServiceTests.setUp`
+
+[Исходник](../../tests/test_editor_service.py#L10)
+
+```python
+def setUp(self)
+```
+
+Создаёт изолированные данные и подмены перед каждым тестом этого класса.
+
+### `EditorServiceTests.tearDown`
+
+[Исходник](../../tests/test_editor_service.py#L18)
+
+```python
+def tearDown(self)
+```
+
+Закрывает ресурсы и удаляет временные данные после теста.
+
+### `EditorServiceTests.proposal`
+
+[Исходник](../../tests/test_editor_service.py#L21)
+
+```python
+def proposal(self, content='edited\nsecond\n')
+```
+
+Читает текущую revision и создаёт тестовый editor preview без записи.
+
+### `EditorServiceTests.test_read_preview_and_one_shot_apply_preserve_crlf`
+
+[Исходник](../../tests/test_editor_service.py#L25)
+
+```python
+def test_read_preview_and_one_shot_apply_preserve_crlf(self)
+```
+
+Проверка: Read сохраняет byte hash/CRLF; preview не пишет, Apply пишет один раз и обновляет revision.
+
+### `EditorServiceTests.test_external_change_before_preview_and_after_approval_is_never_overwritten`
+
+[Исходник](../../tests/test_editor_service.py#L40)
+
+```python
+def test_external_change_before_preview_and_after_approval_is_never_overwritten(self)
+```
+
+Проверка: Оба момента внешнего изменения возвращают FILE_CHANGED без перезаписи.
+
+### `EditorServiceTests.test_reject_cancel_and_replaced_proposals_do_not_write`
+
+[Исходник](../../tests/test_editor_service.py#L53)
+
+```python
+def test_reject_cancel_and_replaced_proposals_do_not_write(self)
+```
+
+Проверка: Отказ/отмена и старый ID после новой подготовки не меняют файл.
+
+### `EditorServiceTests.test_unchanged_text_has_no_pending_write`
+
+[Исходник](../../tests/test_editor_service.py#L64)
+
+```python
+def test_unchanged_text_has_no_pending_write(self)
+```
+
+Проверка: Неизменённый текст не создаёт write approval.
+
+### `EditorServiceTests.test_outside_binary_invalid_utf8_and_large_files_are_rejected`
+
+[Исходник](../../tests/test_editor_service.py#L69)
+
+```python
+def test_outside_binary_invalid_utf8_and_large_files_are_rejected(self)
+```
+
+Проверка: Editor отвергает traversal, неверную кодировку, NUL и превышение 1 МБ.
+
+### `EditorServiceTests.test_proposal_cannot_be_applied_to_another_project`
+
+[Исходник](../../tests/test_editor_service.py#L80)
+
+```python
+def test_proposal_cannot_be_applied_to_another_project(self)
+```
+
+Проверка: Proposal одного корня не применяется к другому проекту.
 
 <a id="module-tests-test-file-editing-py"></a>
 

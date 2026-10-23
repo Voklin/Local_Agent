@@ -48,6 +48,7 @@
 | [apps/desktop/index.html](../../apps/desktop/index.html) | HTML-узел React и модульный entry point renderer. |
 | [apps/desktop/package.json](../../apps/desktop/package.json) | Зависимости Electron/React и dev/build/typecheck-скрипты workspace. |
 | [apps/desktop/src/App.tsx](../../apps/desktop/src/App.tsx) | React-состояние и представление проекта, настроек, чата, потока, checkpoint и diff. |
+| [apps/desktop/src/EditorPanel.tsx](../../apps/desktop/src/EditorPanel.tsx) | Рабочие вкладки/черновики редактора, виртуальный gutter, поиск/строка, hotkeys, reload и подтверждённое сохранение. |
 | [apps/desktop/src/ModelSettings.tsx](../../apps/desktop/src/ModelSettings.tsx) | Модальное окно draft-настроек: endpoint, ключ, список моделей, тест ответа, генерация, лимиты, сохранение и focus trap. |
 | [apps/desktop/src/TaskProgress.tsx](../../apps/desktop/src/TaskProgress.tsx) | Типизированная панель этапов, инструментов, результатов и продолжения задачи. |
 | [apps/desktop/src/VoicePanel.tsx](../../apps/desktop/src/VoicePanel.tsx) | Подготовительный экран голосового ассистента: SVG-эскиз горничной, честные состояния отсутствующих STT/TTS и контракты будущей сессии; аудио пока не записывает. |
@@ -58,6 +59,7 @@
 | [apps/desktop/tsconfig.json](../../apps/desktop/tsconfig.json) | Статическая проверка React/DOM/JSX-кода renderer. |
 | [apps/desktop/vite.config.ts](../../apps/desktop/vite.config.ts) | React-плагин, относительные assets, фиксированный локальный dev-порт и outDir. |
 | [core/python/bridge.py](../../core/python/bridge.py) | JSON-lines вход процесса, dispatch команд, UI-файловый API и синхронизированный stdout. |
+| [core/python/editor_service.py](../../core/python/editor_service.py) | Ручной editor-протокол: strict UTF-8 чтение с revision, preview, одноразовый Apply через существующую атомарную snapshot-запись. |
 | [core/python/task_service.py](../../core/python/task_service.py) | Состояние выбранного чата/модели, запуск потока задачи, events и корреляция approval. |
 | [design_reference/DESIGN_REFERENCE.md](../../design_reference/DESIGN_REFERENCE.md) | Пояснение сохранённого визуального эталона и границ его переноса. |
 | [design_reference/agent_studio_reference.py](../../design_reference/agent_studio_reference.py) | Архивный визуальный прототип с собственными механизмами; не импортируется рабочим main.py. |
@@ -78,6 +80,8 @@
 | [docs/15-task-progress.md](../../docs/15-task-progress.md) | Ручная учебная глава или исторический материал: 15. План задачи, инструменты и результаты. |
 | [docs/16-workspaces-and-answer-recovery.md](../../docs/16-workspaces-and-answer-recovery.md) | Ручная учебная глава или исторический материал: 16. Три режима и восстановление пустого ответа. |
 | [docs/17-model-settings-and-theme.md](../../docs/17-model-settings-and-theme.md) | Ручная учебная глава или исторический материал: 17. Настройка модели и общая палитра. |
+| [docs/18-editor.md](../../docs/18-editor.md) | Ручная учебная глава или исторический материал: 18. Рабочий редактор IDE. |
+| [docs/AUTONOMOUS_PLAN_2026-10-23.md](../../docs/AUTONOMOUS_PLAN_2026-10-23.md) | Ручная учебная глава или исторический материал: Автономный план LocalAgent — 23 октября 2026. |
 | [docs/README.md](../../docs/README.md) | Ручная учебная глава или исторический материал: LocalAgent: подробное руководство по проекту. |
 | [docs/WORK_PLAN.md](../../docs/WORK_PLAN.md) | Ручная учебная глава или исторический материал: План дальнейшей разработки LocalAgent. |
 | [docs/history/legacy-readme.md](../../docs/history/legacy-readme.md) | Ручная учебная глава или исторический материал: Исторические README до учебной документации. |
@@ -113,6 +117,7 @@
 | [tests/test_chat_store.py](../../tests/test_chat_store.py) | Создание, изменение, переименование и удаление чата в изолированном store. |
 | [tests/test_conversation_history.py](../../tests/test_conversation_history.py) | Выбор истории и сокращение tool outputs/пар в conversation.py. |
 | [tests/test_editor_io.py](../../tests/test_editor_io.py) | Чтение/сохранение существующих файлов, размер и отказ вне корня. |
+| [tests/test_editor_service.py](../../tests/test_editor_service.py) | Контракты editor revisions, CRLF, отсутствия записи до Apply, stale/replay, бинарных/больших/внешних файлов и project scope. |
 | [tests/test_file_editing.py](../../tests/test_file_editing.py) | Preview без записи, explicit approval, overwrite и путь файла. |
 | [tests/test_limits.py](../../tests/test_limits.py) | Настраиваемое число entries и глубина обхода. |
 | [tests/test_model_gateway.py](../../tests/test_model_gateway.py) | Параметры endpoint удалённого/совместимого провайдера. |

@@ -17,6 +17,16 @@ function extract(file) {
       if (node.body) ts.forEachChild(node.body, child => visit(child,[...scope,name]));
       return;
     }
+    if (ts.isVariableDeclaration(node) && node.initializer && ts.isCallExpression(node.initializer) &&
+        node.initializer.expression.getText(source) === 'forwardRef') {
+      const fn = node.initializer.arguments[0];
+      if (fn && (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn))) {
+        const name = node.name.getText(source);
+        add(node,name,scope,'component',`${name}(${fn.parameters.map(p => p.getText(source)).join(', ')})`);
+        ts.forEachChild(fn.body, child => visit(child,[...scope,name]));
+        return;
+      }
+    }
     if ((ts.isVariableDeclaration(node) || ts.isPropertyAssignment(node)) && node.initializer &&
         (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))) {
       const name = node.name.getText(source);

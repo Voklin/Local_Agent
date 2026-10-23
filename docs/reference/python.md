@@ -33,6 +33,7 @@
 - [agent/verifier.py](#module-agent-verifier-py)
 - [agent/worker.py](#module-agent-worker-py)
 - [core/python/bridge.py](#module-core-python-bridge-py)
+- [core/python/editor_service.py](#module-core-python-editor-service-py)
 - [core/python/task_service.py](#module-core-python-task-service-py)
 - [main.py](#module-main-py)
 - [tools/build_windows_core.py](#module-tools-build-windows-core-py)
@@ -2398,7 +2399,7 @@ JSON-lines вход процесса, dispatch команд, UI-файловый
 
 ### `emit`
 
-[Исходник](../../core/python/bridge.py#L19)
+[Исходник](../../core/python/bridge.py#L20)
 
 ```python
 def emit(message)
@@ -2408,7 +2409,7 @@ def emit(message)
 
 ### `resolve_inside`
 
-[Исходник](../../core/python/bridge.py#L30)
+[Исходник](../../core/python/bridge.py#L32)
 
 ```python
 def resolve_inside(relative: str) -> Path
@@ -2418,7 +2419,7 @@ def resolve_inside(relative: str) -> Path
 
 ### `handle`
 
-[Исходник](../../core/python/bridge.py#L40)
+[Исходник](../../core/python/bridge.py#L42)
 
 ```python
 def handle(method: str, params: dict) -> dict
@@ -2428,13 +2429,79 @@ Whitelist диспетчер RPC: состояние, проект, модель
 
 ### `main`
 
-[Исходник](../../core/python/bridge.py#L107)
+[Исходник](../../core/python/bridge.py#L121)
 
 ```python
 def main() -> None
 ```
 
 Цикл stdin JSON-lines с ID ответов, обработкой некорректного ввода и shutdown при EOF.
+
+<a id="module-core-python-editor-service-py"></a>
+
+## `core/python/editor_service.py`
+
+Ручной editor-протокол: strict UTF-8 чтение с revision, preview, одноразовый Apply через существующую атомарную snapshot-запись.
+
+### `EditorService`
+
+[Исходник](../../core/python/editor_service.py#L9)
+
+```python
+class EditorService
+```
+
+Хранит одно ручное предложение в памяти и использует общий sandbox/atomic write без автоматического подтверждения.
+
+### `EditorService.__init__`
+
+[Исходник](../../core/python/editor_service.py#L10)
+
+```python
+def __init__(self)
+```
+
+Инициализирует состояние экземпляра EditorService; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `EditorService.clear`
+
+[Исходник](../../core/python/editor_service.py#L13)
+
+```python
+def clear(self)
+```
+
+Забывает pending proposal при новой подготовке, решении или смене проекта.
+
+### `EditorService.read`
+
+[Исходник](../../core/python/editor_service.py#L16)
+
+```python
+def read(self, root, path)
+```
+
+Читает ограниченные UTF-8 байты, отвергает NUL, возвращает LF-представление, newline-стиль и хеш исходных байтов.
+
+### `EditorService.preview`
+
+[Исходник](../../core/python/editor_service.py#L37)
+
+```python
+def preview(self, root, params)
+```
+
+Сверяет editor revision с диском, готовит конкретный diff и сохраняет одноразовый proposal без записи.
+
+### `EditorService.resolve`
+
+[Исходник](../../core/python/editor_service.py#L60)
+
+```python
+def resolve(self, root, params)
+```
+
+Проверяет ID/root/решение, потребляет proposal и выполняет Apply с повторной проверкой snapshot; Reject/Cancel не пишут.
 
 <a id="module-core-python-task-service-py"></a>
 
