@@ -47,6 +47,7 @@ jobs:
         run: |
           $env:LCA_TEST_CORE = (Resolve-Path build/core/lca-core/lca-core.exe).Path
           python -m unittest discover -s tests/migration -p test_bridge_process.py -v
+      - run: python tools/prepare_windows_dependencies.py
       - run: npm run package:win
       - run: node tests/electron/packaged-smoke.mjs
       - uses: actions/upload-artifact@v4

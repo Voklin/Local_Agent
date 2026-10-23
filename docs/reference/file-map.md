@@ -11,6 +11,7 @@
 | Файл | Назначение |
 | --- | --- |
 | [.gitattributes](../../.gitattributes) | Автоопределение текстовых файлов и нормализация переводов строк в Git. |
+| [.github/workflows/release-windows.yml](../../.github/workflows/release-windows.yml) | Явный release.json запускает сборку и проверки Windows, публикацию prerelease с SHA256 через GITHUB_TOKEN; существующую версию не перезаписывает. |
 | [.github/workflows/validate.yml](../../.github/workflows/validate.yml) | Windows CI: Python/build/docs и отдельный job freeze/NSIS/packaged smoke с временным installer artifact. |
 | [.gitignore](../../.gitignore) | Исключает окружения, сборки, кэши, тестовые данные и секретный .env из Git. |
 | [MIGRATION_PLAN.md](../../MIGRATION_PLAN.md) | Выполненные границы миграции и оставшиеся этапы. |
@@ -95,6 +96,7 @@
 | [docs/21-memory-and-chat.md](../../docs/21-memory-and-chat.md) | Ручная учебная глава или исторический материал: 21. Память проекта и читаемый чат. |
 | [docs/22-voice-companion.md](../../docs/22-voice-companion.md) | Ручная учебная глава или исторический материал: 22. Мия: разговор и системная озвучка. |
 | [docs/23-autonomous-verification.md](../../docs/23-autonomous-verification.md) | Ручная учебная глава или исторический материал: 23. Результаты автономного сеанса 23 октября. |
+| [docs/24-full-windows-installer.md](../../docs/24-full-windows-installer.md) | Ручная учебная глава или исторический материал: 24. Полный установщик Windows 6.0.1. |
 | [docs/AUTONOMOUS_PLAN_2026-10-23.md](../../docs/AUTONOMOUS_PLAN_2026-10-23.md) | Ручная учебная глава или исторический материал: Автономный план LocalAgent — 23 октября 2026. |
 | [docs/README.md](../../docs/README.md) | Ручная учебная глава или исторический материал: LocalAgent: подробное руководство по проекту. |
 | [docs/WORK_PLAN.md](../../docs/WORK_PLAN.md) | Ручная учебная глава или исторический материал: План дальнейшей разработки LocalAgent. |
@@ -110,6 +112,11 @@
 | [main.py](../../main.py) | Точка входа сохранённого PySide6 GUI: QApplication, MainWindow, Qt event loop. |
 | [package-lock.json](../../package-lock.json) | Зафиксированное дерево npm-зависимостей; редактируется npm, а не вручную. |
 | [package.json](../../package.json) | Корневой npm workspace и делегирование dev/build/typecheck. |
+| [packaging/RELEASE_NOTES.md](../../packaging/RELEASE_NOTES.md) | Публикуемые инструкции установки, состав и реальные ограничения Windows prerelease. |
+| [packaging/llama-LICENSE.txt](../../packaging/llama-LICENSE.txt) | MIT-лицензия ggml авторов из официального llama.cpp b11829. |
+| [packaging/prerequisites.nsh](../../packaging/prerequisites.nsh) | NSIS bootstrap Visual C++: проверка версии реестра, офлайн-запуск, обработка ошибки и перезагрузки. |
+| [packaging/release.json](../../packaging/release.json) | Явное намерение выпустить указанную версию; изменение запускает Release workflow текущей ветки. |
+| [packaging/windows-dependencies.json](../../packaging/windows-dependencies.json) | Версии, официальные URL и SHA256 Windows runtime зависимостей. |
 | [requirements-build.txt](../../requirements-build.txt) | Точные Python-зависимости для Windows x64 freeze Core без Qt. |
 | [requirements-core.txt](../../requirements-core.txt) | Диапазоны OpenAI SDK и отдельного HTTPX model discovery для ядра без Qt. |
 | [requirements.txt](../../requirements.txt) | Полное Python-окружение с PySide6 и сохранённой зависимостью python-dotenv. |
@@ -146,9 +153,11 @@
 | [tests/test_speech_service.py](../../tests/test_speech_service.py) | TTS без динамиков/микрофона: WAV, JSON data boundary, cancellation и timeout cleanup. |
 | [tests/test_task_activity.py](../../tests/test_task_activity.py) | Контракты журнала: лимиты, статусы, отсутствие содержимого файлов, этапы и anchored recovery. |
 | [tests/test_task_store.py](../../tests/test_task_store.py) | Round-trip checkpoint, переход этапа, завершение и очистка. |
+| [tests/test_windows_dependencies.py](../../tests/test_windows_dependencies.py) | Тесты закреплённых загрузок: кэш без сети, отклонение подмены и атомарная замена повреждённого файла. |
 | [tools/build_windows_core.py](../../tools/build_windows_core.py) | PyInstaller onedir сборка Windows x64 Core с Python 3.12 и данными навыков. |
 | [tools/check_docs.py](../../tools/check_docs.py) | Проверка локальных ссылок, source lines, покрытия аннотаций и актуальности каталога. |
 | [tools/check_live_model.py](../../tools/check_live_model.py) | Opt-in smoke реальной модели: disposable AppData/проект, Chat/IDE/Мия, без approvals записи, JSON отчёт. |
 | [tools/doc_notes.py](../../tools/doc_notes.py) | Ручные назначения файлов и символов для справочников; не является runtime-модулем агента. |
 | [tools/extract_ts_symbols.cjs](../../tools/extract_ts_symbols.cjs) | TypeScript Compiler API: структурные объявления TS/JS без исполнения приложения. |
 | [tools/generate_code_reference.py](../../tools/generate_code_reference.py) | Извлекает объявления из Python/TypeScript AST и создаёт Markdown-каталоги. |
+| [tools/prepare_windows_dependencies.py](../../tools/prepare_windows_dependencies.py) | Загрузка официальных зависимостей по SHA256, выбор server/DLL и подготовка офлайн-пакета без запуска установщиков. |

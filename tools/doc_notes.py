@@ -1022,3 +1022,24 @@ TEST_PURPOSES.update({
 })
 
 FILE_NOTES['tools/check_live_model.py']='Opt-in smoke реальной модели: disposable AppData/проект, Chat/IDE/Мия, без approvals записи, JSON отчёт.'
+
+FILE_NOTES.update({
+    "tools/prepare_windows_dependencies.py": "Загрузка официальных зависимостей по SHA256, выбор server/DLL и подготовка офлайн-пакета без запуска установщиков.",
+    "packaging/windows-dependencies.json": "Версии, официальные URL и SHA256 Windows runtime зависимостей.",
+    "packaging/prerequisites.nsh": "NSIS bootstrap Visual C++: проверка версии реестра, офлайн-запуск, обработка ошибки и перезагрузки.",
+    "packaging/llama-LICENSE.txt": "MIT-лицензия ggml авторов из официального llama.cpp b11829.",
+})
+TS_NOTES["bundledRuntimePath"] = "Находит включённый CPU llama-server в resources packaged приложения или в build для разработки; не принимает путь от renderer."
+
+FILE_NOTES.update({
+    ".github/workflows/release-windows.yml": "Явный release.json запускает сборку и проверки Windows, публикацию prerelease с SHA256 через GITHUB_TOKEN; существующую версию не перезаписывает.",
+    "packaging/release.json": "Явное намерение выпустить указанную версию; изменение запускает Release workflow текущей ветки.",
+    "packaging/RELEASE_NOTES.md": "Публикуемые инструкции установки, состав и реальные ограничения Windows prerelease.",
+})
+
+FILE_NOTES["tests/test_windows_dependencies.py"] = "Тесты закреплённых загрузок: кэш без сети, отклонение подмены и атомарная замена повреждённого файла."
+TEST_PURPOSES.update({
+ "verified_cache_does_not_download": "Подтверждает повторное использование валидного SHA256-кэша без сетевого обращения.",
+ "mismatch_preserves_old_file_and_removes_partial": "Не допускает подменённый файл и удаляет частичную загрузку, сохраняя старый кэш.",
+ "success_replaces_corrupt_cache": "Заменяет повреждённый кэш только после успешной проверки новой загрузки.",
+})

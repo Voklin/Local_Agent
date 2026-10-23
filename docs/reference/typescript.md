@@ -59,9 +59,19 @@ fileName()
 
 Окно, Python-процесс, pending RPC, проверка sender и фиксированные IPC handlers.
 
+### `bundledRuntimePath`
+
+[Исходник](../../apps/desktop/electron/main.ts#L16)
+
+```typescript
+function bundledRuntimePath()
+```
+
+Находит включённый CPU llama-server в resources packaged приложения или в build для разработки; не принимает путь от renderer.
+
 ### `diagnostic`
 
-[Исходник](../../apps/desktop/electron/main.ts#L17)
+[Исходник](../../apps/desktop/electron/main.ts#L23)
 
 ```typescript
 function diagnostic(message: string)
@@ -71,7 +81,7 @@ function diagnostic(message: string)
 
 ### `publish`
 
-[Исходник](../../apps/desktop/electron/main.ts#L26)
+[Исходник](../../apps/desktop/electron/main.ts#L32)
 
 ```typescript
 function publish(message: any)
@@ -81,7 +91,7 @@ function publish(message: any)
 
 ### `startBackend`
 
-[Исходник](../../apps/desktop/electron/main.ts#L29)
+[Исходник](../../apps/desktop/electron/main.ts#L35)
 
 ```typescript
 function startBackend()
@@ -91,7 +101,7 @@ function startBackend()
 
 ### `startBackend.stopped`
 
-[Исходник](../../apps/desktop/electron/main.ts#L48)
+[Исходник](../../apps/desktop/electron/main.ts#L54)
 
 ```typescript
 stopped()
@@ -101,7 +111,7 @@ stopped()
 
 ### `callBackend`
 
-[Исходник](../../apps/desktop/electron/main.ts#L60)
+[Исходник](../../apps/desktop/electron/main.ts#L66)
 
 ```typescript
 function callBackend(method: string, params: Record<string, unknown> = {})
@@ -111,7 +121,7 @@ function callBackend(method: string, params: Record<string, unknown> = {})
 
 ### `createWindow`
 
-[Исходник](../../apps/desktop/electron/main.ts#L71)
+[Исходник](../../apps/desktop/electron/main.ts#L78)
 
 ```typescript
 function createWindow()
@@ -121,7 +131,7 @@ function createWindow()
 
 ### `handle`
 
-[Исходник](../../apps/desktop/electron/main.ts#L99)
+[Исходник](../../apps/desktop/electron/main.ts#L106)
 
 ```typescript
 function handle(channel: string, handler: (...args: any[]) => any)
@@ -131,7 +141,7 @@ function handle(channel: string, handler: (...args: any[]) => any)
 
 ### `modelConfig`
 
-[Исходник](../../apps/desktop/electron/main.ts#L113)
+[Исходник](../../apps/desktop/electron/main.ts#L120)
 
 ```typescript
 function modelConfig(config: any)
@@ -141,7 +151,7 @@ function modelConfig(config: any)
 
 ### `confirmEditorDiscard`
 
-[Исходник](../../apps/desktop/electron/main.ts#L116)
+[Исходник](../../apps/desktop/electron/main.ts#L123)
 
 ```typescript
 async function confirmEditorDiscard()
@@ -1460,7 +1470,7 @@ async function run(executable, directory, first, modelUrl)
 
 ### `main`
 
-[Исходник](../../tests/electron/packaged-smoke.mjs#L104)
+[Исходник](../../tests/electron/packaged-smoke.mjs#L109)
 
 ```typescript
 async function main()

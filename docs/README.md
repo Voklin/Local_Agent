@@ -78,3 +78,5 @@ python tools/check_docs.py
 Мия, системный TTS, Stop и границы STT — [глава 22](22-voice-companion.md).
 
 Результаты сеанса, проверки, артефакт и следующие шаги — [глава 23](23-autonomous-verification.md).
+
+Полный офлайн-установщик, встроенный llama.cpp, Visual C++ и GitHub Release — [глава 24](24-full-windows-installer.md).

@@ -46,6 +46,7 @@
 - [tools/check_live_model.py](#module-tools-check-live-model-py)
 - [tools/doc_notes.py](#module-tools-doc-notes-py)
 - [tools/generate_code_reference.py](#module-tools-generate-code-reference-py)
+- [tools/prepare_windows_dependencies.py](#module-tools-prepare-windows-dependencies-py)
 
 <a id="module-agent-init-py"></a>
 
@@ -3442,3 +3443,29 @@ def main()
 ```
 
 Записывает справочники либо с --check проверяет, совпадают ли они с текущим AST.
+
+<a id="module-tools-prepare-windows-dependencies-py"></a>
+
+## `tools/prepare_windows_dependencies.py`
+
+Загрузка официальных зависимостей по SHA256, выбор server/DLL и подготовка офлайн-пакета без запуска установщиков.
+
+### `verified_download`
+
+[Исходник](../../tools/prepare_windows_dependencies.py#L10)
+
+```python
+def verified_download(spec, destination)
+```
+
+Reuse a verified cache or download atomically, rejecting any hash mismatch.
+
+### `prepare`
+
+[Исходник](../../tools/prepare_windows_dependencies.py#L31)
+
+```python
+def prepare(root)
+```
+
+Stage server/DLLs/licenses and offline VC++ bootstrap under ignored build/.

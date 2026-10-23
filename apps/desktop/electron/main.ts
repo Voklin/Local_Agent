@@ -13,6 +13,12 @@ let confirmingClose = false;
 let quitting = false;
 let selectedRuntime = '';
 let selectedModel = '';
+function bundledRuntimePath() {
+  const candidate = app.isPackaged
+    ? path.join(process.resourcesPath, 'runtime/llama/llama-server.exe')
+    : path.resolve(__dirname, '../../../build/windows-deps/llama/llama-server.exe');
+  return fs.existsSync(candidate) ? candidate : '';
+}
 const pending = new Map<number, { resolve: (value: any) => void; timer: ReturnType<typeof setTimeout> }>();
 function diagnostic(message: string) {
   try {
@@ -58,6 +64,7 @@ function startBackend() {
   child.stdin.on('error', stopped);
 }
 function callBackend(method: string, params: Record<string, unknown> = {}) {
+  if (quitting) return Promise.resolve({ok:false,error:'Приложение завершает работу'});
   if (pending.size >= 100) return Promise.resolve({ ok: false, error: 'Слишком много запросов' });
   startBackend();
   const id = ++requestId;
@@ -91,8 +98,8 @@ app.on('will-quit', event => {
   if (quitting || !backend) return;
   event.preventDefault(); quitting = true; diagnostic('app:quit');
   const child=backend;
-  const deadline=setTimeout(()=>{child.kill();app.quit();},15000);
-  child.once('exit',()=>{clearTimeout(deadline);app.quit();});
+  const deadline=setTimeout(()=>{child.kill();app.exit(1);},15000);
+  child.once('exit',()=>{clearTimeout(deadline);app.exit(0);});
   child.stdin.end();
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
@@ -137,10 +144,11 @@ handle('runtime:pick', async (kind) => {
   return {ok:true,path:result.filePaths[0]};
 });
 handle('runtime:start', params => {
-  if(!selectedRuntime||!selectedModel)return {ok:false,error:'Выберите сервер и модель через диалог файлов'};
-  return callBackend('runtime_start',{runtime_path:selectedRuntime,model_path:selectedModel,ctx_size:params?.ctx_size,gpu_layers:params?.gpu_layers});
+  const runtime = selectedRuntime || bundledRuntimePath();
+  if(!runtime||!selectedModel)return {ok:false,error:'Выберите сервер и модель через диалог файлов'};
+  return callBackend('runtime_start',{runtime_path:runtime,model_path:selectedModel,ctx_size:params?.ctx_size,gpu_layers:params?.gpu_layers});
 });
-handle('runtime:status',()=>callBackend('runtime_status'));
+handle('runtime:status',async()=>({...await callBackend('runtime_status'),bundled_runtime:bundledRuntimePath()}));
 handle('runtime:stop',()=>callBackend('runtime_stop'));
 handle('model:configure', (config) => callBackend('configure_model', modelConfig(config)));
 handle('model:list', (config) => callBackend('list_models', config ? modelConfig(config) : {}));

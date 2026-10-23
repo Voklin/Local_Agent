@@ -33,6 +33,7 @@
 - [tests/test_speech_service.py](#module-tests-test-speech-service-py)
 - [tests/test_task_activity.py](#module-tests-test-task-activity-py)
 - [tests/test_task_store.py](#module-tests-test-task-store-py)
+- [tests/test_windows_dependencies.py](#module-tests-test-windows-dependencies-py)
 
 <a id="module-tests-migration-test-bridge-py"></a>
 
@@ -2699,3 +2700,49 @@ def test_checkpoint_roundtrip(self)
 ```
 
 Проверка: Checkpoint сохраняется, загружается, меняет этап, завершается и очищается.
+
+<a id="module-tests-test-windows-dependencies-py"></a>
+
+## `tests/test_windows_dependencies.py`
+
+Тесты закреплённых загрузок: кэш без сети, отклонение подмены и атомарная замена повреждённого файла.
+
+### `WindowsDependenciesTests`
+
+[Исходник](../../tests/test_windows_dependencies.py#L12)
+
+```python
+class WindowsDependenciesTests(unittest.TestCase)
+```
+
+Тестовый класс/фикстура: Тесты закреплённых загрузок: кэш без сети, отклонение подмены и атомарная замена повреждённого файла.
+
+### `WindowsDependenciesTests.test_verified_cache_does_not_download`
+
+[Исходник](../../tests/test_windows_dependencies.py#L13)
+
+```python
+def test_verified_cache_does_not_download(self)
+```
+
+Проверка: Подтверждает повторное использование валидного SHA256-кэша без сетевого обращения.
+
+### `WindowsDependenciesTests.test_mismatch_preserves_old_file_and_removes_partial`
+
+[Исходник](../../tests/test_windows_dependencies.py#L21)
+
+```python
+def test_mismatch_preserves_old_file_and_removes_partial(self)
+```
+
+Проверка: Не допускает подменённый файл и удаляет частичную загрузку, сохраняя старый кэш.
+
+### `WindowsDependenciesTests.test_success_replaces_corrupt_cache`
+
+[Исходник](../../tests/test_windows_dependencies.py#L32)
+
+```python
+def test_success_replaces_corrupt_cache(self)
+```
+
+Проверка: Заменяет повреждённый кэш только после успешной проверки новой загрузки.

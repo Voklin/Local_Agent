@@ -6,6 +6,10 @@
 
 В руководстве описаны технологии, архитектура, этапы разработки, путь запроса, функции, классы, файлы, протоколы, хранение данных, тестирование и реальные ограничения. [Карта файлов](docs/reference/file-map.md) и справочники [Python](docs/reference/python.md) / [TypeScript](docs/reference/typescript.md) связаны с исходниками.
 
+## Установка Windows
+
+Готовый Windows x64 installer: [GitHub Releases](https://github.com/Voklin/Local_Agent/releases). Python, Node.js, Electron, CPU llama.cpp и офлайн-установщик Visual C++ включены. Выберите GGUF-модель отдельно либо подключите LM Studio. [Состав и сборка установщика](docs/24-full-windows-installer.md).
+
 ## Запуск Electron
 
 Из корня репозитория, после установки Python и Node.js с npm:
@@ -43,4 +47,4 @@ npm run docs:check
 
 Три режима Chat/IDE/Ассистент и восстановление пустых ответов описаны в [главе 16](docs/16-workspaces-and-answer-recovery.md).
 
-Рабочие расширения: [редактор](docs/18-editor.md), [поиск/Ctrl+P](docs/19-project-search.md), [запуск GGUF](docs/20-local-runtime.md), [память и чат](docs/21-memory-and-chat.md), [Мия и системная озвучка](docs/22-voice-companion.md). Для собственного GGUF выберите существующие llama-server и модель в настройках; установка/загрузка моделей не выполняется. Голосовой режим пока использует текстовый ввод и Windows TTS, микрофон/STT отключены.
+Рабочие расширения: [редактор](docs/18-editor.md), [поиск/Ctrl+P](docs/19-project-search.md), [запуск GGUF](docs/20-local-runtime.md), [память и чат](docs/21-memory-and-chat.md), [Мия и системная озвучка](docs/22-voice-companion.md). Для собственного GGUF в установочной версии CPU-сервер включён: выберите модель в настройках. Можно указать другой llama-server; загрузка весов моделей не выполняется. Голосовой режим пока использует текстовый ввод и Windows TTS, микрофон/STT отключены.

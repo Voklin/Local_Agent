@@ -1,11 +1,49 @@
 {
   "appId": "io.localagent.desktop",
   "productName": "LocalAgent",
-  "directories": { "app": "apps/desktop", "output": "artifacts/windows" },
-  "files": ["dist/**/*", "dist-electron/**/*", "package.json"],
-  "extraResources": [{ "from": "build/core/lca-core", "to": "core", "filter": ["**/*"] }],
+  "directories": {
+    "app": "apps/desktop",
+    "output": "artifacts/windows"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "build/core/lca-core",
+      "to": "core",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "build/windows-deps/llama",
+      "to": "runtime/llama",
+      "filter": [
+        "**/*"
+      ]
+    }
+  ],
   "asar": true,
-  "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "signExecutable": false },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "signExecutable": false
+  },
   "artifactName": "LocalAgent-${version}-setup-${arch}.${ext}",
-  "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "deleteAppDataOnUninstall": false }
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false,
+    "include": "packaging/prerequisites.nsh"
+  }
 }

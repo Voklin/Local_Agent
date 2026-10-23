@@ -34,7 +34,7 @@ async function connectPage(port, child) {
 
 function evaluate(socket, expression) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('CDP evaluation timed out')), 15_000);
+    const timer = setTimeout(() => reject(new Error('CDP evaluation timed out: ' + expression.slice(0, 80))), 45_000);
     const receive = event => {
       const message = JSON.parse(event.data);
       if (message.id !== 1) return;
@@ -52,7 +52,7 @@ async function run(executable, directory, first, modelUrl) {
   const env = { ...process.env, LOCALAPPDATA: directory, PATH: path.join(process.env.SystemRoot, 'System32'),
     LCA_PYTHON: 'Z:\\missing-python.exe', PYTHONHOME: 'Z:\\missing-home', PYTHONPATH: 'Z:\\missing-modules' };
   delete env.ELECTRON_RUN_AS_NODE;
-  const child = spawn(executable, [`--user-data-dir=${path.join(directory, 'profile')}`, '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${port}`],
+  const child = spawn(executable, [`--user-data-dir=${path.join(directory, 'profile')}`, '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${port}`, '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows'],
     { cwd: directory, env, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
   let stderr = '';
   child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-8000); });
@@ -68,6 +68,11 @@ async function run(executable, directory, first, modelUrl) {
     }
     assert.equal(health?.service, 'python-core-bridge', stderr);
     assert.equal(await evaluate(socket, 'typeof require'), 'undefined');
+    const runtime = await evaluate(socket, 'window.lca.runtimeStatus()');
+    assert.equal(runtime.ok, true);
+    assert.equal(path.basename(runtime.bundled_runtime), 'llama-server.exe');
+    await fs.access(runtime.bundled_runtime);
+    await fs.access(path.join(path.dirname(runtime.bundled_runtime), 'llama-server-impl.dll'));
     if (first) {
       const config = { base_url: modelUrl, model: 'packaged-smoke', api_key: 'packaging-test-secret', settings:{temperature:0.45,max_tokens:1536} };
       assert.equal((await evaluate(socket, `window.lca.configureModel(${JSON.stringify(config)})`)).ok, true);
@@ -92,7 +97,7 @@ async function run(executable, directory, first, modelUrl) {
     }
     assert.equal(await evaluate(socket,`document.querySelector('.voice-buttons button[title="STT-провайдер пока не подключён"]').disabled`),true);
     await evaluate(socket, 'setTimeout(() => window.close(), 50); true');
-    const code = await Promise.race([exited, delay(10_000).then(() => 'timeout')]);
+    const code = await Promise.race([exited, delay(25_000).then(() => 'timeout')]);
     assert.equal(code, 0, stderr);
   } finally {
     socket?.close();
