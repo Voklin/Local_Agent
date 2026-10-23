@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 
 from agent.engine import AgentEngine
-from agent.chat_store import create_chat, read_chat_catalog, load_chat, save_chat
+from agent.chat_store import create_chat, read_chat_catalog, load_chat, save_chat, STORE_LOCK
 from agent.project_memory import load_project_memory
 from agent.task_store import clear_task, load_task, save_task
 from agent.model_preferences import load_preferences, save_preferences, validate_preferences
@@ -108,6 +108,21 @@ class TaskService:
         catalog = read_chat_catalog()
         return {'ok': True, 'chats': [c for c in catalog['chats'] if c.get('project_root') == str(root)],
                 'warnings': catalog['warnings']}
+
+    def rename(self, root, params):
+        self.idle()
+        title=params.get('title')
+        if not isinstance(title,str) or not title.strip() or len(title)>120 or '\x00' in title:
+            raise ValueError('Название чата: от 1 до 120 символов без NUL')
+        with self.lock, STORE_LOCK:
+            chat=load_chat(params.get('chat_id'))
+            if not chat or chat.get('project_root')!=str(root):
+                raise ValueError('Чат не принадлежит выбранной области')
+            chat['title']=' '.join(title.split())
+            warning=save_chat(chat)
+            if self.chat and self.chat['id']==chat['id']:
+                self.chat['title']=chat['title']
+            return {'ok':True,'title':chat['title'],'warnings':[warning] if warning else []}
 
     def select_chat(self, root, chat_id=None):
         self.idle()

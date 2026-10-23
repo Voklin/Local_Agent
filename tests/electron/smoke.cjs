@@ -46,7 +46,10 @@ const model = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type':'text/event-stream' });
     if (!input.tools) {
       assert.equal(input.tool_choice, undefined);
-      res.end(encode({content:'Standalone Chat reply'}) + 'data: [DONE]\n\n');
+      if(modelMode==='scroll') {
+        res.write(encode({content:Array.from({length:120},(_,i)=>'Scroll line '+i).join('\n')}));
+        releaseModelText=()=>res.end(encode({content:'\n'+Array.from({length:120},(_,i)=>'More line '+i).join('\n')})+'data: [DONE]\n\n');
+      } else res.end(encode({content:'Standalone Chat reply\n```python\nprint("<script>safe</script>")\n```'}) + 'data: [DONE]\n\n');
     } else if (modelMode === 'stall') {
       res.write(encode({content:'Pending '}));
       res.on('close', () => { streamDisconnected = true; });
@@ -138,6 +141,15 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript(`document.querySelector('[title="Перечитать · Ctrl+Shift+R"]').click()`);
       await poll(win, `document.querySelector('.editor-input').value==='external change' && !document.querySelector('.editor-dirty')`);
 
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Память проекта"]').click()`);
+      await poll(win, `!!document.querySelector('[aria-label="Описание проекта"]')`);
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Описание проекта"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Тестовая память проекта');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      await poll(win, `!document.querySelector('.save-memory').disabled`);
+      await win.webContents.executeJavaScript(`document.querySelector('.save-memory').click()`);
+      await poll(win, `document.querySelector('.memory-dialog').textContent.includes('Память сохранена')`);
+      assert.equal((await win.webContents.executeJavaScript('window.lca.getProjectMemory()')).memory.project_summary,'Тестовая память проекта');
+      await win.webContents.executeJavaScript(`document.querySelector('.memory-dialog .settings-actions .secondary-button').click()`);
+      await poll(win, `!document.querySelector('.memory-dialog')`);
       await win.webContents.executeJavaScript(`document.querySelector('[title="Настройки модели"]').click()`);
       await poll(win, `!!document.querySelector('.model-settings input')`);
       if(process.env.LCA_TEST_RUNTIME&&process.env.LCA_TEST_GGUF) {
@@ -307,8 +319,31 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `!document.querySelector('[title="Отправить"]').disabled`);
       await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
       await poll(win, `document.querySelector('.chat-messages').textContent.includes('Standalone Chat reply') && !document.querySelector('[title="Остановить"]')`);
+      await poll(win, `!!document.querySelector('.chat-code code')`);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.chat-code code').textContent`),'print("<script>safe</script>")');
+      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.message-content script')`),false);
+      await win.webContents.executeJavaScript(`navigator.clipboard.writeText=async text=>{window.__copiedCode=text;};document.querySelector('.chat-code-heading button').click()`,true);
+      await poll(win, `document.querySelector('.chat-code-heading button').textContent==='Скопировано'`);
+      assert.equal(await win.webContents.executeJavaScript('window.__copiedCode'),'print("<script>safe</script>")');
+      await poll(win, `Array.from(document.querySelectorAll('.chat-history-row')).some(row=>row.textContent.includes('chat without files'))`);
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.chat-history-row')).find(row=>row.textContent.includes('chat without files')).querySelector('.rename-chat').click()`);
+      await poll(win, `!!document.querySelector('[aria-label="Название чата"]')`);
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Название чата"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Переименованный разговор');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      await win.webContents.executeJavaScript(`document.querySelector('.rename-dialog form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
+      await poll(win, `!document.querySelector('.rename-dialog') && document.querySelector('.sidebar').textContent.includes('Переименованный разговор')`);
       assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('[role="dialog"]')`), false);
       fs.writeFileSync(path.join(testRoot, 'chat.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
+      modelMode='scroll';
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('.composer textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Scroll verification');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
+      await poll(win, `document.querySelector('.chat-messages').textContent.includes('Scroll line 119')`);
+      await win.webContents.executeJavaScript(`{const box=document.querySelector('.chat-messages');box.scrollTop=0;box.dispatchEvent(new Event('scroll',{bubbles:true}));}`);
+      await poll(win, `!!document.querySelector('.follow-chat')`);
+      releaseModelText();
+      await poll(win, `document.querySelector('.chat-messages').textContent.includes('More line 119')&&!document.querySelector('[title="Остановить"]')`);
+      assert.ok(await win.webContents.executeJavaScript(`document.querySelector('.chat-messages').scrollTop<5`),'Reading old messages must not jump to the streamed answer');
+      await win.webContents.executeJavaScript(`document.querySelector('.follow-chat').click()`);
+      await poll(win, `!document.querySelector('.follow-chat') && document.querySelector('.chat-messages').scrollTop>100`);
       console.log('PASS: Electron approval and stale-diff conflict, incremental text without duplicate answer, persisted preferences, fast network cancellation');
       fs.writeFileSync(resultPath, JSON.stringify({status:'passed',project}, null, 2));
       clearTimeout(deadline); model.close(); app.quit();

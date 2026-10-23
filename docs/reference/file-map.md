@@ -49,8 +49,10 @@
 | [apps/desktop/index.html](../../apps/desktop/index.html) | HTML-узел React и модульный entry point renderer. |
 | [apps/desktop/package.json](../../apps/desktop/package.json) | Зависимости Electron/React и dev/build/typecheck-скрипты workspace. |
 | [apps/desktop/src/App.tsx](../../apps/desktop/src/App.tsx) | React-состояние и представление проекта, настроек, чата, потока, checkpoint и diff. |
+| [apps/desktop/src/ChatText.tsx](../../apps/desktop/src/ChatText.tsx) | Безопасные текстовые/code блоки без HTML, memoized parser и явное копирование. |
 | [apps/desktop/src/EditorPanel.tsx](../../apps/desktop/src/EditorPanel.tsx) | Рабочие вкладки/черновики редактора, виртуальный gutter, поиск/строка, hotkeys, reload и подтверждённое сохранение. |
 | [apps/desktop/src/LocalRuntimePanel.tsx](../../apps/desktop/src/LocalRuntimePanel.tsx) | Реальный GGUF picker, context/GPU, lifecycle status и явный перенос endpoint в настройки. |
+| [apps/desktop/src/MemoryPanel.tsx](../../apps/desktop/src/MemoryPanel.tsx) | Редактор семи полей памяти выбранного проекта с сохранением draft при конфликте. |
 | [apps/desktop/src/ModelSettings.tsx](../../apps/desktop/src/ModelSettings.tsx) | Модальное окно draft-настроек: endpoint, ключ, список моделей, тест ответа, генерация, лимиты, сохранение и focus trap. |
 | [apps/desktop/src/ProjectSearch.tsx](../../apps/desktop/src/ProjectSearch.tsx) | Боковой поиск и Ctrl+P: один IPC-запрос за раз, отмена и защита от устаревших результатов. |
 | [apps/desktop/src/TaskProgress.tsx](../../apps/desktop/src/TaskProgress.tsx) | Типизированная панель этапов, инструментов, результатов и продолжения задачи. |
@@ -63,6 +65,7 @@
 | [apps/desktop/vite.config.ts](../../apps/desktop/vite.config.ts) | React-плагин, относительные assets, фиксированный локальный dev-порт и outDir. |
 | [core/python/bridge.py](../../core/python/bridge.py) | JSON-lines вход процесса, dispatch команд, UI-файловый API и синхронизированный stdout. |
 | [core/python/editor_service.py](../../core/python/editor_service.py) | Ручной editor-протокол: strict UTF-8 чтение с revision, preview, одноразовый Apply через существующую атомарную snapshot-запись. |
+| [core/python/memory_service.py](../../core/python/memory_service.py) | Строгий read/edit API памяти проекта с byte revision и защитой повреждённых файлов. |
 | [core/python/project_search.py](../../core/python/project_search.py) | Ограниченный read-only поиск текста и путей с отменяемым отдельным worker. |
 | [core/python/runtime_service.py](../../core/python/runtime_service.py) | Неблокирующий сервис запуска/остановки GGUF и состояний собственного llama-server. |
 | [core/python/task_service.py](../../core/python/task_service.py) | Состояние выбранного чата/модели, запуск потока задачи, events и корреляция approval. |
@@ -88,6 +91,7 @@
 | [docs/18-editor.md](../../docs/18-editor.md) | Ручная учебная глава или исторический материал: 18. Рабочий редактор IDE. |
 | [docs/19-project-search.md](../../docs/19-project-search.md) | Ручная учебная глава или исторический материал: 19. Поиск по проекту и быстрое открытие. |
 | [docs/20-local-runtime.md](../../docs/20-local-runtime.md) | Ручная учебная глава или исторический материал: 20. Локальная GGUF-модель внутри приложения. |
+| [docs/21-memory-and-chat.md](../../docs/21-memory-and-chat.md) | Ручная учебная глава или исторический материал: 21. Память проекта и читаемый чат. |
 | [docs/AUTONOMOUS_PLAN_2026-10-23.md](../../docs/AUTONOMOUS_PLAN_2026-10-23.md) | Ручная учебная глава или исторический материал: Автономный план LocalAgent — 23 октября 2026. |
 | [docs/README.md](../../docs/README.md) | Ручная учебная глава или исторический материал: LocalAgent: подробное руководство по проекту. |
 | [docs/WORK_PLAN.md](../../docs/WORK_PLAN.md) | Ручная учебная глава или исторический материал: План дальнейшей разработки LocalAgent. |
@@ -127,6 +131,7 @@
 | [tests/test_editor_service.py](../../tests/test_editor_service.py) | Контракты editor revisions, CRLF, отсутствия записи до Apply, stale/replay, бинарных/больших/внешних файлов и project scope. |
 | [tests/test_file_editing.py](../../tests/test_file_editing.py) | Preview без записи, explicit approval, overwrite и путь файла. |
 | [tests/test_limits.py](../../tests/test_limits.py) | Настраиваемое число entries и глубина обхода. |
+| [tests/test_memory_service.py](../../tests/test_memory_service.py) | Память UI: CAS, invalid payload, corrupt file, scope и полный Unicode budget. |
 | [tests/test_model_gateway.py](../../tests/test_model_gateway.py) | Параметры endpoint удалённого/совместимого провайдера. |
 | [tests/test_model_manager.py](../../tests/test_model_manager.py) | Сканирование GGUF, quantization, свободный порт и остановленный runtime. |
 | [tests/test_model_preferences.py](../../tests/test_model_preferences.py) | Whitelist настроек, defaults и отказ URL с credentials/неверным портом. |

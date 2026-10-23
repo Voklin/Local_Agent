@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, ChevronDown, Code2, FileCode2, Folder, FolderOpen, GitBranch, History, Play, Plus, Settings2, ShieldCheck, Square, SquareTerminal, Search } from 'lucide-react';
+import { Bot, ChevronDown, Code2, FileCode2, Folder, FolderOpen, GitBranch, History, Play, Plus, Settings2, ShieldCheck, Square, SquareTerminal, Search, Brain, Pencil } from 'lucide-react';
+import { MemoryPanel } from './MemoryPanel';
+import { ChatText } from './ChatText';
 import { ProjectSearch } from './ProjectSearch';
 import { EditorPanel, type EditorHandle } from './EditorPanel';
 import { ModelSettings, defaultGeneration, type GenerationSettings } from './ModelSettings';
@@ -23,6 +25,12 @@ export default function App() {
   const editorRef = useRef<EditorHandle>(null);
   const [health, setHealth] = useState('Подключение к Python Core…');
   const [prompt, setPrompt] = useState('');
+  const [memoryOpen,setMemoryOpen]=useState(false);
+  const [renaming,setRenaming]=useState<{id:string;title:string}|null>(null);
+  const [renameNotice,setRenameNotice]=useState('');
+  const [renameWorking,setRenameWorking]=useState(false);
+  const [atBottom,setAtBottom]=useState(true);
+  const followChat=useRef(true);
   const [quickOpen,setQuickOpen]=useState(false);
   const [searchFocus,setSearchFocus]=useState(0);
   const [nav, setNav] = useState('History');
@@ -102,7 +110,7 @@ export default function App() {
       }
     });
   }, []);
-  useEffect(() => { messagesEnd.current?.scrollIntoView({behavior: chat.at(-1)?.streaming ? 'instant' : 'smooth'}); }, [chat]);
+  useEffect(() => { if(followChat.current) messagesEnd.current?.scrollIntoView({behavior:'instant'}); }, [chat]);
 
   useEffect(()=>{
     function shortcuts(event:KeyboardEvent) {
@@ -133,6 +141,7 @@ export default function App() {
     const r = await window.lca.chooseProject();
     if (r.canceled) return;
     if (!r.ok) { report(r.error); return; }
+    followChat.current=true;setAtBottom(true);setMemoryOpen(false);setRenaming(null);
     setMode('ide'); modeRef.current = 'ide'; setNav('Explorer');
     editorRef.current?.reset();
     setRoot(r.root); setProject(r.name); setSelectedFile(''); selectedRef.current = '';
@@ -141,6 +150,7 @@ export default function App() {
   }
   async function switchMode(next: WorkspaceMode) {
     if (active.current || next === mode) return;
+    followChat.current=true;setAtBottom(true);setMemoryOpen(false);setRenaming(null);
     modeRef.current = next; setMode(next); setNav(next === 'ide' ? 'Explorer' : 'History');
     chatId.current = ''; runId.current = ''; setTask(null); setApproval(null); setShowProgress(false);
     setChat(next === 'ide' ? greeting : [{role:'assistant', text:'Новый разговор. Чем могу помочь?'}]);
@@ -156,11 +166,21 @@ export default function App() {
     if (active.current) return;
     const r = id ? await window.lca.loadChat(id, mode) : await window.lca.newChat(mode);
     if (!r.ok) { report(r.error); return; }
+    followChat.current=true;setAtBottom(true);
     chatId.current = r.chat.id; runId.current = ''; setTask(r.task);
     setChat(r.chat.messages.filter((m: any) => typeof m.content === 'string' && ['user','assistant'].includes(m.role)).map((m: any) => ({role:m.role, text:m.content})));
     (r.warnings || []).forEach(showWarning);
     await refreshChats();
     return r.chat.id as string;
+  }
+  async function renameChat() {
+    if(!renaming||busy||renameWorking)return;
+    setRenameWorking(true);setRenameNotice('');
+    try {
+      const result=await window.lca.renameChat(renaming.id,renaming.title,mode==='voice'?'chat':mode);
+      if(!result.ok)throw new Error(result.error);
+      (result.warnings||[]).forEach(showWarning);setRenaming(null);await refreshChats();
+    }catch(error){setRenameNotice(String(error));}finally{setRenameWorking(false);}
   }
   async function configure() {
     const r = await window.lca.configureModel({base_url: baseUrl, model, api_key: apiKey, settings:generation});
@@ -211,21 +231,24 @@ export default function App() {
     {quickOpen&&<div className="search-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setQuickOpen(false);}}><ProjectSearch root={root} visible quick focus={searchFocus} onClose={()=>setQuickOpen(false)} onOpen={(path,line)=>void openSearchFile(path,line)}/></div>}
     <header className="topbar"><div className="brand"><div className="brand-mark"><Code2 size={18}/></div><span>LOCAL<b>AGENT</b></span><span className="version">v6.0</span></div><button className="project-pill" onClick={chooseProject} disabled={busy}><FolderOpen size={15}/>{project}<ChevronDown size={14}/></button><div className="mode-tabs" role="tablist" aria-label="Режим работы">{(['chat','ide','voice'] as WorkspaceMode[]).map(m=><button role="tab" aria-selected={mode===m} disabled={busy} className={mode===m?'selected':''} key={m} onClick={()=>void switchMode(m)}>{m==='chat'?'Chat':m==='ide'?'IDE':'Ассистент'}</button>)}</div><div className="top-spacer"/><span className="status">{health}</span><button className="icon-button" title="Настройки модели" onClick={()=>setSettingsOpen(true)}><Settings2 size={17}/></button></header>
     <div className="workarea">
-      <nav className="activity-bar">{[{id:'Explorer',icon:Folder},{id:'Search',icon:Search},{id:'History',icon:History},{id:'Models',icon:Settings2}].map(x=><button key={x.id} className={(x.id==='Models'?settingsOpen:nav===x.id)?'active':''} onClick={()=>x.id==='Models'?setSettingsOpen(true):setNav(x.id)} title={x.id}><x.icon size={19}/></button>)}</nav>
+      <nav className="activity-bar">{[{id:'Explorer',icon:Folder},{id:'Search',icon:Search},{id:'History',icon:History},{id:'Memory',icon:Brain},{id:'Models',icon:Settings2}].map(x=><button key={x.id} className={(x.id==='Models'?settingsOpen:nav===x.id)?'active':''} disabled={x.id==='Memory'&&(!root||mode!=='ide')} onClick={()=>x.id==='Models'?setSettingsOpen(true):x.id==='Memory'?setMemoryOpen(true):setNav(x.id)} title={x.id==='Memory'?'Память проекта':x.id}><x.icon size={19}/></button>)}</nav>
       <aside className="sidebar"><div className="side-heading"><span>{nav==='History'?'ИСТОРИЯ ЧАТОВ':nav==='Search'?'ПОИСК ПО ПРОЕКТУ':nav==='Models'?'НАСТРОЙКИ МОДЕЛИ':'ФАЙЛЫ ПРОЕКТА'}</span><button onClick={()=>nav==='History'?refreshChats():refreshFiles(directory)} title="Обновить"><ChevronDown size={15}/></button></div>
         <ProjectSearch root={root} visible={nav==='Search'&&!quickOpen} quick={false} focus={searchFocus} onClose={()=>setNav('Explorer')} onOpen={(path,line)=>void openSearchFile(path,line)}/>
         {nav==='Explorer' && <div className="file-list">{directory!=='.'&&<button className="file-row" onClick={()=>refreshFiles(parent)}>..</button>}{files.map(f=><button key={f.path} className={`file-row ${selectedFile===f.path?'selected':''}`} onClick={()=>openFile(f)}>{f.kind==='directory'?<Folder size={15}/>:<FileCode2 size={15}/>}<span>{f.name}</span></button>)}{!root&&<div className="empty-small">Выберите папку проекта</div>}</div>}
-        {nav==='History' && <div className="file-list"><button className="file-row" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={15}/>Новый чат</button>{chats.map(c=><button className="file-row" key={c.id} disabled={busy} onClick={()=>selectChat(c.id)}><History size={15}/><span>{c.title}</span></button>)}</div>}
+        {nav==='History' && <div className="file-list"><button className="file-row" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={15}/>Новый чат</button>{chats.map(c=><div className="chat-history-row" key={c.id}><button className="file-row" disabled={busy} onClick={()=>selectChat(c.id)}><History size={15}/><span>{c.title}</span></button><button className="rename-chat icon-button" title="Переименовать чат" disabled={busy} onClick={()=>{setRenaming({id:c.id,title:c.title});setRenameNotice('');}}><Pencil size={13}/></button></div>)}</div>}
         <div className="sidebar-footer"><div className="project-status"><GitBranch size={14}/><span>{root?'Локальный проект':'Проект не выбран'}</span></div></div>
       </aside>
       <main className={mode==='ide'?'main-panel':'editor-hidden'}><EditorPanel ref={editorRef} root={root} busy={busy} visible={mode==='ide'} onActive={path=>{setSelectedFile(path);selectedRef.current=path;}} onDirty={dirty=>{void window.lca.setEditorDirty(dirty);}} onProject={()=>void chooseProject()} onModels={()=>setSettingsOpen(true)} onLog={report}/>
         <div className="bottom-panel"><div className="bottom-tabs"><span className="bottom-tab active"><SquareTerminal size={14}/>ВЫВОД</span></div><div className="output-log">{logs.length?logs.map((l,i)=><pre key={i}>{l}</pre>):<div className="output-line dim">События агента появятся здесь.</div>}</div></div>
       </main>
       {mode==='voice'?<VoicePanel onChat={()=>void switchMode('chat')}/>:<aside className="agent-panel"><div className="agent-heading"><div><Bot size={17}/><b>{mode==='chat'?'Разговор с моделью':'Агент проекта'}</b></div><button className="icon-button" title="Новый чат" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={16}/></button></div><div className="agent-context"><span className="context-chip"><Folder size={13}/>{mode==='chat'?'Личный чат · без файловых инструментов':project}</span><span className="context-chip">Модель: {model||'не выбрана'}</span>{task&&<button className="progress-toggle" aria-expanded={showProgress} onClick={()=>setShowProgress(!showProgress)}>Ход задачи · {task.status==='completed'?'завершена':task.status==='paused'?'приостановлена':'в работе'} <ChevronDown size={13}/></button>}</div>
-        {showProgress&&task&&<div className="progress-drawer"><TaskProgress task={task} busy={busy} onResume={()=>void sendPrompt(true)}/></div>}<div className="chat-messages">{chat.map((m,i)=><div className={`message ${m.role}`} key={i}>{m.role==='assistant'&&<div className="avatar"><Bot size={14}/></div>}<div className="message-content">{m.text}{m.streaming&&<span className="streaming-caret" aria-label="Ответ генерируется">▍</span>}</div></div>)}<div ref={messagesEnd}/></div>
+        {showProgress&&task&&<div className="progress-drawer"><TaskProgress task={task} busy={busy} onResume={()=>void sendPrompt(true)}/></div>}<div className="chat-messages" onScroll={event=>{const node=event.currentTarget;const bottom=node.scrollHeight-node.scrollTop-node.clientHeight<80;followChat.current=bottom;setAtBottom(bottom);}}>{chat.map((m,i)=><div className={`message ${m.role}`} key={i}>{m.role==='assistant'&&<div className="avatar"><Bot size={14}/></div>}<div className="message-content"><ChatText text={m.text}/>{m.streaming&&<span className="streaming-caret" aria-label="Ответ генерируется">▍</span>}</div></div>)}<div ref={messagesEnd}/></div>
+        {!atBottom&&<button className="follow-chat" onClick={()=>{followChat.current=true;setAtBottom(true);messagesEnd.current?.scrollIntoView({behavior:'instant'});}}>К последнему сообщению ↓</button>}
         <div className="composer"><textarea aria-label="Задача агенту" value={prompt} disabled={busy} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendPrompt();}}} placeholder={mode==='ide'&&!root?'Сначала выберите проект':!model?'Укажите модель в настройках':'Опишите задачу…'}/><div className="composer-footer"><span>{stopping?'Останавливаем…':busy?'Агент работает…':'Enter для отправки'}</span>{busy?<button className="send-button" title="Остановить" disabled={stopping} onClick={cancel}><Square size={14}/></button>:<button className="send-button" title="Отправить" onClick={()=>sendPrompt()} disabled={!prompt.trim()||(mode==='ide'&&!root)||!model||!settingsReady}><Play size={14}/></button>}</div></div><div className="agent-foot"><ShieldCheck size={13}/> {mode==='ide'?'Подтверждение перед записью':'Локальная модель · история сохраняется на этом ПК'}</div>
       </aside>}
     </div><footer className="statusbar"><span><GitBranch size={12}/>{project}</span><span><ShieldCheck size={12}/>{mode==='ide'?'Файлы ограничены папкой проекта':mode==='chat'?'Chat · файловые инструменты отключены':'Голосовой режим · подготовка'}</span><span className="statusbar-right">Electron · React · Python</span></footer>
+    {memoryOpen&&root&&<MemoryPanel key={root} root={root} busy={busy} onClose={()=>setMemoryOpen(false)}/>}
+    {renaming&&<div className="modal-backdrop"><section className="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="rename-title"><h2 id="rename-title">Название чата</h2><form onSubmit={event=>{event.preventDefault();void renameChat();}}><input autoFocus aria-label="Название чата" value={renaming.title} maxLength={120} disabled={renameWorking} onChange={event=>setRenaming({...renaming,title:event.target.value})}/><p role="status">{renameNotice}</p><div className="settings-actions"><button type="button" disabled={renameWorking} onClick={()=>setRenaming(null)}>Отмена</button><button className="primary-button" type="submit" disabled={busy||renameWorking||!renaming.title.trim()}>Переименовать</button></div></form></section></div>}
     {settingsOpen&&settingsReady&&<ModelSettings initial={{base_url:baseUrl,model,api_key:apiKey,settings:generation}} busy={busy} onClose={()=>setSettingsOpen(false)} onSaved={config=>{setBaseUrl(config.base_url);setModel(config.model);setApiKey(config.api_key);setGeneration(config.settings);report('Настройки модели сохранены');}}/>}
     {approval&&<div className="modal-backdrop"><section className="approval-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-title"><h2 id="approval-title">{approval.exists?'Изменение файла':'Новый файл'}: {approval.path}</h2><p>Проверьте изменения перед записью.</p><pre>{approval.diff||'Текстовых изменений нет'}</pre><div className="approval-actions"><button disabled={deciding} onClick={()=>decide('cancel')}>Отменить задачу</button><button disabled={deciding} onClick={()=>decide('reject')}>Отклонить изменение</button><button className="primary-button" disabled={deciding} onClick={()=>decide('apply')}>Применить изменение</button></div></section></div>}
   </div>;

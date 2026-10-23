@@ -93,7 +93,7 @@ UI: вкладки, dirty-индикатор, номера строк, пере�
 | A0. Аудит и план | Выполнен | История/код/чистый Git/PR без комментариев; пользователь подтвердил пять часов; heartbeat создан |
 | A1. Редактор | Выполнен | 70 основных + 56 migration (126), build, Electron; commit 5960ca2; Windows validation/package passed run 39909869433; глава 18 |
 | A2. Поиск | Выполнен | commit 4a1225e; 75 основных + 57 migration; Windows validation/package passed run 39911954853; глава 19 |
-| A3. Локальные модели | Реализован, CI после публикации | 82 основных + 58 migration (140; один symlink skip), Electron с реальным CPU GGUF/отменой/ответом/Stop, 11 frozen scenarios и реальный frozen GGUF (42/4000 мс); глава 20 |
-| A4. Память/чат | Ожидает | Независимые UI/store функции |
+| A3. Локальные модели | Выполнен; commit 705cc45, CI 39913953887 passed | 82 основных + 58 migration (140; один symlink skip), Electron с реальным CPU GGUF/отменой/ответом/Stop, 11 frozen scenarios и реальный frozen GGUF (42/4000 мс); глава 20 |
+| A4. Память/чат | Реализован, публикация/CI | 86 основных + 61 migration (147; один symlink skip), build, Electron с memory/rename/escaped code/copy capture/stream scroll; глава 21 |
 | A5. Голос | Ожидает | Только после приоритетных функций и при наличии времени |
 | A6. Интеграция | Ожидает | Финальный отчёт не позднее границы сеанса |

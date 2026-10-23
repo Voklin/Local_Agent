@@ -72,3 +72,5 @@ python tools/check_docs.py
 Поиск без модели, Ctrl+P и переходы по строкам — [глава 19](19-project-search.md).
 
 Запуск собственного GGUF, процессы и отмена — [глава 20](20-local-runtime.md).
+
+Память, названия чатов и code blocks — [глава 21](21-memory-and-chat.md).

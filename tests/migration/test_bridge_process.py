@@ -107,6 +107,18 @@ class BridgeProcessTests(unittest.TestCase):
         self.assertTrue(result['ok'], result)
         return result
 
+    def test_project_memory_and_chat_rename_are_scoped(self):
+        self.assertFalse(self.call('get_project_memory')['ok'])
+        self.call('set_project',root=str(self.root))
+        original=self.call('get_project_memory')
+        memory={**original['memory'],'project_summary':'Справка проекта'}
+        saved=self.call('save_project_memory',memory=memory,revision=original['revision'])
+        self.assertTrue(saved['ok'],saved)
+        self.assertFalse(self.call('save_project_memory',memory=memory,revision=original['revision'])['ok'])
+        chat=self.call('new_chat',mode='chat')['chat']
+        self.assertTrue(self.call('rename_chat',mode='chat',chat_id=chat['id'],title='Личный чат')['ok'])
+        self.assertFalse(self.call('rename_chat',mode='ide',chat_id=chat['id'],title='Wrong')['ok'])
+
     def test_runtime_commands_validate_without_blocking_other_commands(self):
         result=self.call('runtime_status')
         self.assertTrue(result['ok']);self.assertEqual(result['state'],'stopped')

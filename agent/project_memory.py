@@ -5,6 +5,7 @@ compact summaries/decisions, not raw file contents or tool output.
 """
 from __future__ import annotations
 import hashlib, json, os, tempfile
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ from typing import Any
 APP_DIR = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "LocalCodingAgent"
 MEMORY_DIR = APP_DIR / "project_memory"
 MEMORY_VERSION = 1
+MEMORY_LOCK = threading.RLock()
 FIELDS = {
     "project_summary": 1200,
     "current_focus": 600,
@@ -96,20 +98,21 @@ def load_project_memory(project_root: str) -> dict[str, Any]:
 
 
 def save_project_memory(project_root: str, data: dict[str, Any]) -> dict[str, Any]:
-    normalized = validate_memory(data, project_root)
-    path = memory_path(project_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp = tempfile.mkstemp(prefix="memory_", suffix=".tmp", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            json.dump(normalized, stream, ensure_ascii=False, indent=2)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temp, path)
-    finally:
-        if os.path.exists(temp):
-            os.unlink(temp)
-    return normalized
+    with MEMORY_LOCK:
+        normalized = validate_memory(data, project_root)
+        path = memory_path(project_root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temp = tempfile.mkstemp(prefix="memory_", suffix=".tmp", dir=path.parent)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                json.dump(normalized, stream, ensure_ascii=False, indent=2)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temp, path)
+        finally:
+            if os.path.exists(temp):
+                os.unlink(temp)
+        return normalized
 
 
 def clear_project_memory(project_root: str) -> None:

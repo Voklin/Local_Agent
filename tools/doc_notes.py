@@ -943,3 +943,40 @@ TEST_PURPOSES.update({
 })
 TEST_HELPERS['launching']='Управляемая barrier-фикстура долгой загрузки с cooperative cancel.'
 TEST_HELPERS['Output']='BytesIO-фикстура длинного stdout без перевода строки.'
+
+FILE_NOTES.update({
+ 'core/python/memory_service.py':'Строгий read/edit API памяти проекта с byte revision и защитой повреждённых файлов.',
+ 'apps/desktop/src/MemoryPanel.tsx':'Редактор семи полей памяти выбранного проекта с сохранением draft при конфликте.',
+ 'apps/desktop/src/ChatText.tsx':'Безопасные текстовые/code блоки без HTML, memoized parser и явное копирование.',
+ 'tests/test_memory_service.py':'Память UI: CAS, invalid payload, corrupt file, scope и полный Unicode budget.',
+})
+SYMBOL_NOTES.update({
+ 'core/python/memory_service.py:editable_memory':'Требует ровно семь редактируемых полей, проверяет типы, длины, число пунктов и отсутствие NUL до записи.',
+ 'core/python/memory_service.py:read_memory':'Читает до 200 КБ strict JSON под memory lock; не исправляет и не затирает повреждённый store, возвращает SHA256 raw revision.',
+ 'core/python/memory_service.py:write_memory':'Проверяет исходную byte revision под общим с auto-memory RLock, атомарно сохраняет только валидные поля и перечитывает результат.',
+ 'core/python/task_service.py:TaskService.rename':'Проверяет idle/title/chat scope, сохраняет только новое название и синхронизирует title выбранного чата.',
+})
+TS_NOTES.update({
+ 'MemoryPanel':'Модальный редактор ограниченной памяти IDE; Chat не использует эти заметки.',
+ 'apps/desktop/src/MemoryPanel.tsx:MemoryPanel.show':'Проверяет ответ/корень, преобразует списки в строки и фиксирует original/revision после успешного чтения или записи.',
+ 'apps/desktop/src/MemoryPanel.tsx:MemoryPanel.save':'Преобразует строки списков, отправляет snapshot revision, при конфликте сохраняет draft в окне.',
+ 'apps/desktop/src/MemoryPanel.tsx:MemoryPanel.close':'Закрывает чистую форму; для dirty показывает явный выбор сохранить редактирование или потерять draft.',
+ 'TextPart':'Один plain/code сегмент безопасного текстового renderer с подписью языка.',
+ 'splitCodeBlocks':'Линейно разбирает отдельные тройные backtick fences, включая незакрытый streaming code block; HTML не интерпретируется.',
+ 'apps/desktop/src/ChatText.tsx:splitCodeBlocks.flush':'Добавляет накопленные строки текущего сегмента и очищает буфер.',
+ 'ChatText':'Memoizes разбор текста, выводит code как React text nodes и показывает кнопку копирования.',
+ 'apps/desktop/src/ChatText.tsx:ChatText.copy':'Пишет только выбранный code segment через Clipboard API и показывает успех/ошибку.',
+ 'apps/desktop/src/App.tsx:App.renameChat':'Отправляет переименование выбранного chat ID в текущем scope и обновляет список после успешного сохранения.',
+ 'renameChat':'Фиксированный IPC переименования ID/title/mode без изменения сообщений.',
+ 'getProjectMemory':'Читает семь полей и byte revision памяти текущего проекта.',
+ 'saveProjectMemory':'Передаёт editable memory и исходную revision для конфликтобезопасной записи.',
+})
+TEST_PURPOSES.update({
+ 'round_trip_and_external_update_preserve_stale_draft':'Manual memory round trip и отказ после auto-memory update без перезаписи новых заметок.',
+ 'invalid_fields_do_not_modify_store':'Неверные типы/длины/count/extra keys не создают файл памяти.',
+ 'corrupt_memory_is_preserved_and_other_project_is_isolated':'Повреждённый JSON не затирается; другой root получает отдельную пустую память.',
+ 'full_unicode_budget_is_readable':'Полные разрешённые поля с четырёхбайтным Unicode помещаются в bounded reader и проходят round trip.',
+ 'rename_preserves_messages_and_scope_and_active_title':'Название сохраняется без изменения сообщений, обновляет active chat и не пересекает Chat/IDE scope.',
+ 'rename_rejected_during_active_task':'Переименование запрещено во время реальной задачи, ожидающей approval.',
+ 'project_memory_and_chat_rename_are_scoped':'Реальный JSON bridge проверяет root памяти, stale revision и scope переименования.',
+})

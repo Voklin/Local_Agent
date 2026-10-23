@@ -177,3 +177,7 @@
 ## 23 октября: A3 — собственный GGUF runtime
 
 Добавлены выбор существующего llama-server/GGUF, отдельный start worker, context/GPU, cancel/status/Stop и явный перенос endpoint в настройки. PIPE постоянно читается с ограничением памяти; Windows Job Object завершает своё дерево при аварии Core. Реальный Electron сценарий загрузил уже скачанный Qwen2.5-Coder на CPU, получил 42, отменил/повторил запуск и остановил свой сервер. LM Studio сохранил загруженный qwen3.5-4b. Исправлена Windows crash fixture (убивался launcher, а не всё дерево). Глава 20 описывает API, lifecycle и ограничения.
+
+## 23 октября: A4 — память и чат
+
+Добавлены строгий редактор памяти проекта с byte revision/общим auto-memory lock, scoped rename чатов, безопасные code blocks/copy и follow-scroll только у конца ленты. 86 основных + 61 migration tests прошли (один symlink skip), build и Electron с проверкой длинного SSE потока прошли. Глава 21 описывает ограничения и сохранение draft при конфликте.

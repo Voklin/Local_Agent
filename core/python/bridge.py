@@ -16,6 +16,7 @@ from core.python.task_service import TaskService
 from core.python.editor_service import EditorService
 from core.python.project_search import ProjectSearchService
 from core.python.runtime_service import RuntimeService
+from core.python.memory_service import read_memory, write_memory
 
 output_lock = threading.Lock()
 
@@ -71,6 +72,13 @@ def handle(method: str, params: dict) -> dict:
         if method == 'editor_preview':
             return editor.preview(project_root, params)
         return editor.resolve(project_root, params)
+    if method in ('get_project_memory','save_project_memory'):
+        if project_root is None:
+            raise ValueError('Сначала выберите папку проекта')
+        if method == 'get_project_memory':
+            return read_memory(project_root)
+        tasks.idle()
+        return write_memory(project_root,params)
     if method == 'configure_model':
         return tasks.configure(params)
     if method == 'get_model_settings':
@@ -79,13 +87,15 @@ def handle(method: str, params: dict) -> dict:
         return tasks.models(tasks.diagnostic_config(params or None))
     if method == 'cancel_model_setup':
         return tasks.cancel_model_setup()
-    if method in ('list_chats', 'new_chat', 'load_chat', 'start_task'):
+    if method in ('list_chats', 'new_chat', 'load_chat', 'rename_chat', 'start_task'):
         mode = params.get('mode', 'ide')
         if mode not in ('chat', 'ide'):
             raise ValueError('Неизвестный режим работы')
         scope = '' if mode == 'chat' else project_root
         if scope is None:
             raise ValueError('Сначала выберите папку проекта')
+        if method == 'rename_chat':
+            return tasks.rename(scope,params)
         if method == 'list_chats':
             return tasks.chats(scope)
         if method in ('new_chat', 'load_chat'):

@@ -35,6 +35,7 @@
 - [agent/worker.py](#module-agent-worker-py)
 - [core/python/bridge.py](#module-core-python-bridge-py)
 - [core/python/editor_service.py](#module-core-python-editor-service-py)
+- [core/python/memory_service.py](#module-core-python-memory-service-py)
 - [core/python/project_search.py](#module-core-python-project-search-py)
 - [core/python/runtime_service.py](#module-core-python-runtime-service-py)
 - [core/python/task_service.py](#module-core-python-task-service-py)
@@ -1386,7 +1387,7 @@ def close(self)
 
 ### `_now`
 
-[Исходник](../../agent/project_memory.py#L28)
+[Исходник](../../agent/project_memory.py#L30)
 
 ```python
 def _now() -> str
@@ -1396,7 +1397,7 @@ def _now() -> str
 
 ### `_key`
 
-[Исходник](../../agent/project_memory.py#L32)
+[Исходник](../../agent/project_memory.py#L34)
 
 ```python
 def _key(project_root: str) -> str
@@ -1406,7 +1407,7 @@ def _key(project_root: str) -> str
 
 ### `memory_path`
 
-[Исходник](../../agent/project_memory.py#L37)
+[Исходник](../../agent/project_memory.py#L39)
 
 ```python
 def memory_path(project_root: str) -> Path
@@ -1416,7 +1417,7 @@ def memory_path(project_root: str) -> Path
 
 ### `empty_memory`
 
-[Исходник](../../agent/project_memory.py#L41)
+[Исходник](../../agent/project_memory.py#L43)
 
 ```python
 def empty_memory(project_root: str='') -> dict[str, Any]
@@ -1426,7 +1427,7 @@ def empty_memory(project_root: str='') -> dict[str, Any]
 
 ### `_clean_text`
 
-[Исходник](../../agent/project_memory.py#L56)
+[Исходник](../../agent/project_memory.py#L58)
 
 ```python
 def _clean_text(value: Any, limit: int) -> str
@@ -1436,7 +1437,7 @@ def _clean_text(value: Any, limit: int) -> str
 
 ### `validate_memory`
 
-[Исходник](../../agent/project_memory.py#L63)
+[Исходник](../../agent/project_memory.py#L65)
 
 ```python
 def validate_memory(data: Any, project_root: str='') -> dict[str, Any]
@@ -1446,7 +1447,7 @@ def validate_memory(data: Any, project_root: str='') -> dict[str, Any]
 
 ### `load_project_memory`
 
-[Исходник](../../agent/project_memory.py#L87)
+[Исходник](../../agent/project_memory.py#L89)
 
 ```python
 def load_project_memory(project_root: str) -> dict[str, Any]
@@ -1456,7 +1457,7 @@ def load_project_memory(project_root: str) -> dict[str, Any]
 
 ### `save_project_memory`
 
-[Исходник](../../agent/project_memory.py#L98)
+[Исходник](../../agent/project_memory.py#L100)
 
 ```python
 def save_project_memory(project_root: str, data: dict[str, Any]) -> dict[str, Any]
@@ -1466,7 +1467,7 @@ def save_project_memory(project_root: str, data: dict[str, Any]) -> dict[str, An
 
 ### `clear_project_memory`
 
-[Исходник](../../agent/project_memory.py#L115)
+[Исходник](../../agent/project_memory.py#L118)
 
 ```python
 def clear_project_memory(project_root: str) -> None
@@ -1476,7 +1477,7 @@ def clear_project_memory(project_root: str) -> None
 
 ### `format_memory_context`
 
-[Исходник](../../agent/project_memory.py#L125)
+[Исходник](../../agent/project_memory.py#L128)
 
 ```python
 def format_memory_context(memory: dict[str, Any], max_chars: int=3600) -> str
@@ -1486,7 +1487,7 @@ def format_memory_context(memory: dict[str, Any], max_chars: int=3600) -> str
 
 ### `merge_memory_update`
 
-[Исходник](../../agent/project_memory.py#L151)
+[Исходник](../../agent/project_memory.py#L154)
 
 ```python
 def merge_memory_update(existing: dict[str, Any], update: Any, project_root: str) -> dict[str, Any]
@@ -2478,7 +2479,7 @@ JSON-lines вход процесса, dispatch команд, UI-файловый
 
 ### `emit`
 
-[Исходник](../../core/python/bridge.py#L22)
+[Исходник](../../core/python/bridge.py#L23)
 
 ```python
 def emit(message)
@@ -2488,7 +2489,7 @@ def emit(message)
 
 ### `resolve_inside`
 
-[Исходник](../../core/python/bridge.py#L36)
+[Исходник](../../core/python/bridge.py#L37)
 
 ```python
 def resolve_inside(relative: str) -> Path
@@ -2498,7 +2499,7 @@ def resolve_inside(relative: str) -> Path
 
 ### `handle`
 
-[Исходник](../../core/python/bridge.py#L46)
+[Исходник](../../core/python/bridge.py#L47)
 
 ```python
 def handle(method: str, params: dict) -> dict
@@ -2508,7 +2509,7 @@ Whitelist диспетчер RPC: состояние, проект, модель
 
 ### `main`
 
-[Исходник](../../core/python/bridge.py#L133)
+[Исходник](../../core/python/bridge.py#L143)
 
 ```python
 def main() -> None
@@ -2581,6 +2582,42 @@ def resolve(self, root, params)
 ```
 
 Проверяет ID/root/решение, потребляет proposal и выполняет Apply с повторной проверкой snapshot; Reject/Cancel не пишут.
+
+<a id="module-core-python-memory-service-py"></a>
+
+## `core/python/memory_service.py`
+
+Строгий read/edit API памяти проекта с byte revision и защитой повреждённых файлов.
+
+### `editable_memory`
+
+[Исходник](../../core/python/memory_service.py#L9)
+
+```python
+def editable_memory(data)
+```
+
+Требует ровно семь редактируемых полей, проверяет типы, длины, число пунктов и отсутствие NUL до записи.
+
+### `read_memory`
+
+[Исходник](../../core/python/memory_service.py#L23)
+
+```python
+def read_memory(root)
+```
+
+Читает до 200 КБ strict JSON под memory lock; не исправляет и не затирает повреждённый store, возвращает SHA256 raw revision.
+
+### `write_memory`
+
+[Исходник](../../core/python/memory_service.py#L43)
+
+```python
+def write_memory(root, params)
+```
+
+Проверяет исходную byte revision под общим с auto-memory RLock, атомарно сохраняет только валидные поля и перечитывает результат.
 
 <a id="module-core-python-project-search-py"></a>
 
@@ -2890,9 +2927,19 @@ def chats(self, root)
 
 Фильтрует индекс чатов по точной строке выбранного корня.
 
-### `TaskService.select_chat`
+### `TaskService.rename`
 
 [Исходник](../../core/python/task_service.py#L112)
+
+```python
+def rename(self, root, params)
+```
+
+Проверяет idle/title/chat scope, сохраняет только новое название и синхронизирует title выбранного чата.
+
+### `TaskService.select_chat`
+
+[Исходник](../../core/python/task_service.py#L127)
 
 ```python
 def select_chat(self, root, chat_id=None)
@@ -2902,7 +2949,7 @@ def select_chat(self, root, chat_id=None)
 
 ### `TaskService._recover_chat`
 
-[Исходник](../../core/python/task_service.py#L127)
+[Исходник](../../core/python/task_service.py#L142)
 
 ```python
 def _recover_chat(self)
@@ -2912,7 +2959,7 @@ def _recover_chat(self)
 
 ### `TaskService._persist_chat`
 
-[Исходник](../../core/python/task_service.py#L196)
+[Исходник](../../core/python/task_service.py#L211)
 
 ```python
 def _persist_chat(self)
@@ -2922,7 +2969,7 @@ def _persist_chat(self)
 
 ### `TaskService._task_event`
 
-[Исходник](../../core/python/task_service.py#L201)
+[Исходник](../../core/python/task_service.py#L216)
 
 ```python
 def _task_event(self, task)
@@ -2932,7 +2979,7 @@ def _task_event(self, task)
 
 ### `TaskService._event`
 
-[Исходник](../../core/python/task_service.py#L207)
+[Исходник](../../core/python/task_service.py#L222)
 
 ```python
 def _event(self, kind, **data)
@@ -2942,7 +2989,7 @@ def _event(self, kind, **data)
 
 ### `TaskService._flush_text`
 
-[Исходник](../../core/python/task_service.py#L210)
+[Исходник](../../core/python/task_service.py#L225)
 
 ```python
 def _flush_text(self)
@@ -2952,7 +2999,7 @@ def _flush_text(self)
 
 ### `TaskService._flush_scheduled`
 
-[Исходник](../../core/python/task_service.py#L219)
+[Исходник](../../core/python/task_service.py#L234)
 
 ```python
 def _flush_scheduled(self, run_id)
@@ -2962,7 +3009,7 @@ def _flush_scheduled(self, run_id)
 
 ### `TaskService._persist_draft`
 
-[Исходник](../../core/python/task_service.py#L224)
+[Исходник](../../core/python/task_service.py#L239)
 
 ```python
 def _persist_draft(self)
@@ -2972,7 +3019,7 @@ def _persist_draft(self)
 
 ### `TaskService._persist_draft_scheduled`
 
-[Исходник](../../core/python/task_service.py#L229)
+[Исходник](../../core/python/task_service.py#L244)
 
 ```python
 def _persist_draft_scheduled(self, run_id, turn)
@@ -2982,7 +3029,7 @@ def _persist_draft_scheduled(self, run_id, turn)
 
 ### `TaskService._text_delta`
 
-[Исходник](../../core/python/task_service.py#L240)
+[Исходник](../../core/python/task_service.py#L255)
 
 ```python
 def _text_delta(self, turn, text)
@@ -2992,7 +3039,7 @@ def _text_delta(self, turn, text)
 
 ### `TaskService._chat_event`
 
-[Исходник](../../core/python/task_service.py#L270)
+[Исходник](../../core/python/task_service.py#L285)
 
 ```python
 def _chat_event(self, role, text)
@@ -3002,7 +3049,7 @@ def _chat_event(self, role, text)
 
 ### `TaskService._request_approval`
 
-[Исходник](../../core/python/task_service.py#L278)
+[Исходник](../../core/python/task_service.py#L293)
 
 ```python
 def _request_approval(self, path, diff, exists)
@@ -3012,7 +3059,7 @@ def _request_approval(self, path, diff, exists)
 
 ### `TaskService.resolve_approval`
 
-[Исходник](../../core/python/task_service.py#L286)
+[Исходник](../../core/python/task_service.py#L301)
 
 ```python
 def resolve_approval(self, params)
@@ -3022,7 +3069,7 @@ def resolve_approval(self, params)
 
 ### `TaskService.cancel`
 
-[Исходник](../../core/python/task_service.py#L297)
+[Исходник](../../core/python/task_service.py#L312)
 
 ```python
 def cancel(self)
@@ -3032,7 +3079,7 @@ def cancel(self)
 
 ### `TaskService.start`
 
-[Исходник](../../core/python/task_service.py#L306)
+[Исходник](../../core/python/task_service.py#L321)
 
 ```python
 def start(self, root: Path, params)
@@ -3042,7 +3089,7 @@ def start(self, root: Path, params)
 
 ### `TaskService._save_messages`
 
-[Исходник](../../core/python/task_service.py#L361)
+[Исходник](../../core/python/task_service.py#L376)
 
 ```python
 def _save_messages(self, messages)
@@ -3052,7 +3099,7 @@ def _save_messages(self, messages)
 
 ### `TaskService._run`
 
-[Исходник](../../core/python/task_service.py#L373)
+[Исходник](../../core/python/task_service.py#L388)
 
 ```python
 def _run(self)
@@ -3062,7 +3109,7 @@ def _run(self)
 
 ### `TaskService.shutdown`
 
-[Исходник](../../core/python/task_service.py#L401)
+[Исходник](../../core/python/task_service.py#L416)
 
 ```python
 def shutdown(self)

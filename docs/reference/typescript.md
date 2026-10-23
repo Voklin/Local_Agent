@@ -12,8 +12,10 @@
 - [apps/desktop/electron/main.ts](#module-apps-desktop-electron-main-ts)
 - [apps/desktop/electron/preload.ts](#module-apps-desktop-electron-preload-ts)
 - [apps/desktop/src/App.tsx](#module-apps-desktop-src-app-tsx)
+- [apps/desktop/src/ChatText.tsx](#module-apps-desktop-src-chattext-tsx)
 - [apps/desktop/src/EditorPanel.tsx](#module-apps-desktop-src-editorpanel-tsx)
 - [apps/desktop/src/LocalRuntimePanel.tsx](#module-apps-desktop-src-localruntimepanel-tsx)
+- [apps/desktop/src/MemoryPanel.tsx](#module-apps-desktop-src-memorypanel-tsx)
 - [apps/desktop/src/ModelSettings.tsx](#module-apps-desktop-src-modelsettings-tsx)
 - [apps/desktop/src/ProjectSearch.tsx](#module-apps-desktop-src-projectsearch-tsx)
 - [apps/desktop/src/TaskProgress.tsx](#module-apps-desktop-src-taskprogress-tsx)
@@ -233,9 +235,39 @@ stopRuntime()
 
 Останавливает только собственный локальный runtime через фиксированный IPC.
 
-### `searchProject`
+### `getProjectMemory`
 
 [Исходник](../../apps/desktop/electron/preload.ts#L11)
+
+```typescript
+getProjectMemory()
+```
+
+Читает семь полей и byte revision памяти текущего проекта.
+
+### `saveProjectMemory`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L12)
+
+```typescript
+saveProjectMemory(memory:unknown, revision:string)
+```
+
+Передаёт editable memory и исходную revision для конфликтобезопасной записи.
+
+### `renameChat`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L13)
+
+```typescript
+renameChat(id:string, title:string, mode:string)
+```
+
+Фиксированный IPC переименования ID/title/mode без изменения сообщений.
+
+### `searchProject`
+
+[Исходник](../../apps/desktop/electron/preload.ts#L14)
 
 ```typescript
 searchProject(params: unknown)
@@ -245,7 +277,7 @@ searchProject(params: unknown)
 
 ### `cancelProjectSearch`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L12)
+[Исходник](../../apps/desktop/electron/preload.ts#L15)
 
 ```typescript
 cancelProjectSearch()
@@ -255,7 +287,7 @@ cancelProjectSearch()
 
 ### `editorRead`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L13)
+[Исходник](../../apps/desktop/electron/preload.ts#L16)
 
 ```typescript
 editorRead(path: string)
@@ -265,7 +297,7 @@ editorRead(path: string)
 
 ### `editorPreview`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L14)
+[Исходник](../../apps/desktop/electron/preload.ts#L17)
 
 ```typescript
 editorPreview(path: string, content: string, revision: unknown)
@@ -275,7 +307,7 @@ editorPreview(path: string, content: string, revision: unknown)
 
 ### `editorResolve`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L15)
+[Исходник](../../apps/desktop/electron/preload.ts#L18)
 
 ```typescript
 editorResolve(proposalId: string, decision: string)
@@ -285,7 +317,7 @@ editorResolve(proposalId: string, decision: string)
 
 ### `setEditorDirty`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L16)
+[Исходник](../../apps/desktop/electron/preload.ts#L19)
 
 ```typescript
 setEditorDirty(dirty: boolean)
@@ -295,7 +327,7 @@ setEditorDirty(dirty: boolean)
 
 ### `confirmEditorDiscard`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L17)
+[Исходник](../../apps/desktop/electron/preload.ts#L20)
 
 ```typescript
 confirmEditorDiscard()
@@ -305,7 +337,7 @@ confirmEditorDiscard()
 
 ### `systemInfo`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L18)
+[Исходник](../../apps/desktop/electron/preload.ts#L21)
 
 ```typescript
 systemInfo()
@@ -315,7 +347,7 @@ Preload-запрос home/platform у main, без tool модели.
 
 ### `configureModel`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L19)
+[Исходник](../../apps/desktop/electron/preload.ts#L22)
 
 ```typescript
 configureModel(config: { base_url: string; model: string; api_key: string; settings?: Record<string, number> })
@@ -325,7 +357,7 @@ configureModel(config: { base_url: string; model: string; api_key: string; setti
 
 ### `listModels`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L20)
+[Исходник](../../apps/desktop/electron/preload.ts#L23)
 
 ```typescript
 listModels(config?: unknown)
@@ -335,7 +367,7 @@ listModels(config?: unknown)
 
 ### `testModel`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L21)
+[Исходник](../../apps/desktop/electron/preload.ts#L24)
 
 ```typescript
 testModel(config: unknown)
@@ -345,7 +377,7 @@ testModel(config: unknown)
 
 ### `cancelModelSetup`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L22)
+[Исходник](../../apps/desktop/electron/preload.ts#L25)
 
 ```typescript
 cancelModelSetup()
@@ -355,7 +387,7 @@ cancelModelSetup()
 
 ### `getModelSettings`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L23)
+[Исходник](../../apps/desktop/electron/preload.ts#L26)
 
 ```typescript
 getModelSettings()
@@ -365,7 +397,7 @@ getModelSettings()
 
 ### `listChats`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L24)
+[Исходник](../../apps/desktop/electron/preload.ts#L27)
 
 ```typescript
 listChats(mode = 'ide')
@@ -375,7 +407,7 @@ listChats(mode = 'ide')
 
 ### `newChat`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L25)
+[Исходник](../../apps/desktop/electron/preload.ts#L28)
 
 ```typescript
 newChat(mode = 'ide')
@@ -385,7 +417,7 @@ newChat(mode = 'ide')
 
 ### `loadChat`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L26)
+[Исходник](../../apps/desktop/electron/preload.ts#L29)
 
 ```typescript
 loadChat(chatId: string, mode = 'ide')
@@ -395,7 +427,7 @@ loadChat(chatId: string, mode = 'ide')
 
 ### `startTask`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L27)
+[Исходник](../../apps/desktop/electron/preload.ts#L30)
 
 ```typescript
 startTask(prompt: string, resume = false, mode = 'ide')
@@ -405,7 +437,7 @@ startTask(prompt: string, resume = false, mode = 'ide')
 
 ### `cancelTask`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L28)
+[Исходник](../../apps/desktop/electron/preload.ts#L31)
 
 ```typescript
 cancelTask()
@@ -415,7 +447,7 @@ cancelTask()
 
 ### `resolveApproval`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L29)
+[Исходник](../../apps/desktop/electron/preload.ts#L32)
 
 ```typescript
 resolveApproval(runId: string, approvalId: string, decision: string)
@@ -425,7 +457,7 @@ resolveApproval(runId: string, approvalId: string, decision: string)
 
 ### `onEvent`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L30)
+[Исходник](../../apps/desktop/electron/preload.ts#L33)
 
 ```typescript
 onEvent(callback: (event: unknown) => void)
@@ -435,7 +467,7 @@ onEvent(callback: (event: unknown) => void)
 
 ### `onEvent.listener`
 
-[Исходник](../../apps/desktop/electron/preload.ts#L31)
+[Исходник](../../apps/desktop/electron/preload.ts#L34)
 
 ```typescript
 listener(_event: Electron.IpcRendererEvent, data: unknown)
@@ -451,7 +483,7 @@ React-состояние и представление проекта, наст�
 
 ### `FileItem`
 
-[Исходник](../../apps/desktop/src/App.tsx#L9)
+[Исходник](../../apps/desktop/src/App.tsx#L11)
 
 ```typescript
 type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
@@ -461,7 +493,7 @@ type FileItem = { name: string; path: string; kind: 'file' | 'directory' };
 
 ### `Message`
 
-[Исходник](../../apps/desktop/src/App.tsx#L10)
+[Исходник](../../apps/desktop/src/App.tsx#L12)
 
 ```typescript
 type Message = { role: string; text: string; id?: string; streaming?: boolean };
@@ -471,7 +503,7 @@ type Message = { role: string; text: string; id?: string; streaming?: boolean };
 
 ### `ChatSummary`
 
-[Исходник](../../apps/desktop/src/App.tsx#L11)
+[Исходник](../../apps/desktop/src/App.tsx#L13)
 
 ```typescript
 type ChatSummary = { id: string; title: string };
@@ -481,7 +513,7 @@ type ChatSummary = { id: string; title: string };
 
 ### `App`
 
-[Исходник](../../apps/desktop/src/App.tsx#L14)
+[Исходник](../../apps/desktop/src/App.tsx#L16)
 
 ```typescript
 function App()
@@ -491,7 +523,7 @@ function App()
 
 ### `App.report`
 
-[Исходник](../../apps/desktop/src/App.tsx#L49)
+[Исходник](../../apps/desktop/src/App.tsx#L57)
 
 ```typescript
 function report(text: string)
@@ -501,7 +533,7 @@ function report(text: string)
 
 ### `App.showWarning`
 
-[Исходник](../../apps/desktop/src/App.tsx#L50)
+[Исходник](../../apps/desktop/src/App.tsx#L58)
 
 ```typescript
 function showWarning(text: string)
@@ -511,7 +543,7 @@ function showWarning(text: string)
 
 ### `App.refreshChats`
 
-[Исходник](../../apps/desktop/src/App.tsx#L54)
+[Исходник](../../apps/desktop/src/App.tsx#L62)
 
 ```typescript
 async function refreshChats(scope = modeRef.current)
@@ -521,7 +553,7 @@ async function refreshChats(scope = modeRef.current)
 
 ### `App.shortcuts`
 
-[Исходник](../../apps/desktop/src/App.tsx#L108)
+[Исходник](../../apps/desktop/src/App.tsx#L116)
 
 ```typescript
 function shortcuts(event:KeyboardEvent)
@@ -531,7 +563,7 @@ function shortcuts(event:KeyboardEvent)
 
 ### `App.openSearchFile`
 
-[Исходник](../../apps/desktop/src/App.tsx#L119)
+[Исходник](../../apps/desktop/src/App.tsx#L127)
 
 ```typescript
 async function openSearchFile(path:string, line:number)
@@ -541,7 +573,7 @@ async function openSearchFile(path:string, line:number)
 
 ### `App.refreshFiles`
 
-[Исходник](../../apps/desktop/src/App.tsx#L126)
+[Исходник](../../apps/desktop/src/App.tsx#L134)
 
 ```typescript
 async function refreshFiles(path = '.')
@@ -551,7 +583,7 @@ async function refreshFiles(path = '.')
 
 ### `App.chooseProject`
 
-[Исходник](../../apps/desktop/src/App.tsx#L130)
+[Исходник](../../apps/desktop/src/App.tsx#L138)
 
 ```typescript
 async function chooseProject()
@@ -561,7 +593,7 @@ async function chooseProject()
 
 ### `App.switchMode`
 
-[Исходник](../../apps/desktop/src/App.tsx#L142)
+[Исходник](../../apps/desktop/src/App.tsx#L151)
 
 ```typescript
 async function switchMode(next: WorkspaceMode)
@@ -571,7 +603,7 @@ async function switchMode(next: WorkspaceMode)
 
 ### `App.openFile`
 
-[Исходник](../../apps/desktop/src/App.tsx#L150)
+[Исходник](../../apps/desktop/src/App.tsx#L160)
 
 ```typescript
 async function openFile(item: FileItem)
@@ -581,7 +613,7 @@ async function openFile(item: FileItem)
 
 ### `App.selectChat`
 
-[Исходник](../../apps/desktop/src/App.tsx#L155)
+[Исходник](../../apps/desktop/src/App.tsx#L165)
 
 ```typescript
 async function selectChat(id?: string)
@@ -589,9 +621,19 @@ async function selectChat(id?: string)
 
 Создаёт/загружает чат, заменяет UI-историю и checkpoint при отсутствии активной задачи.
 
+### `App.renameChat`
+
+[Исходник](../../apps/desktop/src/App.tsx#L176)
+
+```typescript
+async function renameChat()
+```
+
+Отправляет переименование выбранного chat ID в текущем scope и обновляет список после успешного сохранения.
+
 ### `App.configure`
 
-[Исходник](../../apps/desktop/src/App.tsx#L165)
+[Исходник](../../apps/desktop/src/App.tsx#L185)
 
 ```typescript
 async function configure()
@@ -601,7 +643,7 @@ async function configure()
 
 ### `App.sendPrompt`
 
-[Исходник](../../apps/desktop/src/App.tsx#L169)
+[Исходник](../../apps/desktop/src/App.tsx#L189)
 
 ```typescript
 async function sendPrompt(resume = false)
@@ -611,7 +653,7 @@ async function sendPrompt(resume = false)
 
 ### `App.decide`
 
-[Исходник](../../apps/desktop/src/App.tsx#L194)
+[Исходник](../../apps/desktop/src/App.tsx#L214)
 
 ```typescript
 async function decide(decision: string)
@@ -621,13 +663,69 @@ async function decide(decision: string)
 
 ### `App.cancel`
 
-[Исходник](../../apps/desktop/src/App.tsx#L203)
+[Исходник](../../apps/desktop/src/App.tsx#L223)
 
 ```typescript
 async function cancel()
 ```
 
 Показывает состояние остановки и вызывает cancelTask.
+
+<a id="module-apps-desktop-src-chattext-tsx"></a>
+
+## `apps/desktop/src/ChatText.tsx`
+
+Безопасные текстовые/code блоки без HTML, memoized parser и явное копирование.
+
+### `TextPart`
+
+[Исходник](../../apps/desktop/src/ChatText.tsx#L3)
+
+```typescript
+export type TextPart={code:boolean;text:string;language:string};
+```
+
+Один plain/code сегмент безопасного текстового renderer с подписью языка.
+
+### `splitCodeBlocks`
+
+[Исходник](../../apps/desktop/src/ChatText.tsx#L4)
+
+```typescript
+function splitCodeBlocks(text:string): TextPart[]
+```
+
+Линейно разбирает отдельные тройные backtick fences, включая незакрытый streaming code block; HTML не интерпретируется.
+
+### `splitCodeBlocks.flush`
+
+[Исходник](../../apps/desktop/src/ChatText.tsx#L7)
+
+```typescript
+function flush()
+```
+
+Добавляет накопленные строки текущего сегмента и очищает буфер.
+
+### `ChatText`
+
+[Исходник](../../apps/desktop/src/ChatText.tsx#L15)
+
+```typescript
+function ChatText({text}:{text:string})
+```
+
+Memoizes разбор текста, выводит code как React text nodes и показывает кнопку копирования.
+
+### `ChatText.copy`
+
+[Исходник](../../apps/desktop/src/ChatText.tsx#L19)
+
+```typescript
+async function copy(value:string, index:number)
+```
+
+Пишет только выбранный code segment через Clipboard API и показывает успех/ошибку.
 
 <a id="module-apps-desktop-src-editorpanel-tsx"></a>
 
@@ -866,6 +964,52 @@ async function control(start:boolean)
 ```
 
 Отправляет start/stop собственного сервера и показывает ошибку без блокировки настроек на время загрузки.
+
+<a id="module-apps-desktop-src-memorypanel-tsx"></a>
+
+## `apps/desktop/src/MemoryPanel.tsx`
+
+Редактор семи полей памяти выбранного проекта с сохранением draft при конфликте.
+
+### `MemoryPanel`
+
+[Исходник](../../apps/desktop/src/MemoryPanel.tsx#L13)
+
+```typescript
+function MemoryPanel({root,busy,onClose}:{root:string;busy:boolean;onClose:()=>void})
+```
+
+Модальный редактор ограниченной памяти IDE; Chat не использует эти заметки.
+
+### `MemoryPanel.show`
+
+[Исходник](../../apps/desktop/src/MemoryPanel.tsx#L21)
+
+```typescript
+function show(result:any)
+```
+
+Проверяет ответ/корень, преобразует списки в строки и фиксирует original/revision после успешного чтения или записи.
+
+### `MemoryPanel.save`
+
+[Исходник](../../apps/desktop/src/MemoryPanel.tsx#L32)
+
+```typescript
+async function save()
+```
+
+Преобразует строки списков, отправляет snapshot revision, при конфликте сохраняет draft в окне.
+
+### `MemoryPanel.close`
+
+[Исходник](../../apps/desktop/src/MemoryPanel.tsx#L40)
+
+```typescript
+function close()
+```
+
+Закрывает чистую форму; для dirty показывает явный выбор сохранить редактирование или потерять draft.
 
 <a id="module-apps-desktop-src-modelsettings-tsx"></a>
 
@@ -1148,6 +1292,7 @@ interface Window { lca: {
   health: () => Promise<any>; chooseProject: () => Promise<any>;
   listFiles: (path?: string) => Promise<any>; readFile: (path: string) => Promise<any>; systemInfo: () => Promise<any>;
   pickRuntimeFile: (kind:string) => Promise<any>; startRuntime: (params:unknown) => Promise<any>; runtimeStatus: () => Promise<any>; stopRuntime: () => Promise<any>;
+  getProjectMemory: () => Promise<any>; saveProjectMemory: (memory:unknown,revision:string) => Promise<any>; renameChat: (id:string,title:string,mode:string) => Promise<any>;
   searchProject: (params: unknown) => Promise<any>; cancelProjectSearch: () => Promise<any>;
   editorRead: (path: string) => Promise<any>; editorPreview: (path: string, content: string, revision: unknown) => Promise<any>;
   editorResolve: (proposalId: string, decision: string) => Promise<any>; setEditorDirty: (dirty: boolean) => Promise<any>;
@@ -1296,7 +1441,17 @@ encode(delta)
 
 ### `releaseModelText`
 
-[Исходник](../../tests/electron/smoke.cjs#L58)
+[Исходник](../../tests/electron/smoke.cjs#L51)
+
+```typescript
+releaseModelText()
+```
+
+Завершает задержанный ответ фикстуры после проверки видимого частичного текста.
+
+### `releaseModelText`
+
+[Исходник](../../tests/electron/smoke.cjs#L61)
 
 ```typescript
 releaseModelText()
@@ -1306,7 +1461,7 @@ releaseModelText()
 
 ### `poll`
 
-[Исходник](../../tests/electron/smoke.cjs#L65)
+[Исходник](../../tests/electron/smoke.cjs#L68)
 
 ```typescript
 async function poll(win, expression, timeout=10000)

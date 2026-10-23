@@ -102,6 +102,20 @@ class TaskServiceTests(unittest.TestCase):
             if event['event'] == name:
                 return event
 
+    def test_rename_preserves_messages_and_scope_and_active_title(self):
+        chat=self.service.select_chat('')['chat']
+        result=self.service.rename('',{'chat_id':chat['id'],'title':'Личный разговор'})
+        self.assertTrue(result['ok'])
+        self.assertEqual(self.service.chat['title'],'Личный разговор')
+        self.assertEqual(chat_store.load_chat(chat['id'])['messages'],chat['messages'])
+        with self.assertRaises(ValueError):self.service.rename(self.root,{'chat_id':chat['id'],'title':'Wrong scope'})
+        for title in ('', 'x'*121, '\x00'):
+            with self.assertRaises(ValueError):self.service.rename('',{'chat_id':chat['id'],'title':title})
+
+    def test_rename_rejected_during_active_task(self):
+        self.start()
+        with self.assertRaises(ValueError):self.service.rename(self.root,{'chat_id':self.service.chat['id'],'title':'Busy'})
+
     def start(self):
         result = self.service.start(self.root, {'prompt':'hello'})
         approval = self.event('approval')

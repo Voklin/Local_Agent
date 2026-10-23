@@ -143,6 +143,9 @@ handle('model:list', (config) => callBackend('list_models', config ? modelConfig
 handle('model:test', (config) => callBackend('test_model', modelConfig(config)));
 handle('model:cancel-setup', () => callBackend('cancel_model_setup'));
 handle('model:settings', () => callBackend('get_model_settings'));
+handle('memory:get',()=>callBackend('get_project_memory'));
+handle('memory:save',(memory,revision)=>callBackend('save_project_memory',{memory,revision}));
+handle('chat:rename',(chatId,title,mode='ide')=>callBackend('rename_chat',{chat_id:chatId,title,mode}));
 handle('chat:list', (mode = 'ide') => callBackend('list_chats', {mode}));
 handle('chat:new', (mode = 'ide') => callBackend('new_chat', {mode}));
 handle('chat:load', (chatId, mode = 'ide') => callBackend('load_chat', { chat_id: chatId, mode }));
