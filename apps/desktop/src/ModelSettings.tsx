@@ -1,34 +1,21 @@
+import { AppearanceSettings } from './AppearanceSettings';
+import { IDEWorkflowSettings } from './IDEWorkflowSettings';
+import { GenerationFields, generationFields as fields, defaultGeneration, type GenerationSettings } from './GenerationFields';
+export { defaultGeneration, type GenerationSettings } from './GenerationFields';
 import { ConnectionsSettings } from './ConnectionsSettings';
 import { LocalRuntimePanel } from './LocalRuntimePanel';
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Eye, EyeOff, RotateCcw, Server, Settings2, X } from 'lucide-react';
 
-export type GenerationSettings = {
-  temperature: number; top_p: number; max_tokens: number; max_context_chars: number;
-  request_timeout: number; max_agent_turns: number; max_runtime_minutes: number;
-};
 export type ModelConfig = { tool_protocol?: string; base_url: string; model: string; api_key: string; settings: GenerationSettings };
-export const defaultGeneration: GenerationSettings = {
-  temperature: 0.2, top_p: 1, max_tokens: 8192, max_context_chars: 80000,
-  request_timeout: 180, max_agent_turns: 200, max_runtime_minutes: 180,
-};
-const fields: { key: keyof GenerationSettings; label: string; min: number; max: number; step: number; hint: string }[] = [
-  {key:'temperature', label:'Temperature', min:0, max:2, step:0.05, hint:'Ниже — более предсказуемый ответ. Для кода начните с 0.2.'},
-  {key:'top_p', label:'Top P', min:0.01, max:1, step:0.01, hint:'Ограничивает выбор вероятных токенов. 1 оставляет полный диапазон.'},
-  {key:'max_tokens', label:'Максимум токенов ответа', min:64, max:32768, step:1, hint:'Общий бюджет генерации. У reasoning-моделей часть бюджета может уйти на рассуждения.'},
-  {key:'max_context_chars', label:'Бюджет контекста, символов', min:12000, max:500000, step:1, hint:'Ограничение сообщений приложения, а не размер контекстного окна модели в токенах.'},
-  {key:'request_timeout', label:'Ожидание HTTP, секунд', min:5, max:600, step:1, hint:'Тайм-аут сетевой операции. Медленный ответ может требовать большего значения.'},
-  {key:'max_agent_turns', label:'Максимум циклов агента', min:1, max:500, step:1, hint:'Количество обращений в основном цикле, включая повтор пустого ответа.'},
-  {key:'max_runtime_minutes', label:'Время задачи, минут', min:1, max:1440, step:1, hint:'Проверяется между циклами. Активный HTTP ограничен отдельным тайм-аутом.'},
-];
-
-export function ModelSettings({ initial, busy, onSaved, onClose }: {
-  initial: ModelConfig; busy: boolean; onSaved: (config: ModelConfig) => void; onClose: () => void;
+export function ModelSettings({ initial, busy, onSaved, onClose, initialSection='connection' }: {
+  initial: ModelConfig; busy: boolean; onSaved: (config: ModelConfig) => void; onClose: () => void;initialSection?:string;
 }) {
   const [draft, setDraft] = useState<ModelConfig>(() => ({...initial, settings:{...initial.settings}}));
   const [models, setModels] = useState<string[]>([]);
   const [visibleKey, setVisibleKey] = useState(false);
   const [operation, setOperation] = useState('');
+  const [section,setSection]=useState(initialSection);
   const [notice, setNotice] = useState({kind:'info', text:'Сначала проверьте сервер и выберите модель. Проверки не сохраняют изменения.'});
   const dialog = useRef<HTMLElement>(null);
   const locked = busy || !!operation;
@@ -51,8 +38,10 @@ export function ModelSettings({ initial, busy, onSaved, onClose }: {
       throw new Error('Нужен HTTP(S) адрес API без ключа, пароля и параметров в URL.');
     for (const field of fields) {
       const value = draft.settings[field.key];
-      if (!Number.isFinite(value) || value < field.min || value > field.max || (field.step === 1 && !Number.isInteger(value)))
+      if (!Number.isFinite(value) || value < field.min || value > field.max || (field.step === 1 && !Number.isInteger(value))) {
+        setSection('generation');
         throw new Error(`${field.label}: ${field.step === 1 ? 'целое число' : 'число'} от ${field.min} до ${field.max}.`);
+      }
     }
   }
   async function perform(action: 'discover' | 'probe' | 'save') {
@@ -98,10 +87,11 @@ export function ModelSettings({ initial, busy, onSaved, onClose }: {
   return <div className="modal-backdrop settings-backdrop">
     <section ref={dialog} className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="model-settings-title" onKeyDown={handleKeys}>
       <header className="settings-header"><div><Settings2 size={20}/><div><h2 id="model-settings-title">Модель и подключение</h2><p>Одна конфигурация для Chat и IDE</p></div></div><button className="icon-button" title="Закрыть настройки" disabled={!!operation} onClick={onClose}><X size={20}/></button></header>
+      <nav className="settings-tabs" aria-label="Разделы настроек">{[{id:'connection',label:'Подключение'},{id:'generation',label:'Ответы модели'},{id:'runtime',label:'Локальный запуск'},{id:'connections',label:'Инструменты'},{id:'workflow',label:'Роли IDE'},{id:'appearance',label:'Оформление'}].map(tab=><button type="button" key={tab.id} aria-pressed={section===tab.id} disabled={!!operation} onClick={()=>setSection(tab.id)}>{tab.label}</button>)}</nav>
       <form className="model-settings" onSubmit={event => {event.preventDefault(); void perform('save');}} noValidate>
         <div className="settings-scroll">
           {busy&&<div className="settings-notice">Дождитесь завершения задачи, чтобы менять настройки.</div>}
-          <section className="settings-section"><h3><Server size={16}/>Подключение</h3>
+          <section hidden={section!=='connection'} className="settings-section"><h3><Server size={16}/>Подключение</h3>
             <div className="endpoint-presets"><span>Быстрый адрес</span><button type="button" disabled={locked} onClick={()=>change('base_url','http://127.0.0.1:1234/v1')}>LM Studio</button><button type="button" disabled={locked} onClick={()=>change('base_url','http://127.0.0.1:11434/v1')}>Ollama</button></div>
             <label>Протокол инструментов<select aria-label="Протокол инструментов" value={draft.tool_protocol||'native'} disabled={locked} onChange={e=>change('tool_protocol',e.target.value)}><option value="native">Native tools API</option><option value="json">JSON в тексте · Qwen 2.5 Coder</option></select><small>JSON не требует нативной поддержки tools у модели. Вызовы выполняются через обычные проверки и подтверждения.</small></label>
             <label>URL сервера<input name="base_url" maxLength={2000} value={draft.base_url} disabled={locked} onChange={event=>change('base_url',event.target.value)} placeholder="http://127.0.0.1:1234/v1"/><small>Адрес OpenAI-совместимого API с /v1. Для внешнего сервера запустите его отдельно; GGUF можно запустить ниже.</small></label>
@@ -111,11 +101,14 @@ export function ModelSettings({ initial, busy, onSaved, onClose }: {
             {!!models.length&&<div className="model-picker" aria-label="Модели сервера">{models.map(model=><button type="button" key={model} disabled={locked} className={draft.model===model?'selected':''} onClick={()=>change('model',model)}><span>{model}</span>{draft.model===model&&<CheckCircle2 size={14}/>}</button>)}</div>}
             <button type="button" className="secondary-button probe-model" disabled={locked||!draft.model.trim()} onClick={()=>void perform('probe')}>{operation==='probe'?'Проверяю ответ…':'Проверить ответ модели'}</button><small>Короткий запрос без файлов и истории, до 30 секунд, с выбранным ниже бюджетом токенов. Сервер может автоматически загрузить выбранную модель.</small>
           </section>
-          <ConnectionsSettings busy={locked}/><LocalRuntimePanel locked={locked} onUse={(url,model)=>{setDraft(current=>({...current,base_url:url,model,api_key:''}));setModels([]);}}/>
-          <section className="settings-section"><div className="settings-section-heading"><h3>Генерация и лимиты</h3><button type="button" className="reset-generation" disabled={locked} onClick={resetGeneration}><RotateCcw size={13}/>Сбросить параметры</button></div>
-            <div className="generation-grid">{fields.map(field=><label key={field.key}>{field.label}<input name={field.key} type="number" min={field.min} max={field.max} step={field.step} value={Number.isFinite(draft.settings[field.key])?draft.settings[field.key]:''} disabled={locked} onChange={event=>change('settings',{...draft.settings,[field.key]:event.target.value===''?NaN:Number(event.target.value)})}/><small>{field.hint}</small></label>)}</div>
+          <div hidden={section!=='connections'}><ConnectionsSettings busy={locked}/></div><div hidden={section!=='runtime'}><LocalRuntimePanel locked={locked} onUse={(url,model)=>{setDraft(current=>({...current,base_url:url,model,api_key:''}));setModels([]);setSection('connection');}}/></div>
+          <section hidden={section!=='generation'} className="settings-section"><div className="settings-section-heading"><h3>Генерация и лимиты</h3><button type="button" className="reset-generation" disabled={locked} onClick={resetGeneration}><RotateCcw size={13}/>Сбросить параметры</button></div>
+            <div className="generation-presets">{[{label:'Точный код',temperature:0.2,max_tokens:8192},{label:'Разговор',temperature:0.5,max_tokens:4096},{label:'Короткий ответ',temperature:0.3,max_tokens:1024}].map(preset=><button type="button" className="secondary-button" disabled={locked} key={preset.label} onClick={()=>change('settings',{...draft.settings,temperature:preset.temperature,top_p:1,max_tokens:preset.max_tokens})}>{preset.label}</button>)}</div>
+            <GenerationFields value={draft.settings} locked={locked} onChange={settings=>change('settings',settings)}/>
             <p className="settings-help">Для внешнего сервера контекст, GPU и chat template настраиваются в LM Studio/Ollama. Для собственного GGUF контекст и GPU-слои задаются в разделе выше. Эти поля управляют запросами LocalAgent.</p>
           </section>
+          <div hidden={section!=='appearance'}><AppearanceSettings/></div>
+          <div hidden={section!=='workflow'}><IDEWorkflowSettings busy={locked} primary={draft}/></div>
         </div>
         <footer className="settings-footer"><div className={`settings-feedback ${notice.kind}`} role={notice.kind==='error'?'alert':'status'}>{notice.text}</div><div className="settings-actions">{operation&&operation!=='save'&&<button type="button" className="secondary-button" onClick={()=>void window.lca.cancelModelSetup()}>Отменить проверку</button>}<button type="button" className="secondary-button" disabled={!!operation} onClick={onClose}>Закрыть</button><button type="submit" className="primary-button save-model-settings" disabled={locked}>{operation==='save'?'Сохраняю…':'Сохранить настройки'}</button></div></footer>
       </form>

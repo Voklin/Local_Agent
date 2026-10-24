@@ -1,8 +1,5 @@
 name: Publish Windows installer
 on:
-  push:
-    branches: [codex/electron-agent-bridge]
-    paths: [packaging/release.json]
   workflow_dispatch:
 
 permissions:
@@ -43,6 +40,7 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: python tools/prepare_windows_dependencies.py
+      - run: node tests/electron/desktop-apps.cjs
       - run: python tools/build_windows_core.py
       - name: Test frozen Core
         shell: pwsh

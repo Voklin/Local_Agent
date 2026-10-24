@@ -2,13 +2,14 @@
 from __future__ import annotations
 from copy import deepcopy
 import json
-from .conversation import compact_live_messages
+from .smart_context import smart_compact_messages
 
 
 class ContextManager:
     def __init__(self, max_chars=80000, recent_rounds=12):
         self.max_chars = max(256, int(max_chars))
         self.recent_rounds = max(2, int(recent_rounds))
+        self.last_stats = {}
 
     def build(self, messages, task=None, skills=None, request_index=None):
         projected = list(messages)
@@ -28,4 +29,5 @@ class ContextManager:
                 projected.insert(0, {"role": "system", "content": state})
                 if request_index is not None:
                     request_index += 1
-        return compact_live_messages(projected, self.max_chars, self.recent_rounds, request_index)
+        result,self.last_stats=smart_compact_messages(projected,self.max_chars,self.recent_rounds,request_index)
+        return result

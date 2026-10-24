@@ -107,9 +107,9 @@ class TaskServiceTests(unittest.TestCase):
         self.service.start('',{'prompt':'Привет','mode':'voice'})
         self.event('task_end')
         request=self.server.requests[-1]
-        self.assertEqual([tool['function']['name'] for tool in request['tools']],['delegate_task'])
+        self.assertEqual({tool['function']['name'] for tool in request['tools']},{'delegate_task','get_local_time','calculate','save_note','list_notes','set_timer','list_timers','cancel_timer'})
         self.assertEqual(self.service.chat['mode'],'voice')
-        self.assertIn('Мия',request['messages'][0]['content'])
+        self.assertIn('Лола',request['messages'][0]['content'])
         self.assertEqual(self.service.chat['project_root'],'')
         self.assertFalse(self.service.engine.auto_memory)
 

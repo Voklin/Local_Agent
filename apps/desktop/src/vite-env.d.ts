@@ -1,18 +1,21 @@
 /// <reference types="vite/client" />
 type CoreEvent = { event: string; chat_id?: string; run_id?: string; [key: string]: any };
 interface Window { lca: {
+  getIDEWorkflow:()=>Promise<any>;configureIDEWorkflow:(params:unknown)=>Promise<any>;listIDEModels:(params:unknown)=>Promise<any>;
   health: () => Promise<any>; chooseProject: () => Promise<any>;
   listFiles: (path?: string) => Promise<any>; readFile: (path: string) => Promise<any>; systemInfo: () => Promise<any>;
   pickRuntimeFile: (kind:string) => Promise<any>; startRuntime: (params:unknown) => Promise<any>; runtimeStatus: () => Promise<any>; stopRuntime: () => Promise<any>;
   getProjectMemory: () => Promise<any>; saveProjectMemory: (memory:unknown,revision:string) => Promise<any>; renameChat: (id:string,title:string,mode:string) => Promise<any>;
   telegramStatus:()=>Promise<any>;connectTelegram:(params:unknown)=>Promise<any>;disconnectTelegram:()=>Promise<any>;forgetTelegram:()=>Promise<any>;
   desktopSettings:()=>Promise<any>;configureDesktop:(enabled:boolean)=>Promise<any>;
+  desktopApplications:()=>Promise<any>;addDesktopApplication:()=>Promise<any>;removeDesktopApplication:(id:string)=>Promise<any>;
   moveChat:(id:string,mode:string,target:string)=>Promise<any>;
   cancelHandoff:(id:string)=>Promise<any>;
   prepareHandoff:(id:string)=>Promise<any>;
   getCompanionSettings:()=>Promise<any>;configureCompanion:(params:unknown)=>Promise<any>;
   transcribe:(audio:string)=>Promise<any>;cancelTranscription:()=>Promise<any>;
   voicePlayback:(params:unknown)=>Promise<any>;openTtsFolder:()=>Promise<any>;
+  speechRuntime:(operation:'status'|'start'|'stop'|'install')=>Promise<any>;
   activateAssistant:()=>Promise<any>;wakeListening:(enabled:boolean)=>Promise<any>;
   voiceStatus: () => Promise<any>; refreshVoices: () => Promise<any>; speak: (params:unknown) => Promise<any>; stopVoice: () => Promise<any>;
   searchProject: (params: unknown) => Promise<any>; cancelProjectSearch: () => Promise<any>;

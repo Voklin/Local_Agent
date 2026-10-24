@@ -46,6 +46,7 @@ class TranscriptionTests(unittest.TestCase):
         self.assertTrue(result['ok'],result);self.assertEqual(result['text'],'Распознанный текст')
         self.assertIn(b'RIFF',self.server.body);self.assertIn(b'WAVE',self.server.body)
         self.assertIn(b'name="language"',self.server.body)
+        self.assertIn(b'name="temperature"\r\n\r\n0',self.server.body)
 
     def test_cancel_closes_stalled_request_promptly(self):
         self.server.stalled=True

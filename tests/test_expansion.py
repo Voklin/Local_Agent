@@ -16,13 +16,46 @@ import httpx
 from agent import chat_store, task_store, companion_preferences
 from agent.json_tools import parse_tool_json, prepare_json_request, JsonToolStream
 from core.python.task_service import TaskService
-from core.python.desktop_service import DesktopService, prompt_folders
+from core.python.desktop_service import DesktopService, prompt_folders, search_web
 from core.python.telegram_service import TelegramService
 from core.python.runtime_service import RuntimeService
 from core.python.transcription_service import TranscriptionService
 
 
 class ExpansionTests(unittest.TestCase):
+    def test_lola_wake_migration_preserves_custom_phrase(self):
+        self.assertEqual(companion_preferences.validate_profile({**companion_preferences.DEFAULT_PROFILE,'wake_phrase':'Привет, Мия'})['wake_phrase'],'Привет, Лола')
+        self.assertEqual(companion_preferences.validate_profile({**companion_preferences.DEFAULT_PROFILE,'wake_phrase':'Доброе утро'})['wake_phrase'],'Доброе утро')
+
+    def test_search_falls_back_to_bing_and_rejects_non_web_links(self):
+        requests=[]
+        def search_transport(request):
+            requests.append(request.url.host)
+            if request.url.host=='html.duckduckgo.com':raise httpx.ConnectTimeout('fixture')
+            return httpx.Response(200,content=b'<rss><channel><item><title>Test query result</title><link>https://example.org/page</link><description>Snippet</description></item><item><title>Blocked</title><link>file:///C:/private.txt</link></item><item><title>Unrelated</title><link>https://example.org/unrelated</link></item></channel></rss>')
+        client=httpx.Client
+        with patch('core.python.desktop_service.httpx.Client',side_effect=lambda **kwargs:client(transport=httpx.MockTransport(search_transport),**kwargs)):
+            result=search_web('test query',threading.Event())
+        self.assertTrue(result['ok']);self.assertEqual(result['provider'],'Bing')
+        self.assertEqual(requests,['html.duckduckgo.com','www.bing.com'])
+        self.assertEqual(result['results'],[{'title':'Test query result','url':'https://example.org/page','snippet':'Snippet'}])
+
+    def test_application_tools_broker_ids_without_shell_or_arguments(self):
+        service=DesktopService(lambda event:None);service.enabled=True
+        service.request=Mock(return_value={'ok':True});cancelled=threading.Event()
+        self.assertTrue(service.execute('list_applications',{},'Открой блокнот',cancelled)['ok'])
+        service.request.assert_called_with('list_applications',{},cancelled)
+        self.assertTrue(service.execute('open_application',{'app_id':'notepad'},'Открой блокнот',cancelled)['ok'])
+        service.request.assert_called_with('open_application',{'app_id':'notepad'},cancelled)
+        service.request.reset_mock()
+        for args in ({'app_id':'C:\\Windows\\cmd.exe'},{'app_id':'notepad','args':['file.txt']},{'app_id':'cmd /c test'}):
+            self.assertFalse(service.execute('open_application',args,'Открой блокнот',cancelled)['ok'])
+        service.request.assert_not_called()
+        cancelled.set();self.assertFalse(service.execute('open_application',{'app_id':'notepad'},'',cancelled)['ok'])
+        service.enabled=False
+        self.assertFalse(service.execute('list_applications',{},'',threading.Event())['ok'])
+        service.request.assert_not_called()
+
     def test_companion_scope_rejects_cross_loading(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)

@@ -83,22 +83,26 @@ def _handle(method: str, params: dict) -> dict:
         return tasks.prepare_handoff(project_root,params)
     if method == 'get_companion_settings':
         return tasks.companion_preferences()
+    if method == 'get_ide_workflow':
+        return tasks.workflow_preferences()
+    if method == 'configure_ide_workflow':
+        return tasks.configure_workflow(params)
     if method == 'configure_companion':
         return tasks.configure_companion(params)
     if method == 'cancel_transcription':
         return transcription.stop()
     if method == 'voice_status':
-        return neural_speech.status() if tasks.companion_config['tts_provider']=='qwen3' else speech.status()
+        return neural_speech.status(tasks.companion_config['tts_provider']) if tasks.companion_config['tts_provider'] in ('qwen3','piper') else speech.status()
     if method == 'voice_refresh':
-        return neural_speech.status() if tasks.companion_config['tts_provider']=='qwen3' else speech.refresh()
+        return neural_speech.status(tasks.companion_config['tts_provider']) if tasks.companion_config['tts_provider'] in ('qwen3','piper') else speech.refresh()
     if method == 'voice_speak':
-        return neural_speech.speak(params,tasks.companion_config) if tasks.companion_config['tts_provider']=='qwen3' else speech.speak(params)
+        return neural_speech.speak(params,tasks.companion_config) if tasks.companion_config['tts_provider'] in ('qwen3','piper') else speech.speak(params)
     if method == 'voice_playback':
         return neural_speech.playback(params)
     if method == 'voice_stop':
         neural_speech.stop()
         speech.stop()
-        return neural_speech.status() if tasks.companion_config['tts_provider']=='qwen3' else speech.status()
+        return neural_speech.status(tasks.companion_config['tts_provider']) if tasks.companion_config['tts_provider'] in ('qwen3','piper') else speech.status()
     if method in ('runtime_start', 'runtime_stop'):
         tasks.idle()
         return runtime.start(params) if method == 'runtime_start' else runtime.stop()
@@ -209,6 +213,9 @@ def main() -> None:
                 continue
             if method == 'list_models':
                 tasks.start_model_discovery(lambda result, request_id=req_id: emit({'id': request_id, **result}), req.get('params') or None)
+                continue
+            if method == 'list_ide_models':
+                tasks.start_workflow_discovery(req.get('params') or {},lambda result, request_id=req_id: emit({'id':request_id,**result}))
                 continue
             if method == 'test_model':
                 tasks.start_model_probe(req.get('params') or None, lambda result, request_id=req_id: emit({'id': request_id, **result}))

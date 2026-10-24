@@ -36,7 +36,8 @@ class TranscriptionService:
                     text=asyncio.run(self.request_audio(audio,profile,cancelled))
                     response={'ok':True,'text':text.strip()}
                 except Exception as exc:
-                    response={'ok':False,'error':'STT: '+type(exc).__name__+'; проверьте адрес и запущенный сервер'}
+                    response={'ok':False,'error':('STT сервер недоступен. Запустите whisper-server с моделью русского языка; проверьте STT URL (для whisper.cpp: http://127.0.0.1:8080/inference). LM Studio не запускает STT автоматически.'
+                              if isinstance(exc,httpx.ConnectError) else 'STT: '+type(exc).__name__+'; проверьте адрес и журнал сервера')}
                 finally:
                     respond({'ok':False,'error':'Распознавание отменено'} if cancelled.is_set() else response)
 
@@ -49,7 +50,7 @@ class TranscriptionService:
                 headers={'Authorization':'Bearer '+profile['stt_api_key']} if profile.get('stt_api_key') else {}
                 async with client.stream('POST',profile['stt_url'],headers=headers,
                         files={'file':('recording.wav',audio,'audio/wav')},
-                        data={'model':profile['stt_model'],'language':profile['stt_language'],'response_format':'json'}) as result:
+                        data={'model':profile['stt_model'],'language':profile['stt_language'],'response_format':'json','temperature':'0'}) as result:
                     result.raise_for_status();raw=bytearray()
                     async for chunk in result.aiter_bytes():
                         raw.extend(chunk)

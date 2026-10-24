@@ -12,6 +12,23 @@ from core.python.neural_speech import NeuralSpeech
 
 
 class NeuralSpeechTests(unittest.TestCase):
+    def test_http_busy_and_deadline_have_actionable_messages(self):
+        for code,expected in ((429,'занят'),(504,'короткую фразу')):
+            with self.subTest(code=code):
+                class Handler(BaseHTTPRequestHandler):
+                    def do_POST(self):
+                        self.send_response(code);self.end_headers()
+                    def log_message(self,*args):pass
+                server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
+                thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+                events=[];service=NeuralSpeech(events.append)
+                try:
+                    profile={**DEFAULT_PROFILE,'tts_url':f'http://127.0.0.1:{server.server_port}/v1/audio/speech'}
+                    service.speak({'text':'Привет'},profile);service.thread.join(3)
+                    self.assertEqual(service.state,'error');self.assertIn(expected,service.error)
+                    self.assertNotIn('HTTPStatusError',service.error);self.assertEqual(events,[])
+                finally:service.shutdown();server.shutdown();server.server_close();thread.join(2)
+
     def test_http_audio_and_exact_playback_sequence(self):
         output=io.BytesIO()
         with wave.open(output,'wb') as wav:
@@ -31,7 +48,7 @@ class NeuralSpeechTests(unittest.TestCase):
         service=NeuralSpeech(emit)
         try:
             profile=validate_profile({**DEFAULT_PROFILE,'tts_provider':'qwen3','tts_url':f'http://127.0.0.1:{server.server_port}/v1/audio/speech'})
-            service.speak({'text':'Привет, я Мия!'},profile)
+            service.speak({'text':'Привет, я Лола!'},profile)
             self.assertTrue(audio.wait(5));self.assertEqual(requests[0]['language'],'Russian')
             self.assertIn('anime',requests[0]['instructions'])
             self.assertFalse(service.playback({'sequence':0})['ok'])

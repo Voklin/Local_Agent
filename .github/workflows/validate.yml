@@ -22,6 +22,9 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: npm run build
+      - run: node tests/electron/desktop-apps.cjs
+      - run: node tests/electron/microphone.cjs
+      - run: node tests/electron/assistant-media.cjs
       - run: python tools/check_docs.py
 
   windows-package:

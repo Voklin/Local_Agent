@@ -68,6 +68,16 @@ async function run(executable, directory, first, modelUrl) {
       await delay(100);
     }
     assert.equal(health?.service, 'python-core-bridge', stderr);
+    const workflow=await evaluate(socket,'window.lca.getIDEWorkflow()');
+    assert.equal(workflow.ok,true);assert.equal(workflow.enabled,false);assert.equal(Object.keys(workflow.roles).length,4);
+    if(first) {
+      const roles={...workflow.roles,conductor:{...workflow.roles.conductor,model:'packaged-role',provider:'external',api_key:'packaged-role-secret'}};
+      const result=await evaluate(socket,`window.lca.configureIDEWorkflow({...${JSON.stringify(workflow)},context_length:8192,roles:${JSON.stringify(roles)}})`);
+      assert.equal(result.ok,true);assert.ok(!JSON.stringify(result).includes('packaged-role-secret'));
+    } else {assert.equal(workflow.context_length,8192);assert.equal(workflow.roles.conductor.model,'packaged-role');}
+    const applications=await evaluate(socket,'window.lca.desktopApplications()');
+    assert.equal(applications.ok,true);assert.ok(applications.applications.some(item=>item.id==='browser'));
+    assert.ok(applications.applications.every(item=>typeof item.name==='string'&&!('file' in item)));
     assert.equal(await evaluate(socket, 'typeof require'), 'undefined');
     const runtime = await evaluate(socket, 'window.lca.runtimeStatus()');
     assert.equal(runtime.ok, true);
@@ -83,6 +93,11 @@ async function run(executable, directory, first, modelUrl) {
     assert.equal((await evaluate(socket, 'window.lca.getModelSettings()')).settings.max_tokens, 1536);
     assert.deepEqual((await evaluate(socket, 'window.lca.listModels()')).models, ['packaged-smoke']);
     assert.equal((await evaluate(socket, `window.lca.testModel({base_url:${JSON.stringify(modelUrl)},model:'packaged-smoke'})`)).ok, true);
+    const companion=await evaluate(socket,'window.lca.getCompanionSettings()');
+    if(first)assert.equal(companion.tts_provider,'piper','New installations recommend Serena');
+    const voiceRuntime=await evaluate(socket,`window.lca.speechRuntime('status')`);
+    assert.equal(voiceRuntime.ok,true);assert.equal(voiceRuntime.runtimeAvailable,false,'Isolated profile has no optional Python voice runtime');
+    assert.equal((await evaluate(socket,`window.lca.configureCompanion({...${JSON.stringify(companion)},tts_provider:'windows'})`)).ok,true);
     await evaluate(socket, `document.querySelector('.mode-tabs button:last-child').click();true`);
     let speech;
     for(let attempt=0;attempt<100;attempt++) {
@@ -124,6 +139,7 @@ async function main() {
     await run(executable, directory, false, modelUrl);
     const preferences = await fs.readFile(path.join(directory, 'LocalCodingAgent/model-preferences.json'), 'utf8');
     assert.ok(!preferences.includes('packaging-test-secret'));
+    assert.ok(!(await fs.readFile(path.join(directory,'LocalCodingAgent/ide-workflow.json'),'utf8')).includes('packaged-role-secret'));
     const log = await fs.readFile(path.join(directory, 'profile/logs/main.log'), 'utf8');
     assert.ok(log.includes('packaged=true') && log.includes('app:quit'));
     assert.ok(!log.includes('packaging-test-secret'));

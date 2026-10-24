@@ -29,7 +29,7 @@ def default_stages(prompt=""):
 def new_task(chat_id, project_root, prompt):
     return {
         "version": 2, "runtime_version": "5.7", "chat_id": str(chat_id), "project_root": str(project_root),
-        "prompt": str(prompt)[:10000], "status": "running",
+        "prompt": str(prompt)[:50000], "status": "running",
         "stage": "analysis", "turn": 0, "tool_calls": 0,
         "started_at": _now(), "updated_at": _now(), "stages": default_stages(prompt),
         "selected_skills": [], "decisions": [], "discovered_files": [], "modified_files": [],

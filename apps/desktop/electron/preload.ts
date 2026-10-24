@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('lca', {
   health: () => ipcRenderer.invoke('core:health'),
+  getIDEWorkflow:()=>ipcRenderer.invoke('ide:workflow'),
+  configureIDEWorkflow:(params:unknown)=>ipcRenderer.invoke('ide:configure-workflow',params),
+  listIDEModels:(params:unknown)=>ipcRenderer.invoke('ide:models',params),
   chooseProject: () => ipcRenderer.invoke('project:choose'),
   listFiles: (relativePath = '.') => ipcRenderer.invoke('project:list', relativePath),
   readFile: (relativePath: string) => ipcRenderer.invoke('project:read', relativePath),
@@ -16,6 +19,9 @@ contextBridge.exposeInMainWorld('lca', {
   disconnectTelegram:()=>ipcRenderer.invoke('telegram:disconnect'),
   forgetTelegram:()=>ipcRenderer.invoke('telegram:forget'),
   desktopSettings:()=>ipcRenderer.invoke('desktop:settings'),
+  desktopApplications:()=>ipcRenderer.invoke('desktop:applications'),
+  addDesktopApplication:()=>ipcRenderer.invoke('desktop:add-application'),
+  removeDesktopApplication:(id:string)=>ipcRenderer.invoke('desktop:remove-application',{id}),
   configureDesktop:(enabled:boolean)=>ipcRenderer.invoke('desktop:configure',{enabled}),
   moveChat:(chat_id:string,mode:string,target:string)=>ipcRenderer.invoke('chat:move',{chat_id,mode,target}),
   cancelHandoff:(id:string)=>ipcRenderer.invoke('companion:cancel-handoff',{id}),
@@ -30,6 +36,7 @@ contextBridge.exposeInMainWorld('lca', {
   stopVoice: () => ipcRenderer.invoke('voice:stop'),
   voicePlayback:(params:unknown)=>ipcRenderer.invoke('voice:playback',params),
   openTtsFolder:()=>ipcRenderer.invoke('voice:tts-folder'),
+  speechRuntime:(operation:string)=>ipcRenderer.invoke('voice:runtime',operation),
   activateAssistant:()=>ipcRenderer.invoke('voice:activate'),
   wakeListening:(enabled:boolean)=>ipcRenderer.invoke('voice:listening',enabled),
   searchProject: (params: unknown) => ipcRenderer.invoke('project:search', params),

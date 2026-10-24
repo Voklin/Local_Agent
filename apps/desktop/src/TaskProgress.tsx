@@ -6,6 +6,8 @@ export type TaskSnapshot = {
   status: string; last_event: string; stage: string; turn: number; tool_calls: number;
   stages: TaskStage[]; tool_activity?: ToolActivity[]; activity_omitted?: number;
   modified_files?: string[]; stop_reason?: string;
+  workflow?:{mode:string;role:string;cycle:number;roles:{id:string;title:string;model:string;status:string}[]};
+  context?:{compressed:boolean;before_chars:number;after_chars:number;archived_units?:number};
 };
 
 const toolNames: Record<string, string> = { list_files: 'Обзор файлов', read_file: 'Чтение файла', search_text: 'Поиск', write_file: 'Запись файла' };
@@ -23,6 +25,8 @@ export function TaskProgress({ task, busy, onResume }: { task: TaskSnapshot; bus
   return <section className="task-card task-progress" aria-label="План задачи">
     <div className="task-progress-heading"><b>{status}</b><span>Цикл {task.turn || 0}</span></div>
     <p className="task-last-event">{task.last_event}</p>
+    {task.context?.compressed&&<p className="task-check-note">Контекст уплотнён: {task.context.before_chars.toLocaleString('ru')} → {task.context.after_chars.toLocaleString('ru')} символов. Полная история сохранена.</p>}
+    {task.workflow&&<ol className="workflow-progress" aria-label="Роли IDE">{task.workflow.roles.map(role=><li key={role.id} data-status={role.status}><span>{role.title}</span><small title={role.model}>{role.model}</small><b>{({pending:'Ожидает',loading:'Загрузка',active:'Работает',done:'Готово',failed:'Нужны исправления',paused:'Пауза'} as Record<string,string>)[role.status]||role.status}</b></li>)}</ol>}
     <details open className="task-plan">
       <summary>План задачи</summary>
       <div className="task-progress-body">

@@ -21,11 +21,13 @@ let speechCalls=0;
 let companionRequest=false;
 let neuralMode=false;
 let neuralRequests=0;
+let piperRuntimeFixture=false;
 const registerIpc=ipcMain.handle.bind(ipcMain);
 let handlerForVoiceStatus=async()=>({ok:true,state:'idle',voices:[],recognizers:[]});
 ipcMain.handle=(channel,handler)=>{
   if(channel==='voice:status')handlerForVoiceStatus=handler;
   return registerIpc(channel,async(event,...args)=>{
+    if(channel==='voice:runtime'&&piperRuntimeFixture)return {ok:true,running:true,occupied:true,modelAvailable:true,runtimeAvailable:true,managed:false};
     if(channel==='voice:speak'&&!neuralMode) {
       capturedSpeech=args[0];speechCalls++;simulatedSpeech=true;
       const result=await handlerForVoiceStatus(event);
@@ -33,12 +35,23 @@ ipcMain.handle=(channel,handler)=>{
     }
     if(channel==='voice:stop')simulatedSpeech=false;
     const result=await handler(event,...args);
+    if(channel==='voice:listening')event.sender.setBackgroundThrottling(false); // Hidden fixture still needs audio callbacks and animation frames.
     return channel==='voice:status'&&simulatedSpeech?{...result,state:'speaking'}:result;
   });
 };
 
 const testRoot = path.resolve(__dirname, '../../.test-data/electron-smoke');
 fs.mkdirSync(testRoot, { recursive: true });
+// Continuous deterministic PCM avoids silent phases of Chromium's default fake
+// device. Hardware DSP is checked by the recorder unit test, not by this fixture.
+const microphoneWave=Buffer.alloc(44+16000*2*3);
+microphoneWave.write('RIFF',0);microphoneWave.writeUInt32LE(microphoneWave.length-8,4);microphoneWave.write('WAVEfmt ',8);
+microphoneWave.writeUInt32LE(16,16);microphoneWave.writeUInt16LE(1,20);microphoneWave.writeUInt16LE(1,22);
+microphoneWave.writeUInt32LE(16000,24);microphoneWave.writeUInt32LE(32000,28);microphoneWave.writeUInt16LE(2,32);microphoneWave.writeUInt16LE(16,34);
+microphoneWave.write('data',36);microphoneWave.writeUInt32LE(microphoneWave.length-44,40);
+for(let sample=0;sample<48000;sample++)microphoneWave.writeInt16LE(Math.round(6000*Math.sin(2*Math.PI*220*sample/16000)),44+sample*2);
+const microphonePath=path.join(testRoot,'microphone-fixture.wav');fs.writeFileSync(microphonePath,microphoneWave);
+app.commandLine.appendSwitch('use-file-for-fake-audio-capture',microphonePath);
 fs.writeFileSync(path.join(testRoot,'fixture-requests.log'),'');
 const resultPath = path.join(testRoot, 'result.json');
 fs.writeFileSync(resultPath, JSON.stringify({status:'running'}));
@@ -57,7 +70,8 @@ let discardChoice = 1;
 dialog.showMessageBox = async () => ({response:discardChoice});
 fs.writeFileSync(path.join(project,'editor-a.txt'),'first\nsecond\n');
 fs.writeFileSync(path.join(project,'editor-b.py'),'print(1)\n');
-dialog.showOpenDialog = async (_win,options) => ({ canceled:false,filePaths:[options?.title==='Выберите GGUF'?process.env.LCA_TEST_GGUF:options?.title==='Выберите установленный llama-server'?process.env.LCA_TEST_RUNTIME:project] });
+const allowedAppFixture=path.join(project,'allowed-app.exe');fs.writeFileSync(allowedAppFixture,'fixture only, never launched');
+dialog.showOpenDialog = async (_win,options) => ({ canceled:false,filePaths:[options?.title==='Разрешить Лоле запуск приложения'?allowedAppFixture:options?.title==='Выберите GGUF'?process.env.LCA_TEST_GGUF:options?.title==='Выберите установленный llama-server'?process.env.LCA_TEST_RUNTIME:project] });
 
 let modelMode = 'write';
 let releaseModelText = null;
@@ -85,12 +99,19 @@ const model = http.createServer((req, res) => {
     }
     const encode = delta => 'data: ' + JSON.stringify({id:'test',object:'chat.completion.chunk',created:0,model:'smoke-model',choices:[{index:0,delta,finish_reason:null}]}) + '\n\n';
     res.writeHead(200, { 'Content-Type':'text/event-stream' });
+    if(input.model.startsWith('workflow-')) {
+      const role=input.model.slice('workflow-'.length);
+      const lastUser=input.messages.map(m=>m.role).lastIndexOf('user');
+      const acted=input.messages.slice(lastUser+1).some(m=>m.role==='tool');
+      const delta=role==='conductor'?{content:'План: создать workflow.json и проверить JSON.'}:role==='coder'?{content:JSON.stringify({files:[{path:'workflow.json',content:'{"ok":true}'}]})}:role==='builder'?!acted?{tool_calls:[{index:0,id:'workflow-write',type:'function',function:{name:'write_file',arguments:JSON.stringify({path:'workflow.json',content:'{"ok":true}',overwrite:true})}}]}:{content:'workflow.json создан.'}:!acted?{tool_calls:[{index:0,id:'workflow-read',type:'function',function:{name:'read_file',arguments:'{"path":"workflow.json"}'}}]}:{content:'{"verdict":"pass","summary":"Проверено чтением и JSON","issues":[]}'};
+      res.end(encode(delta)+'data: [DONE]\n\n');return;
+    }
     if(modelMode==='desktop') {
       const delta=input.messages.some(message=>message.role==='tool')?{content:'Screenshot created'}:{tool_calls:[{index:0,id:'screen-fixture',type:'function',function:{name:'desktop_screenshot',arguments:'{}'}}]};
       res.end(encode(delta)+'data: [DONE]\n\n');
-    }else if (!input.tools || input.tools.every(tool=>tool.function.name==='delegate_task')) {
+    }else if (!input.tools || (input.tools.some(tool=>tool.function.name==='delegate_task')&&!input.tools.some(tool=>tool.function.name==='write_file'))) {
       if(!input.tools)assert.equal(input.tool_choice, undefined);
-      if(input.messages[0].content.includes('Мия'))companionRequest=true;
+      if(input.messages[0].content.includes('Лола'))companionRequest=true;
       if(modelMode==='scroll') {
         res.write(encode({content:Array.from({length:120},(_,i)=>'Scroll line '+i).join('\n')}));
         releaseModelText=()=>res.end(encode({content:'\n'+Array.from({length:120},(_,i)=>'More line '+i).join('\n')})+'data: [DONE]\n\n');
@@ -201,6 +222,18 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `!document.querySelector('.memory-dialog')`);
       await win.webContents.executeJavaScript(`document.querySelector('[title="Настройки модели"]').click()`);
       await poll(win, `!!document.querySelector('.model-settings input')`);
+      await win.webContents.executeJavaScript(`document.querySelector('.settings-tabs button:last-child').click()`);
+      await poll(win, `!document.querySelector('.appearance-settings').parentElement.hidden`);
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Тема интерфейса"]');input.value='light';input.dispatchEvent(new Event('change',{bubbles:true}));}`);
+      await poll(win, `document.querySelector('.app-shell').dataset.theme==='light'`);
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Плотность интерфейса"]');input.value='compact';input.dispatchEvent(new Event('change',{bubbles:true}));}`);
+      await poll(win, `document.querySelector('.app-shell').dataset.density==='compact'`);
+      await win.webContents.executeJavaScript(`document.querySelector('[aria-label="Боковая панель и история"]').click()`);
+      await poll(win, `getComputedStyle(document.querySelector('.sidebar')).display==='none'`);
+      await win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+      fs.writeFileSync(path.join(testRoot,'appearance.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.appearance-settings button')).find(button=>button.textContent.includes('Вернуть стандартное')).click();document.querySelector('.settings-tabs button:first-child').click()`);
+      await poll(win, `document.querySelector('.app-shell').dataset.theme==='dark'&&getComputedStyle(document.querySelector('.sidebar')).display!=='none'`);
       if(process.env.LCA_TEST_RUNTIME&&process.env.LCA_TEST_GGUF) {
         await win.webContents.executeJavaScript(`document.querySelector('.pick-runtime').click()`);
         await poll(win, `document.querySelector('.runtime-path').textContent.includes('llama-server')`);
@@ -357,27 +390,67 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript(`document.querySelector('.progress-toggle').click()`);
       await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       fs.writeFileSync(path.join(testRoot, 'ide.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
-      assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.main-panel')).backgroundColor`), 'rgb(25, 25, 28)');
-      await win.webContents.executeJavaScript(`window.lca.configureCompanion({base_url:${JSON.stringify(url)},model:'smoke-model',persona:'Мия — дружелюбная помощница',auto_delegate:false,stt_url:'http://127.0.0.1:${transcriptionFixture.address().port}/inference'})`);
+      assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.main-panel')).backgroundColor`), 'rgb(23, 25, 30)');
+      await win.webContents.executeJavaScript(`(async()=>{const result=await window.lca.getIDEWorkflow();await window.lca.configureIDEWorkflow({...result,enabled:true,mode:'pipeline',roles:Object.fromEntries(['conductor','coder','builder','reviewer'].map(role=>[role,{base_url:${JSON.stringify(url)},model:'workflow-'+role,provider:'external',tool_protocol:'native'}]))});window.dispatchEvent(new Event('ide-workflow-changed'));})()`);
+      await poll(win, `document.querySelector('[aria-label="Режим IDE"]').value==='pipeline'`);
+      await win.webContents.executeJavaScript(`document.querySelector('.ide-workflow-bar button').click()`);
+      await poll(win, `!!document.querySelector('.save-ide-workflow')&&!document.querySelector('.ide-workflow-settings').parentElement.hidden`);
+      await win.webContents.executeJavaScript(`document.querySelector('.save-ide-workflow').click()`);
+      await poll(win, `document.querySelector('.ide-workflow-settings').textContent.includes('Роли IDE сохранены')`);
+      await win.webContents.capturePage(undefined,{stayHidden:true});
+      fs.writeFileSync(path.join(testRoot,'ide-role-settings.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Закрыть настройки"]').click()`);
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('.composer textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Создай workflow.json через роли');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
+      await poll(win, `!!document.querySelector('.approval-dialog')`,20000);
+      assert.equal(fs.existsSync(path.join(project,'workflow.json')),false,'Role writer still requires user approval');
+      await win.webContents.executeJavaScript(`document.querySelector('.approval-actions .primary-button').click()`);
+      await poll(win, `!document.querySelector('[title="Остановить"]')&&document.querySelector('.chat-messages').textContent.includes('Проверено чтением')`,20000);
+      assert.deepEqual(JSON.parse(fs.readFileSync(path.join(project,'workflow.json'),'utf8')),{ok:true});
+      await win.webContents.executeJavaScript(`if(!document.querySelector('.workflow-progress'))document.querySelector('.progress-toggle').click()`);
+      await poll(win, `document.querySelectorAll('.workflow-progress li[data-status=done]').length===4`);
+      await win.webContents.capturePage(undefined,{stayHidden:true});
+      fs.writeFileSync(path.join(testRoot,'ide-workflow.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
+      await win.webContents.executeJavaScript(`(async()=>{const result=await window.lca.getIDEWorkflow();await window.lca.configureIDEWorkflow({...result,enabled:false});window.dispatchEvent(new Event('ide-workflow-changed'));})()`);
+      await win.webContents.executeJavaScript(`window.lca.configureCompanion({base_url:${JSON.stringify(url)},model:'smoke-model',tts_provider:'windows',persona:'Лола — дружелюбная помощница',auto_delegate:false,stt_url:'http://127.0.0.1:${transcriptionFixture.address().port}/inference'})`);
       await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:last-child').click()`);
       await poll(win, `!!document.querySelector('.voice-panel')`);
+      await win.webContents.executeJavaScript(`{const media=navigator.mediaDevices;const capture=media.getUserMedia.bind(media);media.getUserMedia=()=>capture({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});const create=AudioContext.prototype.createScriptProcessor;AudioContext.prototype.createScriptProcessor=function(...args){window.__micBlocks=0;const processor=create.apply(this,args);processor.addEventListener('audioprocess',()=>window.__micBlocks++);return processor;};void 0;}`);
+      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.miya-character')&&getComputedStyle(document.querySelector('.miya-character')).backgroundImage.includes('miya-states')`),true,'Reference character atlas must be displayed');
       await poll(win, `document.querySelector('.voice-panel').textContent.includes('Микрофон включается по нажатию')`);
       assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.microphone-record')`),true);
       await poll(win, `!document.querySelector('.microphone-record').disabled`);
-      await win.webContents.executeJavaScript(`document.querySelector('.microphone-record').click()`,true);
+      await poll(win, `(()=>{const button=document.querySelector('.microphone-record');if(button.disabled)return false;window.__micBlocks=0;button.click();return true;})()`);
       await poll(win, `document.querySelector('.voice-stt-note').textContent.includes('Идёт запись')`);
-      await win.webContents.executeJavaScript('new Promise(resolve=>setTimeout(resolve,1500))');
-      await win.webContents.executeJavaScript(`document.querySelector('.microphone-record').click()`,true);
+      await poll(win, `window.__micBlocks>=10`,15000);
+      await win.webContents.executeJavaScript(`window.__micBlocks=0;document.querySelector('.microphone-record').click()`,true);
       await poll(win, `document.querySelector('[aria-label="Сообщение ассистенту"]').value==='Микрофон fixture'`);
       assert.equal(transcriptionRequests,1,'Synthetic microphone must send one actual WAV request');
       assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.voice-composer button[type=button]')`),false,'Recognition does not submit the task automatically');
 
-      await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Сообщение ассистенту"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Привет, Мия');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Сообщение ассистенту"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Привет, Лола');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
       await win.webContents.executeJavaScript(`document.querySelector('.voice-composer').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
       await poll(win, `document.querySelector('.voice-conversation').textContent.includes('Standalone Chat reply')&&!document.querySelector('.voice-composer button[type=button]')`);
       assert.equal(companionRequest,true,'Companion uses a persona and no file tools');
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.voice-conversation').getBoundingClientRect().height>200`),true);
-      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.voice-controls').getBoundingClientRect().bottom>=document.querySelector('.voice-stt-note').getBoundingClientRect().bottom`),true);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.miya-settings-dialog').open`),false,'Settings must be hidden by default');
+      await win.webContents.executeJavaScript(`document.querySelector('.miya-settings-open').click()`);
+      await poll(win, `document.querySelector('.miya-settings-dialog').open`);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.miya-settings-dialog').contains(document.activeElement)`),true,'Modal must capture keyboard focus');
+      await win.webContents.executeJavaScript(`document.querySelector('[aria-label="Сразу отправлять распознанный запрос"]').click();document.querySelector('[aria-label="Закрыть настройки Лолы"]').click()`);
+      await win.webContents.executeJavaScript(`window.__micBlocks=0;document.querySelector('.microphone-record').click()`,true);
+      await poll(win, `document.querySelector('.voice-stt-note').textContent.includes('Идёт запись')`);
+      await poll(win, `window.__micBlocks>=10`,15000);
+      await win.webContents.executeJavaScript(`window.__micBlocks=0;document.querySelector('.microphone-record').click()`,true);
+      await poll(win, `document.querySelector('.voice-conversation').textContent.includes('Микрофон fixture')&&document.querySelector('[aria-label="Сообщение ассистенту"]').value===''&&!document.querySelector('.voice-composer button[type=button]')`);
+      assert.equal(transcriptionRequests,2,'Opt-in voice command is submitted exactly once');
+      await win.webContents.executeJavaScript(`document.querySelector('.miya-settings-open').click()`);
+      await poll(win, `document.querySelector('.miya-settings-dialog').open`);
+      await win.webContents.executeJavaScript(`document.querySelector('[aria-label="Сразу отправлять распознанный запрос"]').click()`);
+      win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});
+      win.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'});
+      await poll(win, `!document.querySelector('.miya-settings-dialog').open`);
+      assert.equal(await win.webContents.executeJavaScript(`document.activeElement===document.querySelector('.miya-settings-open')`),true,'Escape restores focus to Settings');
       await poll(win, `document.querySelector('.voice-state').textContent.includes('Готова')||!!document.querySelector('.voice-error')`);
       const voiceStatus=await win.webContents.executeJavaScript('window.lca.voiceStatus()');
       if(voiceStatus.voices.length) {
@@ -388,7 +461,9 @@ app.on('browser-window-created', (_event, win) => {
         await win.webContents.executeJavaScript(`document.querySelector('.stop-speech').click()`);
         await poll(win, `!document.querySelector('.voice-speaking')`);
         const callsBefore=speechCalls;
-        await win.webContents.executeJavaScript(`document.querySelector('.auto-speak input').click()`);
+        await win.webContents.executeJavaScript(`document.querySelector('.miya-settings-open').click()`);
+        await poll(win, `document.querySelector('.miya-settings-dialog').open`);
+        await win.webContents.executeJavaScript(`document.querySelector('.miya-settings-dialog .auto-speak input').click();document.querySelector('[aria-label="Закрыть настройки Лолы"]').click()`);
         await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Сообщение ассистенту"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Повтори ответ');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
         await win.webContents.executeJavaScript(`document.querySelector('.voice-composer').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
         await poll(win, `!!document.querySelector('.voice-speaking')`);
@@ -397,11 +472,11 @@ app.on('browser-window-created', (_event, win) => {
         await poll(win, `!document.querySelector('.voice-speaking')`);
       }
       await win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
-      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.voice-controls>button').getBoundingClientRect().top>=document.querySelector('.companion-settings').getBoundingClientRect().bottom-1`),true,'Chat navigation must not overlap companion settings');
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.miya-settings-dialog').open`),false,'Settings close without hiding the conversation');
       fs.writeFileSync(path.join(testRoot,'voice.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
       await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:first-child').click()`);
       await poll(win, `!!document.querySelector('.mode-chat') && !document.querySelector('.main-panel')`);
-      await poll(win, `!document.querySelector('.sidebar').textContent.includes('Привет, Мия')`);
+      await poll(win, `!document.querySelector('.sidebar').textContent.includes('Привет, Лола')`);
       await win.webContents.executeJavaScript(`{ const input=document.querySelector('.composer textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input, 'chat without files'); input.dispatchEvent(new Event('input',{bubbles:true})); }`);
       await poll(win, `!document.querySelector('[title="Отправить"]').disabled`);
       await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
@@ -433,6 +508,14 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript(`document.querySelector('.follow-chat').click()`);
       await poll(win, `!document.querySelector('.follow-chat') && document.querySelector('.chat-messages').scrollTop>100`);
       modelMode='desktop';
+      const allowedApps=await win.webContents.executeJavaScript('window.lca.addDesktopApplication()');
+      assert.equal(allowedApps.ok,true);
+      const addedApp=allowedApps.applications.find(item=>item.name==='allowed-app');
+      assert.ok(addedApp?.custom);assert.equal(addedApp.file,undefined);
+      const persistedApps=await win.webContents.executeJavaScript('window.lca.desktopApplications()');
+      assert.ok(persistedApps.applications.some(item=>item.id===addedApp.id));
+      const removedApps=await win.webContents.executeJavaScript(`window.lca.removeDesktopApplication(${JSON.stringify(addedApp.id)})`);
+      assert.ok(!removedApps.applications.some(item=>item.id===addedApp.id));
       await win.webContents.executeJavaScript('window.lca.configureDesktop(true)');
       await win.webContents.executeJavaScript(`{const input=document.querySelector('.composer textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Сделай скриншот');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
       await poll(win, `!document.querySelector('[title="Отправить"]').disabled`);
@@ -441,20 +524,37 @@ app.on('browser-window-created', (_event, win) => {
       assert.ok(await win.webContents.executeJavaScript(`document.querySelector('.desktop-artifact img').src.startsWith('data:image/png;base64,')`));
       await win.webContents.executeJavaScript(`document.querySelector('.desktop-artifact button').click();window.lca.configureDesktop(false)`);
       neuralMode=true;
-      await win.webContents.executeJavaScript(`window.lca.configureCompanion({base_url:${JSON.stringify(url)},model:'smoke-model',tts_provider:'qwen3',tts_url:${JSON.stringify(url.replace('/v1','/tts'))},stt_url:'http://127.0.0.1:${transcriptionFixture.address().port}/inference',wake_phrase:'Привет, Мия',wake_auto_send:false})`);
+      await win.webContents.executeJavaScript(`window.lca.configureCompanion({base_url:${JSON.stringify(url)},model:'smoke-model',tts_provider:'qwen3',tts_url:${JSON.stringify(url.replace('/v1','/tts'))},stt_url:'http://127.0.0.1:${transcriptionFixture.address().port}/inference',wake_phrase:'Привет, Лола',wake_auto_send:false})`);
       await win.webContents.executeJavaScript(`window.dispatchEvent(new Event('companion-profile'));true`);
-      const neural=await win.webContents.executeJavaScript(`window.lca.speak({text:'Привет, я Мия!',volume:0,rate:0})`);
+      const neural=await win.webContents.executeJavaScript(`window.lca.speak({text:'Привет, я Лола!',volume:0,rate:0})`);
       assert.equal(neural.ok,true);
       await poll(win, `(async()=>{const s=await window.lca.voiceStatus();return s.sequence>0&&s.state==='idle';})()`,15000);
       assert.equal(neuralRequests,1);
-      transcriptionText='Привет, Мия';
+      transcriptionText='Привет, Лола';
       await win.webContents.executeJavaScript(`document.querySelector('.wake-control button').click()`,true);
       await poll(win, `!!document.querySelector('.voice-panel')`,20000);
-      await poll(win, `document.querySelector('.wake-control').textContent.includes('Мия активирована')`,5000);
+      await poll(win, `document.querySelector('.wake-control').textContent.includes('Лола активирована')`,5000);
       transcriptionText='Расскажи про музыку';
       await poll(win, `document.querySelector('[aria-label="Сообщение ассистенту"]').value==='Расскажи про музыку'`,20000);
       assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.voice-composer button[type=button]')`),false,'Wake command requires review by default');
       await win.webContents.executeJavaScript(`document.querySelector('.wake-control button').click()`,true);
+      piperRuntimeFixture=true;neuralMode=false;
+      await win.webContents.executeJavaScript(`(async()=>{const profile=await window.lca.getCompanionSettings();await window.lca.configureCompanion({...profile,tts_provider:'piper'});document.querySelector('[role=tab]:first-child').click();})()`);
+      await poll(win, `!document.querySelector('.voice-panel')`);
+      await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:last-child').click()`);
+      await poll(win, `document.querySelector('.voice-connection')?.textContent==='Подключена'`);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('[aria-label="Движок озвучки"]').value`),'piper');
+      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('[aria-label="Голос ассистента"]')`),false,'Serena should not expose a technical voice ID selector');
+      await win.webContents.executeJavaScript(`document.querySelector('.miya-settings-open').click()`);
+      await poll(win, `document.querySelector('.miya-settings-dialog').open`);
+      assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.miya-settings-dialog')).display`),'flex');
+      await win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+      fs.writeFileSync(path.join(testRoot,'miya-settings.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
+      await win.webContents.executeJavaScript(`document.querySelector('.miya-motion-toggle').click()`);
+      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.miya-still')`),true);
+      await win.webContents.executeJavaScript(`document.querySelector('.miya-motion-toggle').click();document.querySelector('[aria-label="Закрыть настройки Лолы"]').click();document.querySelector('.voice-panel').scrollTop=0;`);
+      await win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+      fs.writeFileSync(path.join(testRoot,'serena.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
       console.log('PASS: editor, approvals, streaming, voice profiles, silent neural WAV playback and wake phrase from Chat');
       fs.writeFileSync(resultPath, JSON.stringify({status:'passed',project}, null, 2));
       clearTimeout(deadline); model.close(); transcriptionFixture.close(); app.quit();

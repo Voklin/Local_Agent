@@ -729,6 +729,17 @@ register('tools/build_windows_core.py', '''
 main | Проверяет Windows x64/Python 3.12 и вызывает PyInstaller с данными навыков, SDK и необходимым PEM runtime.
 ''')
 TS_NOTES.update({
+ 'getIDEWorkflow':'Читает публичные настройки ролей IDE через узкий IPC без API-ключей.',
+ 'configureIDEWorkflow':'Сохраняет проверенный профиль ролей через backend idle guard.',
+ 'listIDEModels':'Запрашивает отменяемый каталог сервера выбранной роли без загрузки весов.',
+ 'apps/desktop/src/VoicePanel.tsx:VoicePanel.cancelRecording':'Инвалидирует результат STT, освобождает микрофон и отменяет HTTP; поздний ответ не меняет текст.',
+ 'tests/electron/microphone.cjs:main':'Без устройства проверяет конец речи, границы PCM после обрезки, тишину, ограничения аудио и остановку tracks.',
+ 'tests/electron/microphone.cjs:getUserMedia':'Создаёт фиктивный MediaStream, сохраняя запрошенные ограничения микрофона.',
+ 'tests/electron/microphone.cjs:getUserMedia.getTracks':'Возвращает фиктивную дорожку для проверки освобождения устройства.',
+ 'tests/electron/microphone.cjs:getUserMedia.getTracks.stop':'Считает остановки дорожки при завершении и отмене записи.',
+ 'tests/electron/microphone.cjs:btoa':'Кодирует тестовый PCM WAV в base64 через Node Buffer.',
+ 'tests/electron/microphone.cjs:main.block':'Передаёт детерминированный блок речи либо тишины обработчику AudioContext.',
+ 'tests/electron/microphone.cjs:main.block.getChannelData':'Возвращает 1024 сэмпла с заданной тестовой амплитудой.',
     'diagnostic': 'Добавляет только lifecycle-диагностику в ограниченный main.log; ошибка I/O не блокирует приложение.',
     'tests/electron/packaged-smoke.mjs:freePort': 'Резервирует свободный loopback-порт для тестового Chromium CDP.',
     'tests/electron/packaged-smoke.mjs:connectPage': 'Ожидает file renderer настоящего exe и открывает WebSocket CDP с ограниченным временем.',
@@ -755,10 +766,11 @@ TS_NOTES.update({
     'switchMode': 'Переключает Chat/IDE/voice только в idle, сбрасывает выбранный UI-чат и загружает историю соответствующей области.',
     'WorkspaceMode': 'Три пространства интерфейса: обычный разговор, работа с проектом и будущий голосовой ассистент.',
     'VoiceSessionState': 'Будущие состояния аудиосессии: отключена, слушает, думает, говорит, ошибка; сейчас backend не реализован.',
-    'VoiceProfile': 'Контракт будущих настроек персоны, STT/TTS провайдеров и push-to-talk; пока не сохраняется и не используется как рабочая функция.',
     'VoicePanel': 'Рисует эскиз горничной и карточки ещё не подключённых голосовых возможностей, предлагает перейти в Chat.',
 })
 TEST_PURPOSES.update({
+ 'resume_cannot_silently_switch_workflow_to_single_model':'После паузы смена команды IDE на одну модель требует новой задачи, старый workflow не обходится через Resume.',
+ 'standalone_review_requires_file_evidence':'Одиночный проверяющий не может объявить pass без чтения хотя бы одного файла проекта.',
     'empty_after_tool_recovers_without_repeating_write': 'SSE с reasoning без content после Apply приводит к одному text-only повтору, без повторной записи и без служебного user в архиве.',
     'permanently_empty_model_pauses_after_two_retries': 'Три пустых ответа после успешной записи дают paused/failed, сохраняют единственный tool result и файл.',
     'chat_without_project_has_no_tools_and_separate_history': 'Глобальный Chat работает без папки, не передаёт tools и не смешивает историю с проектом.',
@@ -770,6 +782,14 @@ TEST_PURPOSES.update({'chat_scope_does_not_require_selected_folder': 'Bridge в�
 TEST_PURPOSES['task_end_allows_immediate_configuration_before_thread_returns'] = 'Синхронный callback task_end меняет настройки, пока прежний поток ещё жив: завершённое исполнение уже idle.'
 TEST_HELPERS['observe'] = 'Перехватывает task_end, проверяет ещё живой worker и синхронно меняет настройки до возврата потока.'
 FILE_NOTES.update({
+ 'apps/desktop/src/AppearanceSettings.tsx':'Проверенные локальные настройки темы, акцента, плотности и панелей, синхронизация React и форма оформления.',
+ 'apps/desktop/src/GenerationFields.tsx':'Единые типы, значения, диапазоны, подсказки и форма генерации для Chat/IDE и отдельной модели Лолы.',
+ 'apps/desktop/src/styles/base.css':'Базовые панели, редактор, сообщения, подтверждения и карточки задачи; начало сохранённого CSS-каскада.',
+ 'apps/desktop/src/styles/workspaces.css':'Расположение Chat/IDE, общие окна и компоненты; сохранённый каскад без устаревших SVG-селекторов.',
+ 'apps/desktop/src/styles/companion.css':'Сетка ассистента, атлас состояний и модальное окно настроек голоса.',
+ 'apps/desktop/src/styles/modern.css':'Актуальные токены тёмной/светлой темы, акценты, плотность, скрытие панелей и розовое оформление Лолы.',
+ 'docs/32-miya-settings-and-voice-input.md':'Диалог настроек Лолы, RMS-порог, завершение по паузе, обрезка PCM, автоотправка, отмена и измерения STT.',
+ 'tests/electron/microphone.cjs':'Проверка захвата и обрезки WAV с фиктивным AudioContext без записи реального микрофона.',
     'agent/model_probe.py': 'Ограниченная отменяемая проверка draft-модели через Chat Completions без файлов, истории и сохранения настроек.',
     'tests/migration/test_model_probe.py': 'Реальный HTTP-стенд проверки ответа, пустого/некорректного/слишком большого результата, deadline и отмены.',
     'apps/desktop/src/ModelSettings.tsx': 'Модальное окно draft-настроек: endpoint, ключ, список моделей, тест ответа, генерация, лимиты, сохранение и focus trap.',
@@ -790,6 +810,14 @@ TaskService.start_model_probe.run_probe | Вызывает probe_model и воз
 TaskService.cancel_model_setup | Отменяет discovery и probe независимо от основной задачи агента.
 ''')
 TS_NOTES.update({
+ 'Appearance':'Разрешённые значения темы, акцента, плотности и трёх видимых панелей.',
+ 'readAppearance':'Читает localStorage с whitelist и fallback; повреждённые или неподдерживаемые поля не ломают запуск.',
+ 'saveAppearance':'Сохраняет внешний вид локально и сообщает компонентам об изменении.',
+ 'useAppearance':'Подписывает React на локальное событие настроек и storage, удаляет обработчики при unmount.',
+ 'apps/desktop/src/AppearanceSettings.tsx:useAppearance.refresh':'Перечитывает и проверяет оформление после изменения в этом или другом окне.',
+ 'AppearanceSettings':'Показывает темы, акценты, плотность и панели с немедленным применением без изменения модели.',
+ 'apps/desktop/src/AppearanceSettings.tsx:AppearanceSettings.update':'Применяет частичное изменение оформления и показывает результат сохранения.',
+ 'GenerationFields':'Отрисовывает общий контракт генерации с disabled, числовыми границами и пояснениями для обоих профилей.',
     'GenerationSettings': 'Числовой контракт семи применяемых настроек: sampling, token/context budgets, HTTP timeout и ограничения цикла.',
     'ModelConfig': 'Конфигурация окна/IPC: URL, ID, временный API-ключ и числовые настройки.',
     'ModelSettings': 'Модальное окно с отдельным draft; применяет настройки только после успешного backend save.',
@@ -984,7 +1012,7 @@ TEST_PURPOSES.update({
 FILE_NOTES.update({
  'core/python/speech_service.py':'Windows System.Speech через фиксированный PowerShell script и stdin JSON: каталог, TTS, Stop и owned job.',
  'tests/test_speech_service.py':'TTS без динамиков/микрофона: WAV, JSON data boundary, cancellation и timeout cleanup.',
- 'apps/desktop/src/VoicePanel.tsx':'Рабочий разговор с Мией без file tools, системная озвучка, голос/темп/громкость/Stop и честный отключённый STT.',
+ 'apps/desktop/src/VoicePanel.tsx':'Рабочий разговор с Лолой без file tools, системная озвучка, голос/темп/громкость/Stop и честный отключённый STT.',
 })
 SYMBOL_NOTES.update({
  'core/python/speech_service.py:speech_command':'Выбирает только системный Windows PowerShell и кодирует константный script в UTF-16LE; пользовательский текст не попадает в команду.',
@@ -1017,11 +1045,11 @@ TEST_PURPOSES.update({
  'json_text_is_data_and_stop_cleans_owned_worker':'Unicode/quotes/PowerShell-подобные символы передаются неизменённым JSON; Stop быстро завершает своё дерево.',
  'timeout_is_visible_and_worker_can_be_reused':'Deadline завершает worker и делает ошибку видимой вместо вечного busy.',
  'real_system_voice_renders_wave_without_speakers_or_microphone':'Установленный Windows голос синтезирует PCM WAV; динамики и микрофон не используются.',
- 'voice_persona_uses_chat_scope_without_file_tools':'Мия включается только для voice, uses empty Chat scope без tools/auto-memory.',
+ 'voice_persona_uses_chat_scope_without_file_tools':'Лола включается только для voice, uses empty Chat scope без tools/auto-memory.',
  'voice_catalog_and_cancel_keep_bridge_responsive_without_microphone':'Настоящий bridge разрешает voice без root, каталог/Stop не блокируют health, неизвестный voice отвергается.',
 })
 
-FILE_NOTES['tools/check_live_model.py']='Opt-in smoke реальной модели: disposable AppData/проект, Chat/IDE/Мия, без approvals записи, JSON отчёт.'
+FILE_NOTES['tools/check_live_model.py']='Opt-in smoke реальной модели: disposable AppData/проект, Chat/IDE/Лола, без approvals записи, JSON отчёт.'
 
 FILE_NOTES.update({
     "tools/prepare_windows_dependencies.py": "Загрузка официальных зависимостей по SHA256, выбор server/DLL и подготовка офлайн-пакета без запуска установщиков.",
@@ -1047,14 +1075,14 @@ TEST_PURPOSES.update({
 
 FILE_NOTES.update({
  'agent/json_tools.py':'Текстовый JSON tool protocol: преобразование истории, строгий parser envelope и адаптация stream к обычному executor.',
- 'agent/companion_preferences.py':'Независимый сохраняемый профиль Мии: модель, endpoint, характер, STT и голос; секреты не сохраняются.',
- 'agent/delegation.py':'Единственное определение delegate_task для передачи сложной задачи от Мии основной модели.',
+ 'agent/companion_preferences.py':'Независимый сохраняемый профиль Лолы: модель, endpoint, характер, STT и голос; секреты не сохраняются.',
+ 'agent/delegation.py':'Единственное определение delegate_task для передачи сложной задачи от Лолы основной модели.',
  'core/python/transcription_service.py':'Ограниченная WAV-транскрипция через локальный whisper.cpp или совместимый API с отменой HTTP.',
  'core/python/desktop_service.py':'Явно включаемые PC tools: human-prompt folder grants, read-only файлы, bounded web search и host screenshot broker.',
  'core/python/telegram_service.py':'Telegram long polling только для owner user ID: команды, состояние, ответы и текущие diff/approval; токен только в памяти Core.',
- 'apps/desktop/src/CompanionSettings.tsx':'Настройка характера, независимой модели, JSON/native protocol, автоматической передачи и STT Мии.',
+ 'apps/desktop/src/CompanionSettings.tsx':'Настройка характера, независимой модели, JSON/native protocol, автоматической передачи и STT Лолы.',
  'apps/desktop/src/ConnectionsSettings.tsx':'Настройка PC-инструментов и Telegram; явное подключение владельца и защищённое сохранение токена.',
- 'apps/desktop/src/microphone.ts':'Запись только по действию пользователя: 16 kHz mono PCM16 WAV, максимум 60 секунд, остановка MediaStream tracks.',
+ 'apps/desktop/src/microphone.ts':'16 kHz mono PCM16 WAV: подавление шума, блоки 64 мс, завершение по паузе, обрезка тишины и освобождение микрофона.',
  'tests/test_expansion.py':'Контракты разделения истории, профиля без секретов, JSON tools, KV whitelist, PC grants, Telegram owner и WAV validation.',
  'tests/migration/test_json_protocol.py':'Реальный HTTP-сервер без native tools: JSON read/write через тот же diff и approval executor.',
 })
@@ -1105,17 +1133,17 @@ TelegramService.shutdown | Отключает polling и ограниченно 
 register('core/python/task_service.py', """
 TaskService.move_chat | Переносит канонический чат между Chat и voice без удаления сообщений; проверяет исходную область и idle.
 TaskService.request_delegation | Разрешает только delegate_task, валидирует target/prompt, создаёт одну pending передачу с исходным человеческим запросом.
-TaskService.prepare_handoff | После завершения Мии создаёт отдельный чат основной модели; IDE требует выбранного проекта, сохраняет источник результата.
-TaskService.companion_preferences | Возвращает публичные поля отдельного профиля Мии без API keys.
+TaskService.prepare_handoff | После завершения Лолы создаёт отдельный чат основной модели; IDE требует выбранного проекта, сохраняет источник результата.
+TaskService.companion_preferences | Возвращает публичные поля отдельного профиля Лолы без API keys.
 TaskService.configure_companion | Сохраняет независимый публичный профиль; ключи модели/STT оставляет только в памяти текущего Core.
-TaskService.start.dispatch | Направляет только разрешённые PC tools, delegate_task Мии или обычные инструменты выбранного проекта; grants делегирования берёт из исходного человеческого запроса.
+TaskService.start.dispatch | Направляет только разрешённые PC tools, delegate_task Лолы или обычные инструменты выбранного проекта; grants делегирования берёт из исходного человеческого запроса.
 """)
 register('core/python/bridge.py', """
 _handle | Dispatcher RPC под общим TaskService lock: области чатов, профиль, STT, PC replies и Telegram; file scope по-прежнему ограничен.
 """)
 TEST_PURPOSES.update({
  'companion_scope_rejects_cross_loading':'Chat/voice списки раздельны; чужая область отклоняется при load/rename.',
- 'profile_does_not_persist_keys_or_change_main_model':'Сохраняет собственную модель/характер Мии и не пишет API keys в JSON.',
+ 'profile_does_not_persist_keys_or_change_main_model':'Сохраняет собственную модель/характер Лолы и не пишет API keys в JSON.',
  'json_tools_never_execute_embedded_examples':'Принимает целый envelope и отклоняет unknown tools; пример с окружающим текстом не выполняется.',
  'json_request_has_no_native_roles_or_api_fields':'Удаляет native API tool fields и переводит tool roles в текстовые результаты.',
  'json_stream_converts_complete_reply_to_tool_delta':'Склеивает разорванный JSON и формирует обычный tool delta без показа служебного JSON как ответа.',
@@ -1128,11 +1156,11 @@ TEST_PURPOSES.update({
 })
 TS_NOTES.update({
  'desktopRequest':'Исполняет только screenshot или фиксированный DuckDuckGo search URL, публикует локальный preview и отвечает Core по одноразовому UUID.',
- 'getCompanionSettings':'Читает независимый публичный профиль Мии через allowlisted IPC.',
- 'configureCompanion':'Сохраняет настройки Мии отдельно от основной модели и оставляет секреты только в памяти Core.',
+ 'getCompanionSettings':'Читает независимый публичный профиль Лолы через allowlisted IPC.',
+ 'configureCompanion':'Сохраняет настройки Лолы отдельно от основной модели и оставляет секреты только в памяти Core.',
  'transcribe':'Передаёт ограниченную base64 WAV-запись в отменяемый STT RPC.',
  'cancelTranscription':'Отменяет текущую транскрипцию и закрывает её сокет.',
- 'prepareHandoff':'Переносит pending задание Мии в новый чат основной модели по точному ID.',
+ 'prepareHandoff':'Переносит pending задание Лолы в новый чат основной модели по точному ID.',
  'moveChat':'Переносит только Chat/voice историю в другую область по явному действию пользователя.',
  'desktopSettings':'Читает opt-in состояние PC tools без доступа к файлам.',
  'configureDesktop':'Включает/выключает PC tools; аргументы модели не могут изменить это разрешение.',
@@ -1140,18 +1168,18 @@ TS_NOTES.update({
  'connectTelegram':'Подключает token/owner либо явно выбранную защищённую локальную запись; секрет не возвращается renderer.',
  'disconnectTelegram':'Отключает polling бота через Core.',
  'forgetTelegram':'Удаляет только сохранённую encrypted запись токена по явной кнопке пользователя.',
- 'apps/desktop/src/App.tsx:App.moveChat':'Переносит выбранный личный чат в область Мии или обратно и обновляет текущий список.',
+ 'apps/desktop/src/App.tsx:App.moveChat':'Переносит выбранный личный чат в область Лолы или обратно и обновляет текущий список.',
  'apps/desktop/src/App.tsx:App.returnToMiya':'Загружает исходный voice чат с добавленным результатом основной модели.',
  'apps/desktop/src/App.tsx:App.acceptHandoff':'Создаёт основную задачу из pending передачи, синхронизирует mode/chat/run refs и запускает модель.',
- 'CompanionSettings':'Форма собственного характера, модели, tool protocol, автоматической передачи и STT профиля Мии.',
+ 'CompanionSettings':'Форма собственного характера, модели, tool protocol, автоматической передачи и STT профиля Лолы.',
  'apps/desktop/src/CompanionSettings.tsx:CompanionSettings.save':'Валидирует профиль в Core, сохраняет публичные настройки, не сохраняет API keys.',
- 'apps/desktop/src/CompanionSettings.tsx:CompanionSettings.discover':'Загружает модели именно с чернового endpoint Мии без изменения основной конфигурации.',
+ 'apps/desktop/src/CompanionSettings.tsx:CompanionSettings.discover':'Загружает модели именно с чернового endpoint Лолы без изменения основной конфигурации.',
  'ConnectionsSettings':'Настройка opt-in инструментов ПК и owner-only Telegram подключения с защищённым сохранением токена.',
  'apps/desktop/src/ConnectionsSettings.tsx:ConnectionsSettings.refresh':'Обновляет безопасный статус Telegram с cleanup при закрытии настроек.',
  'apps/desktop/src/ConnectionsSettings.tsx:ConnectionsSettings.toggle':'Применяет переключатель PC tools через Core только вне задачи.',
  'apps/desktop/src/ConnectionsSettings.tsx:ConnectionsSettings.connect':'Передаёт token/owner и флаг remember/use_saved; очищает поле token после подключения.',
  'apps/desktop/src/VoicePanel.tsx:VoicePanel.record':'Запускает явную запись микрофона или завершает текущую; ошибки и unmount освобождают tracks.',
- 'apps/desktop/src/VoicePanel.tsx:VoicePanel.finishRecording':'Формирует PCM16 WAV, отправляет STT и помещает распознанный текст в редактируемое поле без автоматической отправки.',
+ 'apps/desktop/src/VoicePanel.tsx:VoicePanel.finishRecording':'Отклоняет запись без речи, формирует обрезанный WAV, распознаёт и проверяет актуальность запроса; отправляет текст только при включённой настройке.',
  'apps/desktop/src/VoicePanel.tsx:VoicePanel.saveVoice':'Сохраняет выбранный голос, темп, громкость и auto-speak в отдельном профиле.',
  'this.processor.onaudioprocess':'Копирует mono float samples до 960000 frames, затем автоматически завершает запись по лимиту 60 секунд.',
  'ascii':'Записывает фиксированные RIFF/WAVE/fmt/data метки в WAV DataView.',
@@ -1168,8 +1196,8 @@ TEST_PURPOSES.update({
  'cancel_closes_stalled_request_promptly':'Отменяет STT до HTTP headers и завершает worker менее чем за две секунды.',
 })
 
-FILE_NOTES['tests/migration/test_delegation.py']='Реальные HTTP-запросы к двум разным ID моделей: Мия ставит передачу, основная модель отвечает, итог сохраняется в voice истории.'
-TEST_PURPOSES['independent_model_delegates_and_returns_result']='Изолирует ID моделей и чаты, выполняет delegate_task и возвращает MAIN_MODEL_RESULT в исходную историю Мии.'
+FILE_NOTES['tests/migration/test_delegation.py']='Реальные HTTP-запросы к двум разным ID моделей: Лола ставит передачу, основная модель отвечает, итог сохраняется в voice истории.'
+TEST_PURPOSES['independent_model_delegates_and_returns_result']='Изолирует ID моделей и чаты, выполняет delegate_task и возвращает MAIN_MODEL_RESULT в исходную историю Лолы.'
 
 TEST_PURPOSES.update({
  'telegram_poll_drops_backlog_and_never_sends_to_stranger':'Проверяет настоящий dispatcher с HTTPX MockTransport: старый /stop и чужой user игнорируются; status отправляется только owner; токен очищается.',
@@ -1181,7 +1209,7 @@ register('core/python/task_service.py', """
 TaskService.discard_handoff | Удаляет pending передачу только по точному ID вне активной задачи, чтобы её можно было явно отклонить.
 """)
 TS_NOTES.update({
- 'cancelHandoff':'Отклоняет pending передачу Мии по точному ID без запуска основной модели.',
+ 'cancelHandoff':'Отклоняет pending передачу Лолы по точному ID без запуска основной модели.',
  'apps/desktop/src/App.tsx:App.declineHandoff':'Очищает pending передачу и в Core, и в интерфейсе; старое задание больше не блокирует следующее.',
 })
 TEST_PURPOSES.update({
@@ -1202,9 +1230,11 @@ FILE_NOTES.update({
  'apps/desktop/src/NeuralAudio.tsx':'Единый плеер нейроозвучки: PCM WAV из Core, громкость/темп, Stop и подтверждение завершения.',
  'apps/desktop/src/WakeListener.tsx':'Явно включаемый микрофон во всех режимах: speech gate, STT, wake phrase, пауза при задаче/озвучке/ручной записи.',
  'apps/desktop/src/wakePhrase.ts':'Нормализация русской фразы и выделение команды только после совпадающего начала без потери пунктуации команды.',
- 'tools/tts/qwen_server.py':'Отдельный localhost Qwen3-TTS VoiceDesign сервер с русским языком, описанием голоса и PCM16 WAV.',
- 'tools/tts/start-tts.ps1':'Создаёт отдельную CPU TTS среду Python 3.12, устанавливает зависимости и запускает фиксированный локальный сервер.',
+ 'tools/tts/qwen_server.py':'Отдельный localhost Qwen3-TTS сервер: VoiceDesign 1.7B или CustomVoice 0.6B с готовым голосом, русский язык и PCM16 WAV.',
+ 'tools/tts/start-tts.ps1':'Создаёт TTS среду Python 3.12 с PythonPath, устанавливает согласованные CPU/CUDA torch и torchaudio, поддерживает InstallOnly/LowMemory и запускает сервер.',
  'tools/tts/requirements.txt':'Дополнительные зависимости Qwen3-TTS; не добавляются в основной frozen Core.',
+ 'tools/tts/piper_server.py':'CPU Piper адаптер прежнего HTTP TTS API: русский ONNX голос, PCM16 WAV, лимиты и отмена между предложениями.',
+ 'tools/tts/start-piper.ps1':'Создаёт отдельную среду Piper Python 3.12, устанавливает piper-tts и запускает выбранный локальный ONNX голос.',
  'tools/tts/README.md':'Установка TTS, выбор аниме-профиля, ограничения ресурсов и настройка голосовой активации.',
  'tests/migration/test_neural_speech.py':'HTTP PCM fixture, точный sequence плеера и отмена зависшего синтеза без настоящего звука.',
 })
@@ -1221,23 +1251,29 @@ NeuralSpeech.stop | Отменяет сеть и публикует остано
 NeuralSpeech.shutdown | Останавливает worker и ограниченно ждёт завершения.
 """)
 register('tools/tts/qwen_server.py', """
-synthesize | Генерирует русский звук с VoiceDesign, фиксированным seed и ограничением токенов; кодирует PCM16 WAV в памяти.
+synthesize | Генерирует русский звук: готовый speaker через CustomVoice либо описание через VoiceDesign; фиксирует seed и ограничение токенов, кодирует PCM16 WAV в памяти.
 Handler | Loopback HTTP handler с JSON-only POST, запретом Origin и одним слотом генерации.
 Handler.do_GET | Возвращает health после загрузки модели; остальные GET получают 404.
-Handler.do_POST | Проверяет размер/тип текста и стиля, ограничивает concurrency и возвращает WAV без CORS.
+Handler.do_POST | Проверяет запрос и concurrency, останавливает talker при отключении клиента/deadline и освобождает слот в finally.
+Handler.do_POST.guard | PyTorch forward pre-hook проверяет срок 150 секунд и закрытие HTTP-сокета без чтения текста запроса.
 Handler.reply | Пишет ответ с явными Content-Type и Content-Length.
 Handler.log_message | Не сохраняет тексты и запросы пользователя в HTTP access log.
-main | Загружает официальный VoiceDesign на CPU/CUDA и слушает только 127.0.0.1:9080.
+main | Выбирает VoiceDesign 1.7B либо CustomVoice 0.6B и speaker, получает локальный снимок, выбирает CPU/CUDA и dtype, проверяет запас VRAM и слушает только 127.0.0.1:9080.
 """)
+register('tools/tts/piper_server.py', """
+synthesize | Собирает чанки Piper в PCM16 mono WAV до 120 секунд/15 МиБ и проверяет отмену после каждого предложения.
+main | Загружает ONNX голос через CPUExecutionProvider, подключает синтез к общему HTTP handler и слушает только localhost.
+""")
+TEST_PURPOSES['piper_backend_wav_and_disconnect_guard']='Проверяет HTTP callback Piper, формат/число кадров WAV, освобождение слота и распространение отмены между чанками.'
 TS_NOTES.update({
  'NeuralAudio':'Проигрывает только события Core, останавливает старый Audio и подтверждает текущую озвучку.',
  'WakeListener':'Управляет явно включённым прослушиванием и паузами без обращения к чат-модели.',
  'WakeListener.refresh':'Обновляет профиль при сохранении настроек и не включает микрофон автоматически.',
  'WakeListener.capture':'Получает состояние ручной записи для исключения конкурентного STT.',
- 'WakeListener.cycle':'Записывает фрагмент до тишины/12 секунд, распознаёт речь и активирует Мию по началу фразы.',
+ 'WakeListener.cycle':'Записывает фрагмент до тишины/12 секунд, распознаёт речь и активирует Лолу по началу фразы.',
  'normalizeSpeech':'Приводит русскую фразу к нижнему регистру, ё→е и пробелам между словами.',
  'wakeCommand':'Проверяет фразу только в начале; возвращает исходный хвост с пунктуацией либо null.',
- 'activateMiya':'Открывает/фокусирует окно, переключает режим и передаёт распознанный текст Мие.',
+ 'activateMiya':'Открывает/фокусирует окно, переключает режим и передаёт распознанный текст Лоле.',
  'player.onended':'Подтверждает завершение только текущего Audio по sequence.',
  'player.onerror':'Сообщает Core о невозможности воспроизведения текущего Audio.',
 })
@@ -1254,3 +1290,206 @@ TS_NOTES.update({
 })
 for _wake_symbol in ('WakeListener.refresh','WakeListener.capture','WakeListener.cycle'):
     TS_NOTES['apps/desktop/src/WakeListener.tsx:'+_wake_symbol]=TS_NOTES.pop(_wake_symbol)
+
+FILE_NOTES['tests/migration/test_tts_server.py']='HTTP-регрессии серверной отмены TTS, освобождения busy и ограничения времени без нейронных весов.'
+TEST_PURPOSES.update({
+ 'http_busy_and_deadline_have_actionable_messages':'Проверяет понятные сообщения Core для HTTP 429/504 без отправки звука и показа HTTPStatusError.',
+ 'disconnect_releases_busy_server_and_allows_retry':'Закрывает настоящий HTTP-сокет во время генерации, проверяет освобождение 429 и успешный повтор.',
+ 'deadline_returns_504_and_removes_hook':'Проверяет HTTP 504 при deadline и обязательное удаление hook/освобождение слота.',
+})
+TEST_HELPERS.update({
+ 'register_forward_pre_hook':'Устанавливает тестовую проверку отмены как PyTorch talker без установки torch.',
+ 'remove':'Удаляет тестовый forward hook после окончания или отмены запроса.',
+ 'generate':'Имитирует шаги нейронной генерации с forward hook и создаёт короткий PCM WAV без звука.',
+})
+FILE_NOTES.update({
+ 'apps/desktop/electron/desktopApps.ts':'Каталог локально разрешённых EXE: системные приложения, выбор пользователем, ID без путей для модели и запуск без shell/аргументов.',
+ 'tests/electron/desktop-apps.cjs':'Node-проверка границы каталога приложений: ID, запрет путей/команд, EXE, повторное добавление, удаление и браузер без реальных окон.',
+})
+TS_NOTES.update({
+ 'apps/desktop/electron/main.ts:desktopApplications':'Создаёт host-каталог приложений с запуском EXE без shell и аргументов и фиксированным URL браузера.',
+ 'apps/desktop/electron/desktopApps.ts:Application':'Приватная запись разрешённого приложения: ID, отображаемое имя и выбранный пользователем путь EXE.',
+ 'changeApplication':'Добавляет EXE через системный picker или удаляет разрешение по ID, обновляет список и ошибки в UI.',
+ 'desktopApplications':'Создаёт или запрашивает каталог разрешённых приложений ПК; модель получает ID и названия без путей.',
+ 'addDesktopApplication':'Открывает только системный EXE-picker для добавления разрешённого приложения.',
+ 'removeDesktopApplication':'Удаляет пользовательское разрешение запуска по ID через фиксированный IPC.',
+})
+TEST_PURPOSES['application_tools_broker_ids_without_shell_or_arguments']='Проверяет передачу ID приложений в host broker, отказ путям/аргументам, отмену и общий выключатель PC tools.'
+TEST_PURPOSES['search_falls_back_to_bing_and_rejects_non_web_links']='Имитирует таймаут DuckDuckGo и проверяет Bing RSS fallback с фильтрацией file-ссылок.'
+
+FILE_NOTES.update({
+ 'docs/SERENA_TRAINING_PLAN.md':'Разрешение, этапы и критерии пробной Serena, Windows окружение, provenance датасета, ограничения и восстановление обучения.',
+ 'docs/31-miya-serena-and-character.md':'Озвучка Serena по умолчанию, управление локальным Piper, простые настройки и состояния анимированного персонажа.',
+ 'apps/desktop/electron/speechRuntime.ts':'Запуск фиксированного локального Piper, установка проверенной Serena, health и остановка только своего процесса.',
+ 'apps/desktop/src/LolaAvatar.tsx':'Персонаж по референсу: выбор позы из атласа по состоянию Лолы, подпись, речевая волна и уменьшение движения.',
+ 'apps/desktop/src/assets/miya-states.png':'Прозрачный 4×2 атлас поз светловолосой аниме-горничной по пользовательскому референсу.',
+ 'apps/desktop/src/assets/miya-states.prompt.md':'Сохранённые prompts встроенного image_gen и схема ячеек персонажа.',
+ 'tools/tts/training/README.md':'Команды возобновляемой генерации, обучения и контроля локального конвейера Serena.',
+ 'tools/tts/training/generate_serena.py':'Возобновляемый корпус Qwen Serena: закреплённая revision, PCM22k WAV, локальный STT отбор и provenance каждого примера.',
+ 'tools/tts/training/run_training.py':'Ограниченное Windows дообучение VITS: преобразование Linux checkpoint, warmstart, eSpeak workaround и resume.',
+ 'tools/tts/training/export_and_evaluate.py':'ONNX экспорт с совместимым tracer и CPU/STT проверкой четырёх новых фраз без объявления совпадения тембра.',
+ 'tools/tts/training/pipeline.py':'Однопроцессный локальный контроллер этапов с атомарным состоянием, границами шагов и остановкой при ошибках.',
+})
+TS_NOTES.update({
+ 'LolaAvatar':'Показывает позу, подпись и движение персонажа по фактическому состоянию, поддерживает отключение анимации.',
+ 'LolaState':'Допустимые состояния персонажа: ожидание, слушание, размышление, работа, речь, успех и ошибка.',
+ 'apps/desktop/src/VoicePanel.tsx:VoicePanel.selectProvider':'Останавливает текущую озвучку, сохраняет выбранный движок профиля и обновляет каталог.',
+ 'apps/desktop/src/VoicePanel.tsx:VoicePanel.startSerena':'Запрашивает запуск/проверку управляемого Piper и выводит понятное состояние или ошибку.',
+ 'speechRuntime':'Создаёт один сервис Piper с локальными фиксированными путями вместо команд renderer.',
+})
+register('tools/tts/training/generate_serena.py', """
+texts | Собирает уникальный русский корпус из исходных фраз и бытовых комбинаций без перезаписи WAV при продолжении.
+normalize | Удаляет различия регистра, ё и пунктуации для приблизительного сравнения текста с STT.
+main | Фиксирует manifest, пакетно генерирует Serena, передискретизирует WAV, проверяет STT и сохраняет принятые metadata/журнал.
+""")
+register('tools/tts/training/run_training.py', """
+SaveFinalCheckpoint | Сохраняет фактические последние веса даже при достижении max_steps посередине эпохи.
+SaveFinalCheckpoint.on_train_end | Вызывает trainer.save_checkpoint для final.ckpt в корне training, независимо от эпохальных val_mel checkpoints.
+prepare_checkpoint | Из доверенного Linux checkpoint извлекает state_dict с временной совместимостью Path, исключает старый оптимизатор и сохраняет описание hyperparameters.
+main | Проверяет объём данных, задаёт warmstart/resume, BF16 GPU и ограниченные шаги, исправляет путь eSpeak и состав checkpoint callbacks.
+main.resume_fit_start | Отключает сохранённый однократный warmstart при resume, чтобы LightningCLI не сбрасывал обученные веса к базовому голосу.
+""")
+register('tools/tts/training/export_and_evaluate.py', """
+main | Экспортирует обученный VITS через legacy ONNX tracer, проверяет модель, синтезирует новые фразы на CPU и сохраняет оценку STT/задержки.
+""")
+register('tools/tts/training/pipeline.py', """
+save_state | Атомарно обновляет JSON состояния этапа, PID и ошибку либо оценку без преждевременного статуса готовности.
+run | Запускает зависимый subprocess со структурированными аргументами и отдельным локальным журналом, возвращает exit code.
+main | Удерживает Windows lock, ждёт generator, выполняет ступени 6000/12000 шагов, экспорт и проверку; сообщает trial_ready только после ASR.
+""")
+TEST_HELPERS['search_transport']='Локальная HTTPX-фикстура недоступного первого поисковика и безопасной RSS-выдачи второго.'
+register('core/python/desktop_service.py', """
+search_web | Получает до восьми ограниченных текстовых результатов: DuckDuckGo HTML, затем Bing RSS при отказе, без чтения страниц и XML DTD.
+""")
+
+TEST_PURPOSES['lola_wake_migration_preserves_custom_phrase'] = 'Стандартная старая фраза становится Привет, Лола; пользовательская фраза сохраняется.'
+
+FILE_NOTES.update({
+ 'agent/ide_workflow.py':'Whitelist ролей IDE, отдельное сохранение без ключей и разрешение наследуемых моделей/endpoint без утечки основного токена.',
+ 'agent/model_lifecycle.py':'Последовательная отменяемая загрузка/выгрузка назначенных моделей LM Studio 0.4+/Ollama и read-only каталог.',
+ 'agent/ide_coordinator.py':'Четыре роли IDE, локальные передачи кода, ограниченное исправление, существующие diff approvals и подтверждённая проверка файлов.',
+ 'apps/desktop/src/IDEWorkflowSettings.tsx':'Настройка четырёх ролей и компактный переключатель цикла/отдельного этапа в существующем оформлении IDE.',
+ 'tests/migration/test_ide_workflow.py':'Реальный loopback HTTP/SSE проверяет роли, память моделей, согласование записи, исправления, чтение проверяющим и resume.',
+})
+register('agent/ide_workflow.py', '''
+validate_workflow | Проверяет четыре роли, режим, провайдер, относительные настройки URL/ID, контекст и число исправлений; отбрасывает секреты.
+load_workflow | Загружает отдельный JSON либо возвращает выключенный совместимый профиль по умолчанию.
+save_workflow | Атомарно сохраняет только прошедшие whitelist настройки без API-ключей.
+resolve_roles | Подставляет основные URL/ID и только для того же URL наследует основной ключ; проверяет назначение используемых ролей.
+''')
+register('agent/model_lifecycle.py', '''
+ModelLifecycle | Управляет одной активной моделью роли, не запускает shell и не завершает чужие процессы.
+ModelLifecycle.origin | Разрешает нативное управление только на корне проверенного сервера без произвольных префиксов маршрута.
+ModelLifecycle.request | Выполняет ограниченный запрос с коротким наблюдением Event отмены и отдельным deadline очистки.
+ModelLifecycle.request.run | Владеет asyncio request и гарантирует его отмену/закрытие при выходе.
+ModelLifecycle.request.run.fetch | Передаёт токен только выбранному endpoint без redirects/proxy env; ограничивает JSON ответ двумя МБ.
+ModelLifecycle.catalog | Читает LM Studio model keys/instances, Ollama tags/ps или OpenAI model IDs без загрузки весов.
+ModelLifecycle.unload | Выгружает точный instance_id LM Studio либо exact Ollama model через keep_alive=0.
+ModelLifecycle.release | Выгружает известную активную модель; при ошибке сохраняет владение и запрещает последующую загрузку.
+ModelLifecycle.acquire | Повторно использует ту же модель либо выгружает прежнюю, проверяет каталог/чужую память, затем загружает только назначенную.
+''')
+register('agent/ide_coordinator.py', '''
+RoleOutputError | Выделяет ошибки формата, для которых разрешён один повтор без записи неверного результата.
+IDECoordinator | Последовательно координирует четыре AgentEngine с изоляцией прав, локальными артефактами и проверкой результата.
+IDECoordinator._flow_snapshot | Добавляет безопасные названия/ID/статусы ролей и номер исправления к существующей задаче.
+IDECoordinator._persist | Атомарно сохраняет передачи ролей вне проекта и уведомляет UI о checkpoint.
+IDECoordinator._lifecycle_event | Сохраняет точную активную модель для последующей очистки, передаёт состояние загрузки в журнал/план.
+IDECoordinator.requestInterruption | Останавливает общий цикл и текущий дочерний HTTP/approval цикл.
+IDECoordinator.resolve_write_approval | Пересылает решение только текущему AgentEngine, сохраняющему проверку diff и revision.
+IDECoordinator._child_task | Объединяет counters, доказательства чтения и состояние дочерней роли; completed этапа не завершает весь цикл.
+IDECoordinator._chat | Помечает ответ ролью и сохраняет общую историю без подмены исходного запроса служебными prompt.
+IDECoordinator._handoff | Передаёт полные релевантные материалы/прочитанные файлы; при превышении бюджета останавливается без обрезки кода.
+IDECoordinator._capture_context | Из успешных read_file tool results собирает контекст файлов для автора кода без собственных файловых инструментов.
+IDECoordinator._structured_output | Валидирует JSON автора/проверяющего, полные path/content и границы проекта до использования артефакта.
+IDECoordinator._syntax_checks | Читает только modified_files через sandbox и безопасно проверяет Python AST/JSON без запуска кода.
+IDECoordinator._stage | Выбирает модель и права роли, связывает события/approvals, учитывает общий бюджет, проверяет ответ до передачи дальше.
+IDECoordinator._stage.delta | Даёт потокам уникальные role/cycle/turn ID и обозначает роль в первом фрагменте.
+IDECoordinator._verdict | Требует pass без issues, успешных статических проверок и чтения каждого изменённого файла текущим проверяющим.
+IDECoordinator.run | Выполняет полный/одиночный этап, один повтор формата, до двух циклов исправлений, pause/resume и обязательную выгрузку.
+''')
+register('core/python/task_service.py', '''
+TaskService.workflow_preferences | Возвращает настройки IDE без секретов.
+TaskService.configure_workflow | Проверяет настройки и ключи до сохранения; блокирует смену во время задачи, ключи оставляет в памяти.
+TaskService.start_workflow_discovery | Снимает конфигурацию выбранной роли и запускает отменяемое чтение каталога в отдельном потоке.
+TaskService.start_workflow_discovery.discover | Выбирает каталог нативного lifecycle либо обычный OpenAI discovery и возвращает ограниченную ошибку.
+''')
+TS_NOTES.update({
+ 'IDEWorkflowSettings':'Загружает draft четырёх ролей, endpoint/ID/протокол, память/исправления и сохраняет независимо от Chat/Лолы.',
+ 'apps/desktop/src/IDEWorkflowSettings.tsx:IDEWorkflowSettings.changeRole':'Изменяет только выбранную роль в локальном draft.',
+ 'apps/desktop/src/IDEWorkflowSettings.tsx:IDEWorkflowSettings.discover':'Получает список на выбранном сервере роли без загрузки весов и сохраняет datalist.',
+ 'apps/desktop/src/IDEWorkflowSettings.tsx:IDEWorkflowSettings.save':'Сохраняет whitelist ролей, уведомляет App и очищает отображаемые временные ключи.',
+ 'IDEWorkflowBar':'Компактный выбор одной модели, полного цикла либо отдельной роли; открывает настройки в той же палитре.',
+ 'apps/desktop/src/IDEWorkflowSettings.tsx:IDEWorkflowBar.select':'Меняет режим IDE через backend idle guard, затем обновляет конфигурацию App.',
+})
+TEST_PURPOSES.update({
+ 'pipeline_real_sse_diff_and_one_resident_model':'Полный цикл через настоящие HTTP/SSE создаёт файл после одного diff; roles имеют разные права, peak моделей равен одному.',
+ 'rejected_write_does_not_reach_reviewer':'Отклонённая запись не создаёт файл и не объявляется проверенным результатом.',
+ 'reviewer_revision_has_bounded_repair_cycle':'revise возвращает код автору/сборщику; повторный diff и перечитывание заканчиваются pass.',
+ 'verdict_without_reading_changed_file_cannot_pass':'Самодекларация pass без чтения изменённого файла приостанавливает цикл.',
+ 'resume_repeats_only_unfinished_review':'После невалидного verdict продолжение выполняет только проверяющего, не повторяя запись/approval.',
+ 'author_path_escape_stops_before_builder':'Путь за пределами выбранного проекта останавливает передачу до сборщика.',
+ 'unrelated_loaded_model_is_not_evicted':'Посторонняя загруженная модель сохраняется, цикл не загружает вторую.',
+ 'same_model_is_reused_until_release':'Соседние роли с той же моделью не загружают её повторно, финальная выгрузка одна.',
+ 'ollama_pipeline_loads_and_unloads_serially':'Нативные tags/ps/generate Ollama обеспечивают полный последовательный цикл с одной моделью в памяти.',
+ 'cancel_interrupts_stalled_model_load':'Остановка закрывает настоящий зависший HTTP запроса загрузки менее чем за две секунды.',
+ 'role_secrets_never_persist_or_leak_to_different_endpoint':'Ключи не попадают в файл/ответ; основной токен не наследуется другим сервером.',
+ 'invalid_configuration_does_not_mutate_saved_roles':'Некорректный API-ключ не приводит к частичному сохранению конфигурации.',
+ 'chat_mode_never_uses_role_coordinator':'Включённый профиль IDE не меняет исполнение Chat и не управляет моделями при его запуске.',
+})
+register('tests/migration/test_ide_workflow.py', '''
+WorkflowHandler.reply | Отдаёт JSON нативных fixture endpoints без обращения к внешним моделям.
+WorkflowHandler.do_GET | Эмулирует LM Studio catalog и Ollama tags/ps с состоянием загруженных моделей.
+WorkflowHandler.do_POST | Эмулирует load/unload и ответы ролей через SSE, фиксирует права и пик памяти.
+WorkflowTests.emit | Собирает события и подтверждает/отклоняет точный proposal активного тестового запуска.
+WorkflowTests.run_workflow | Запускает настоящий TaskService/Coordinator и ждёт bounded завершения потока.
+WorkflowTests.test_cancel_interrupts_stalled_model_load.acquire | Захватывает результат отменяемой фоновой загрузки для проверки сокета.
+''')
+
+FILE_NOTES.update({
+ 'agent/smart_context.py':'Детерминированное сжатие временного контекста с архивом ограничений и фактов без LLM-запросов и изменения канонической истории.',
+ 'core/python/assistant_service.py':'Локальные часы, ограниченный AST-калькулятор, атомарные заметки и отменяемые таймеры Лолы.',
+ 'apps/desktop/electron/assistantMedia.ts':'Повторная host-валидация фиксированных музыкальных HTTPS URL и реального локального аудиофайла внутри разрешённых папок.',
+ 'tests/test_smart_context.py':'Проверки архива, неизменности истории, пар tools, полного кода, JSON и дедупликации.',
+ 'tests/test_assistant_service.py':'Проверки утилит Лолы, сохранения заметок, таймеров, музыки и папок из исходного prompt.',
+ 'tests/electron/assistant-media.cjs':'Host-проверки музыкальных ссылок и путей аудио, включая junction, без воспроизведения и браузера.',
+ 'agent/context_manager.py':'Сборка временного рабочего контекста с метаданными задачи, умным сжатием и статистикой.'
+})
+register('agent/smart_context.py', '''
+context_size | Считает символы сериализованного JSON, а не токены модели.
+text_digest | Возвращает первые 16 hex символов SHA-256 для сверки сокращённого источника.
+salient_text | Выбирает строки по запросу, ограничениям, началу и концу; маркирует фрагменты и исходный размер.
+compact_tool_result | Сохраняет валидный JSON с путём, статусом, ошибкой и fingerprint; сокращает крупные чтения и списки.
+context_archive | Собирает ограничения исходных пользователей, краткие запросы, решения и последние факты tools; при невозможности сохранить ограничения останавливается.
+context_archive.render | Сериализует архив как данные истории без повышения роли или прав.
+smart_compact_messages | Защищает текущий запрос и код, сохраняет целые пары tools, архивирует старые группы и возвращает метрики без изменения истории.
+''')
+register('core/python/assistant_service.py', '''
+calculate | Разбирает арифметику через AST с лимитами сложности, степени и конечного результата; не выполняет Python.
+calculate.evaluate | Рекурсивно разрешает только числа, скобки и whitelist арифметических операций.
+AssistantService | Владеет локальным хранилищем заметок, блокировкой и ограниченными таймерами до закрытия приложения.
+AssistantService.notes | Читает ограниченный JSON список заметок; повреждённый файл сохраняется без перезаписи.
+AssistantService.execute | Выполняет именованную утилиту, валидирует параметры, атомарно пишет заметки или управляет таймерами.
+AssistantService.fire | Однократно удаляет таймер, отменяет callback и отправляет уведомление, если сервис ещё работает.
+AssistantService.shutdown | Отменяет все таймеры и запрещает новые операции.
+''')
+register('core/python/desktop_service.py', '''
+music_url | Разрешает только HTTPS музыкальные хосты без credentials и нестандартного порта.
+''')
+TS_NOTES.update({
+ 'validateMusicURL':'Повторно проверяет HTTPS URL по точному whitelist музыкальных хостов, без credentials и нестандартных портов.',
+ 'validateAudioPath':'Канонизирует файл и корни, запрещает UNC/исполняемые расширения и выход из исходных папок через junction.'
+})
+TEST_PURPOSES.update({
+ 'old_design_constraint_survives_long_history':'Сжатие сохраняет старое ограничение дизайна и последний запрос, не меняя канонический список.',
+ 'tool_pairs_and_write_arguments_are_never_cut':'Полные аргументы записи и связанный tool_call_id сохраняются вместе.',
+ 'current_code_handoff_is_protected_or_rejected':'Текущий код передаётся полностью либо выдаётся ошибка бюджета без обрезки.',
+ 'large_tool_json_keeps_error_path_and_valid_json':'Сокращённый результат чтения остаётся JSON с путём, fingerprint и релевантным фрагментом.',
+ 'archive_never_becomes_system_permissions':'Старый текст остаётся данными assistant и не добавляет системных разрешений.',
+ 'repeated_tool_facts_are_deduplicated_and_history_unchanged':'Архив оставляет последний факт по пути без изменения полной истории.',
+ 'calculator_has_no_calls_names_or_unbounded_powers':'AST-калькулятор считает арифметику и отвергает вызовы, имена и слишком большую степень.',
+ 'notes_persist_without_arbitrary_paths':'Заметки переживают новый экземпляр, повреждённое хранилище не перезаписывается.',
+ 'timer_emits_once_and_cancelled_timer_does_not_fire':'Таймер уведомляет один раз, отменённый не срабатывает, shutdown очищает сервис.',
+ 'music_links_reject_executables_private_hosts_and_spoofing':'Музыкальный URL не допускает протоколы файлов, private hosts и поддельные домены.',
+ 'music_search_encodes_query_and_does_not_claim_playback':'Музыкальный поиск кодирует запрос и не подтверждает звучание после открытия страницы.',
+ 'local_audio_requires_original_prompt_folder_and_extension':'Локальный плеер принимает только аудио из явно указанной исходной папки.'
+})

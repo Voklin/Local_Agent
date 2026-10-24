@@ -20,6 +20,7 @@ export function WakeListener({busy,onWake}:{busy:boolean;onWake:(text:string,sen
   },[]);
   useEffect(()=>{
     if(!armed||!profile||busy||manual||speaking)return;
+    window.dispatchEvent(new CustomEvent('miya-listening',{detail:true}));
     let alive=true;let capture:MicrophoneRecorder|null=null;let inRequest=false;let pending=false;
     let previous='';let commandUntil=0;
     async function cycle() {
@@ -40,14 +41,14 @@ export function WakeListener({busy,onWake}:{busy:boolean;onWake:(text:string,sen
         previous=text.split(/\s+/).slice(-8).join(' ');
         if(command!==null){
           previous='';commandUntil=command?0:Date.now()+15000;
-          setNotice(command?'Команда услышана':'Мия активирована — говорите команду');
+          setNotice(command?'Команда услышана':'Лола активирована — говорите команду');
           await action.current(command,profile.wake_auto_send);
         }
       }catch(error){if(alive){setNotice(String(error));setArmed(false);}}
-      finally{if(alive&&!pending){pending=true;setTimeout(()=>{pending=false;void cycle();},200);}}
+      finally{if(alive&&!pending){pending=true;setTimeout(()=>{pending=false;void cycle();},50);}}
     }
     setNotice(`Слушаю: «${profile.wake_phrase}»`);void cycle();
-    return()=>{alive=false;capture?.dispose();if(inRequest)void window.lca.cancelTranscription();};
+    return()=>{window.dispatchEvent(new CustomEvent('miya-listening',{detail:false}));alive=false;capture?.dispose();if(inRequest)void window.lca.cancelTranscription();};
   },[armed,profile,busy,manual,speaking]);
   return <div className="wake-control"><button className={armed?'secondary-button selected':'secondary-button'} disabled={!profile} onClick={()=>{setNotice('');setArmed(!armed);}}>{armed?'Выключить прослушивание':'Активация голосом'}</button><span role="status" title={notice}>{armed?(busy||manual||speaking?'Прослушивание на паузе':notice):notice||'Микрофон выключен'}</span></div>;
 }

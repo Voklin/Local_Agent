@@ -10,9 +10,9 @@ PROFILE_FILE = APP_DIR / 'companion.json'
 DEFAULT_PROFILE = {**deepcopy(DEFAULTS), 'persona':'Дружелюбная, спокойная, внимательная помощница. Отвечает кратко и по делу.',
                    'auto_delegate':True, 'voice':'', 'rate':0, 'volume':70, 'auto_speak':False,
                    'stt_url':'http://127.0.0.1:8080/inference', 'stt_model':'whisper-1', 'stt_language':'ru',
-                   'tts_provider':'windows', 'tts_url':'http://127.0.0.1:9080/v1/audio/speech',
+                   'tts_provider':'piper', 'tts_url':'http://127.0.0.1:9080/v1/audio/speech',
                    'tts_style':'A young adult female anime assistant. Bright, gentle, slightly high-pitched voice, playful expressive intonation, warm and caring. Speak natural Russian clearly, without whispering or shouting.',
-                   'wake_phrase':'Привет, Мия', 'wake_auto_send':False}
+                   'wake_phrase':'Привет, Лола', 'wake_auto_send':False}
 
 
 def validate_profile(params):
@@ -22,7 +22,7 @@ def validate_profile(params):
         value = params.get(name, DEFAULT_PROFILE[name])
         if not isinstance(value,str) or len(value)>maximum or '\x00' in value:
             raise ValueError(f'Некорректное поле профиля: {name}')
-        result[name] = value
+        result[name] = 'Привет, Лола' if name=='wake_phrase' and value=='Привет, Мия' else value
     for name, minimum, maximum in (('rate',-5,5),('volume',0,100)):
         value = params.get(name,DEFAULT_PROFILE[name])
         if isinstance(value,bool) or not isinstance(value,int) or not minimum<=value<=maximum:
@@ -31,8 +31,8 @@ def validate_profile(params):
     result['auto_speak']=params.get('auto_speak',False) is True
     result['auto_delegate']=params.get('auto_delegate',True) is True
     result['wake_auto_send']=params.get('wake_auto_send',False) is True
-    result['tts_provider']=params.get('tts_provider','windows')
-    if result['tts_provider'] not in ('windows','qwen3'):raise ValueError('Неизвестный TTS движок')
+    result['tts_provider']=params.get('tts_provider',DEFAULT_PROFILE['tts_provider'])
+    if result['tts_provider'] not in ('windows','qwen3','piper'):raise ValueError('Неизвестный TTS движок')
     if not any(char.isalnum() for char in result['wake_phrase']):raise ValueError('Введите слова фразы активации')
     if not result['tts_style'].strip():raise ValueError('Введите описание голоса')
     result['tts_url']=validate_preferences({'base_url':params.get('tts_url',DEFAULT_PROFILE['tts_url'])})['base_url']

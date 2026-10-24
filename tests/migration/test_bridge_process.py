@@ -108,6 +108,7 @@ class BridgeProcessTests(unittest.TestCase):
         return result
 
     def test_voice_catalog_and_cancel_keep_bridge_responsive_without_microphone(self):
+        self.assertTrue(self.call('configure_companion',base_url='http://127.0.0.1:9/v1',tts_provider='windows')['ok'])
         self.assertTrue(self.call('new_chat',mode='voice')['ok'])
         self.assertTrue(self.call('voice_status')['ok'])
         self.assertTrue(self.call('voice_refresh')['ok'])
@@ -117,7 +118,7 @@ class BridgeProcessTests(unittest.TestCase):
 
     def test_companion_profile_and_history_are_independent_in_real_process(self):
         self.assertTrue(self.call('configure_model',base_url='http://127.0.0.1:9/v1',model='main')['ok'])
-        profile=self.call('configure_companion',base_url='http://127.0.0.1:9/v1',model='small',persona='Спокойная Мия',api_key='fixture-secret',stt_api_key='fixture-stt-secret')
+        profile=self.call('configure_companion',base_url='http://127.0.0.1:9/v1',model='small',persona='Спокойная Лола',api_key='fixture-secret',stt_api_key='fixture-stt-secret')
         self.assertTrue(profile['ok']);self.assertEqual(profile['model'],'small')
         self.assertNotIn('fixture-secret',json.dumps(profile));self.assertNotIn('api_key',profile)
         self.assertEqual(self.call('get_model_settings')['model'],'main')

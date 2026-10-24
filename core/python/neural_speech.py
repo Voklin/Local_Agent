@@ -13,14 +13,16 @@ class NeuralSpeech:
     def __init__(self, emit):
         self.emit=emit;self.lock=threading.RLock();self.thread=None
         self.cancelled=threading.Event();self.played=threading.Event()
-        self.sequence=0;self.state='idle';self.error=''
+        self.sequence=0;self.state='idle';self.error='';self.provider='qwen3'
 
-    def status(self):
+    def status(self, provider=None):
+        provider=provider or self.provider
         with self.lock:
             return {'ok':True,'state':self.state,'error':self.error,'sequence':self.sequence,
-                    'provider':'qwen3','voices':[{'id':'miya-anime-ru','culture':'ru-RU'}],'recognizers':[]}
+                    'provider':provider,'voices':[{'id':'miya-anime-ru','name':'Лола · Serena' if provider=='piper' else 'Голос Qwen','culture':'ru-RU'}],'recognizers':[]}
 
     def speak(self, params, profile):
+        self.provider=profile.get('tts_provider','qwen3')
         text=params.get('text','');volume=params.get('volume',70);rate=params.get('rate',0)
         if not isinstance(text,str) or not text.strip() or len(text)>1200 or '\x00' in text:
             raise ValueError('Нейроозвучка: от 1 до 1200 символов')
@@ -43,7 +45,16 @@ class NeuralSpeech:
                         if cancelled.is_set() or self.played.wait(.1):break
                     else:raise TimeoutError('Плеер не завершил озвучку')
                 except Exception as exc:
-                    if not cancelled.is_set():self.error='Нейроозвучка: '+type(exc).__name__+'; проверьте локальный TTS сервер'
+                    if not cancelled.is_set():
+                        if isinstance(exc,httpx.ConnectError):
+                            self.error='Озвучка недоступна. Нажмите «Запустить Serena» в настройках голоса.' if self.provider=='piper' else 'TTS сервер недоступен. Запустите Qwen TTS и проверьте адрес в дополнительных настройках.'
+                        elif isinstance(exc,httpx.HTTPStatusError):
+                            code=exc.response.status_code
+                            self.error={429:'TTS занят предыдущей озвучкой. Остановите её и дождитесь освобождения сервера.',
+                                        504:'TTS не успел синтезировать речь. На CPU используйте одну короткую фразу.',
+                                        400:'TTS отклонил текст или настройки голоса. Проверьте их в профиле Лолы.',
+                                        404:'TTS: неверный путь API. Для Qwen3-TTS нужен /v1/audio/speech.'}.get(code,f'TTS: HTTP {code}; проверьте журнал сервера.')
+                        else:self.error='Нейроозвучка: '+type(exc).__name__+'; проверьте журнал TTS сервера'
                 finally:
                     with self.lock:self.state='error' if self.error and not cancelled.is_set() else 'idle'
             self.thread=threading.Thread(target=run,daemon=True,name='neural-speech');self.thread.start()

@@ -13,3 +13,5 @@ dist-electron/
 .venv-build/
 build/
 artifacts/
+# Private training corpus stays local alongside generated WAV/checkpoints.
+tools/tts/training/serena_texts.txt

@@ -16,11 +16,14 @@
 - [agent/delegation.py](#module-agent-delegation-py)
 - [agent/editor_io.py](#module-agent-editor-io-py)
 - [agent/engine.py](#module-agent-engine-py)
+- [agent/ide_coordinator.py](#module-agent-ide-coordinator-py)
+- [agent/ide_workflow.py](#module-agent-ide-workflow-py)
 - [agent/json_tools.py](#module-agent-json-tools-py)
 - [agent/mcp.py](#module-agent-mcp-py)
 - [agent/model_client.py](#module-agent-model-client-py)
 - [agent/model_discovery.py](#module-agent-model-discovery-py)
 - [agent/model_gateway.py](#module-agent-model-gateway-py)
+- [agent/model_lifecycle.py](#module-agent-model-lifecycle-py)
 - [agent/model_manager.py](#module-agent-model-manager-py)
 - [agent/model_preferences.py](#module-agent-model-preferences-py)
 - [agent/model_probe.py](#module-agent-model-probe-py)
@@ -30,12 +33,14 @@
 - [agent/runtime.py](#module-agent-runtime-py)
 - [agent/security.py](#module-agent-security-py)
 - [agent/skills.py](#module-agent-skills-py)
+- [agent/smart_context.py](#module-agent-smart-context-py)
 - [agent/task_activity.py](#module-agent-task-activity-py)
 - [agent/task_store.py](#module-agent-task-store-py)
 - [agent/tools.py](#module-agent-tools-py)
 - [agent/ui.py](#module-agent-ui-py)
 - [agent/verifier.py](#module-agent-verifier-py)
 - [agent/worker.py](#module-agent-worker-py)
+- [core/python/assistant_service.py](#module-core-python-assistant-service-py)
 - [core/python/bridge.py](#module-core-python-bridge-py)
 - [core/python/desktop_service.py](#module-core-python-desktop-service-py)
 - [core/python/editor_service.py](#module-core-python-editor-service-py)
@@ -54,7 +59,12 @@
 - [tools/doc_notes.py](#module-tools-doc-notes-py)
 - [tools/generate_code_reference.py](#module-tools-generate-code-reference-py)
 - [tools/prepare_windows_dependencies.py](#module-tools-prepare-windows-dependencies-py)
+- [tools/tts/piper_server.py](#module-tools-tts-piper-server-py)
 - [tools/tts/qwen_server.py](#module-tools-tts-qwen-server-py)
+- [tools/tts/training/export_and_evaluate.py](#module-tools-tts-training-export-and-evaluate-py)
+- [tools/tts/training/generate_serena.py](#module-tools-tts-training-generate-serena-py)
+- [tools/tts/training/pipeline.py](#module-tools-tts-training-pipeline-py)
+- [tools/tts/training/run_training.py](#module-tools-tts-training-run-training-py)
 
 <a id="module-agent-init-py"></a>
 
@@ -214,7 +224,7 @@ def title_from_messages(messages: list[dict[str, Any]]) -> str
 
 ## `agent/companion_preferences.py`
 
-Независимый сохраняемый профиль Мии: модель, endpoint, характер, STT и голос; секреты не сохраняются.
+Независимый сохраняемый профиль Лолы: модель, endpoint, характер, STT и голос; секреты не сохраняются.
 
 ### `validate_profile`
 
@@ -250,7 +260,7 @@ def save_profile(params)
 
 ## `agent/context_manager.py`
 
-Простой ограничитель рабочего контекста активного AgentRuntime.
+Сборка временного рабочего контекста с метаданными задачи, умным сжатием и статистикой.
 
 ### `ContextManager`
 
@@ -274,7 +284,7 @@ def __init__(self, max_chars=80000, recent_rounds=12)
 
 ### `ContextManager.build`
 
-[Исходник](../../agent/context_manager.py#L13)
+[Исходник](../../agent/context_manager.py#L14)
 
 ```python
 def build(self, messages, task=None, skills=None, request_index=None)
@@ -372,7 +382,7 @@ def size()
 
 ## `agent/delegation.py`
 
-Единственное определение delegate_task для передачи сложной задачи от Мии основной модели.
+Единственное определение delegate_task для передачи сложной задачи от Лолы основной модели.
 
 Именованных классов/функций нет. Исполняемый entry point и константы описаны в главе о соответствующем слое.
 
@@ -410,7 +420,7 @@ def save_project_text(project_root: str | Path, requested: str | Path, text: str
 
 ### `EventHook`
 
-[Исходник](../../agent/engine.py#L36)
+[Исходник](../../agent/engine.py#L37)
 
 ```python
 class EventHook
@@ -420,7 +430,7 @@ class EventHook
 
 ### `EventHook.__init__`
 
-[Исходник](../../agent/engine.py#L38)
+[Исходник](../../agent/engine.py#L39)
 
 ```python
 def __init__(self)
@@ -430,7 +440,7 @@ def __init__(self)
 
 ### `EventHook.connect`
 
-[Исходник](../../agent/engine.py#L41)
+[Исходник](../../agent/engine.py#L42)
 
 ```python
 def connect(self, callback)
@@ -440,7 +450,7 @@ def connect(self, callback)
 
 ### `EventHook.emit`
 
-[Исходник](../../agent/engine.py#L44)
+[Исходник](../../agent/engine.py#L45)
 
 ```python
 def emit(self, *args)
@@ -450,7 +460,7 @@ def emit(self, *args)
 
 ### `AgentEngine`
 
-[Исходник](../../agent/engine.py#L49)
+[Исходник](../../agent/engine.py#L50)
 
 ```python
 class AgentEngine
@@ -460,7 +470,7 @@ class AgentEngine
 
 ### `AgentEngine.requestInterruption`
 
-[Исходник](../../agent/engine.py#L54)
+[Исходник](../../agent/engine.py#L55)
 
 ```python
 def requestInterruption(self)
@@ -470,7 +480,7 @@ def requestInterruption(self)
 
 ### `AgentEngine.isInterruptionRequested`
 
-[Исходник](../../agent/engine.py#L59)
+[Исходник](../../agent/engine.py#L60)
 
 ```python
 def isInterruptionRequested(self)
@@ -480,17 +490,17 @@ def isInterruptionRequested(self)
 
 ### `AgentEngine.__init__`
 
-[Исходник](../../agent/engine.py#L62)
+[Исходник](../../agent/engine.py#L63)
 
 ```python
-def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None, allow_tools=True, companion=False, tool_protocol='native', persona='', tool_definitions=None, tool_handler=None)
+def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None, allow_tools=True, companion=False, tool_protocol='native', persona='', tool_definitions=None, tool_handler=None, role_instruction='', stage_only=False)
 ```
 
 Инициализирует состояние экземпляра AgentEngine; параметры показаны в сигнатуре, назначение описано у класса.
 
 ### `AgentEngine._checkpoint`
 
-[Исходник](../../agent/engine.py#L98)
+[Исходник](../../agent/engine.py#L101)
 
 ```python
 def _checkpoint(self, stage=None, event='')
@@ -500,7 +510,7 @@ def _checkpoint(self, stage=None, event='')
 
 ### `AgentEngine.task_snapshot`
 
-[Исходник](../../agent/engine.py#L108)
+[Исходник](../../agent/engine.py#L111)
 
 ```python
 def task_snapshot(self)
@@ -510,7 +520,7 @@ def task_snapshot(self)
 
 ### `AgentEngine.resolve_write_approval`
 
-[Исходник](../../agent/engine.py#L111)
+[Исходник](../../agent/engine.py#L114)
 
 ```python
 def resolve_write_approval(self, decision)
@@ -520,7 +530,7 @@ def resolve_write_approval(self, decision)
 
 ### `AgentEngine._ask_write_approval`
 
-[Исходник](../../agent/engine.py#L122)
+[Исходник](../../agent/engine.py#L125)
 
 ```python
 def _ask_write_approval(self, path, diff, exists)
@@ -530,7 +540,7 @@ def _ask_write_approval(self, path, diff, exists)
 
 ### `AgentEngine._emit_change`
 
-[Исходник](../../agent/engine.py#L144)
+[Исходник](../../agent/engine.py#L147)
 
 ```python
 def _emit_change(self, path, diff, exists, status, error='')
@@ -540,7 +550,7 @@ def _emit_change(self, path, diff, exists, status, error='')
 
 ### `AgentEngine._looks_like_action_request`
 
-[Исходник](../../agent/engine.py#L154)
+[Исходник](../../agent/engine.py#L157)
 
 ```python
 @staticmethod
@@ -551,7 +561,7 @@ def _looks_like_action_request(prompt)
 
 ### `AgentEngine._verify_task_completion`
 
-[Исходник](../../agent/engine.py#L164)
+[Исходник](../../agent/engine.py#L167)
 
 ```python
 def _verify_task_completion(self, client, messages, max_tokens)
@@ -561,13 +571,245 @@ def _verify_task_completion(self, client, messages, max_tokens)
 
 ### `AgentEngine.run`
 
-[Исходник](../../agent/engine.py#L200)
+[Исходник](../../agent/engine.py#L203)
 
 ```python
 def run(self)
 ```
 
 Строит контекст, выполняет потоковые ходы и tools, обрабатывает остановку, сохраняет состояние и закрывает клиент.
+
+<a id="module-agent-ide-coordinator-py"></a>
+
+## `agent/ide_coordinator.py`
+
+Четыре роли IDE, локальные передачи кода, ограниченное исправление, существующие diff approvals и подтверждённая проверка файлов.
+
+### `RoleOutputError`
+
+[Исходник](../../agent/ide_coordinator.py#L28)
+
+```python
+class RoleOutputError(ValueError)
+```
+
+Выделяет ошибки формата, для которых разрешён один повтор без записи неверного результата.
+
+### `IDECoordinator`
+
+[Исходник](../../agent/ide_coordinator.py#L32)
+
+```python
+class IDECoordinator(AgentEngine)
+```
+
+Последовательно координирует четыре AgentEngine с изоляцией прав, локальными артефактами и проверкой результата.
+
+### `IDECoordinator.__init__`
+
+[Исходник](../../agent/ide_coordinator.py#L33)
+
+```python
+def __init__(self, *, workflow_options, role_configs, resume=False, stage_factory=AgentEngine, lifecycle_factory=ModelLifecycle, **kwargs)
+```
+
+Инициализирует состояние экземпляра IDECoordinator; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `IDECoordinator._flow_snapshot`
+
+[Исходник](../../agent/ide_coordinator.py#L55)
+
+```python
+def _flow_snapshot(self)
+```
+
+Добавляет безопасные названия/ID/статусы ролей и номер исправления к существующей задаче.
+
+### `IDECoordinator._persist`
+
+[Исходник](../../agent/ide_coordinator.py#L60)
+
+```python
+def _persist(self)
+```
+
+Атомарно сохраняет передачи ролей вне проекта и уведомляет UI о checkpoint.
+
+### `IDECoordinator._lifecycle_event`
+
+[Исходник](../../agent/ide_coordinator.py#L64)
+
+```python
+def _lifecycle_event(self, text)
+```
+
+Сохраняет точную активную модель для последующей очистки, передаёт состояние загрузки в журнал/план.
+
+### `IDECoordinator.requestInterruption`
+
+[Исходник](../../agent/ide_coordinator.py#L71)
+
+```python
+def requestInterruption(self)
+```
+
+Останавливает общий цикл и текущий дочерний HTTP/approval цикл.
+
+### `IDECoordinator.resolve_write_approval`
+
+[Исходник](../../agent/ide_coordinator.py#L75)
+
+```python
+def resolve_write_approval(self, decision)
+```
+
+Пересылает решение только текущему AgentEngine, сохраняющему проверку diff и revision.
+
+### `IDECoordinator._child_task`
+
+[Исходник](../../agent/ide_coordinator.py#L78)
+
+```python
+def _child_task(self, snapshot)
+```
+
+Объединяет counters, доказательства чтения и состояние дочерней роли; completed этапа не завершает весь цикл.
+
+### `IDECoordinator._chat`
+
+[Исходник](../../agent/ide_coordinator.py#L92)
+
+```python
+def _chat(self, role, text)
+```
+
+Помечает ответ ролью и сохраняет общую историю без подмены исходного запроса служебными prompt.
+
+### `IDECoordinator._handoff`
+
+[Исходник](../../agent/ide_coordinator.py#L97)
+
+```python
+def _handoff(self, role, checks)
+```
+
+Передаёт полные релевантные материалы/прочитанные файлы; при превышении бюджета останавливается без обрезки кода.
+
+### `IDECoordinator._capture_context`
+
+[Исходник](../../agent/ide_coordinator.py#L108)
+
+```python
+def _capture_context(self, messages)
+```
+
+Из успешных read_file tool results собирает контекст файлов для автора кода без собственных файловых инструментов.
+
+### `IDECoordinator._structured_output`
+
+[Исходник](../../agent/ide_coordinator.py#L116)
+
+```python
+def _structured_output(self, text, role)
+```
+
+Валидирует JSON автора/проверяющего, полные path/content и границы проекта до использования артефакта.
+
+### `IDECoordinator._syntax_checks`
+
+[Исходник](../../agent/ide_coordinator.py#L132)
+
+```python
+def _syntax_checks(self)
+```
+
+Читает только modified_files через sandbox и безопасно проверяет Python AST/JSON без запуска кода.
+
+### `IDECoordinator._stage`
+
+[Исходник](../../agent/ide_coordinator.py#L146)
+
+```python
+def _stage(self, role, checks)
+```
+
+Выбирает модель и права роли, связывает события/approvals, учитывает общий бюджет, проверяет ответ до передачи дальше.
+
+### `IDECoordinator._stage.delta`
+
+[Исходник](../../agent/ide_coordinator.py#L168)
+
+```python
+def delta(turn, text)
+```
+
+Даёт потокам уникальные role/cycle/turn ID и обозначает роль в первом фрагменте.
+
+### `IDECoordinator._verdict`
+
+[Исходник](../../agent/ide_coordinator.py#L190)
+
+```python
+def _verdict(self, text, checks)
+```
+
+Требует pass без issues, успешных статических проверок и чтения каждого изменённого файла текущим проверяющим.
+
+### `IDECoordinator.run`
+
+[Исходник](../../agent/ide_coordinator.py#L199)
+
+```python
+def run(self)
+```
+
+Выполняет полный/одиночный этап, один повтор формата, до двух циклов исправлений, pause/resume и обязательную выгрузку.
+
+<a id="module-agent-ide-workflow-py"></a>
+
+## `agent/ide_workflow.py`
+
+Whitelist ролей IDE, отдельное сохранение без ключей и разрешение наследуемых моделей/endpoint без утечки основного токена.
+
+### `validate_workflow`
+
+[Исходник](../../agent/ide_workflow.py#L14)
+
+```python
+def validate_workflow(params)
+```
+
+Проверяет четыре роли, режим, провайдер, относительные настройки URL/ID, контекст и число исправлений; отбрасывает секреты.
+
+### `load_workflow`
+
+[Исходник](../../agent/ide_workflow.py#L40)
+
+```python
+def load_workflow()
+```
+
+Загружает отдельный JSON либо возвращает выключенный совместимый профиль по умолчанию.
+
+### `save_workflow`
+
+[Исходник](../../agent/ide_workflow.py#L45)
+
+```python
+def save_workflow(params)
+```
+
+Атомарно сохраняет только прошедшие whitelist настройки без API-ключей.
+
+### `resolve_roles`
+
+[Исходник](../../agent/ide_workflow.py#L49)
+
+```python
+def resolve_roles(workflow, primary, secrets=None)
+```
+
+Подставляет основные URL/ID и только для того же URL наследует основной ключ; проверяет назначение используемых ролей.
 
 <a id="module-agent-json-tools-py"></a>
 
@@ -1040,6 +1282,113 @@ def status(self)
 ```
 
 Возвращает endpoint и состояние локального runtime; endpoint может содержать ключ, не публикуйте его как безопасные preferences.
+
+<a id="module-agent-model-lifecycle-py"></a>
+
+## `agent/model_lifecycle.py`
+
+Последовательная отменяемая загрузка/выгрузка назначенных моделей LM Studio 0.4+/Ollama и read-only каталог.
+
+### `ModelLifecycle`
+
+[Исходник](../../agent/model_lifecycle.py#L8)
+
+```python
+class ModelLifecycle
+```
+
+Управляет одной активной моделью роли, не запускает shell и не завершает чужие процессы.
+
+### `ModelLifecycle.__init__`
+
+[Исходник](../../agent/model_lifecycle.py#L9)
+
+```python
+def __init__(self, roles, interrupted, context_length=4096, notify=None)
+```
+
+Инициализирует состояние экземпляра ModelLifecycle; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `ModelLifecycle.origin`
+
+[Исходник](../../agent/model_lifecycle.py#L14)
+
+```python
+@staticmethod
+def origin(config)
+```
+
+Разрешает нативное управление только на корне проверенного сервера без произвольных префиксов маршрута.
+
+### `ModelLifecycle.request`
+
+[Исходник](../../agent/model_lifecycle.py#L19)
+
+```python
+def request(self, config, method, route, payload=None, cleanup=False)
+```
+
+Выполняет ограниченный запрос с коротким наблюдением Event отмены и отдельным deadline очистки.
+
+### `ModelLifecycle.request.run`
+
+[Исходник](../../agent/model_lifecycle.py#L20)
+
+```python
+async def run()
+```
+
+Владеет asyncio request и гарантирует его отмену/закрытие при выходе.
+
+### `ModelLifecycle.request.run.fetch`
+
+[Исходник](../../agent/model_lifecycle.py#L21)
+
+```python
+async def fetch()
+```
+
+Передаёт токен только выбранному endpoint без redirects/proxy env; ограничивает JSON ответ двумя МБ.
+
+### `ModelLifecycle.catalog`
+
+[Исходник](../../agent/model_lifecycle.py#L44)
+
+```python
+def catalog(self, config)
+```
+
+Читает LM Studio model keys/instances, Ollama tags/ps или OpenAI model IDs без загрузки весов.
+
+### `ModelLifecycle.unload`
+
+[Исходник](../../agent/model_lifecycle.py#L56)
+
+```python
+def unload(self, config, instance, cleanup=False)
+```
+
+Выгружает точный instance_id LM Studio либо exact Ollama model через keep_alive=0.
+
+### `ModelLifecycle.release`
+
+[Исходник](../../agent/model_lifecycle.py#L65)
+
+```python
+def release(self)
+```
+
+Выгружает известную активную модель; при ошибке сохраняет владение и запрещает последующую загрузку.
+
+### `ModelLifecycle.acquire`
+
+[Исходник](../../agent/model_lifecycle.py#L72)
+
+```python
+def acquire(self, config)
+```
+
+Повторно использует ту же модель либо выгружает прежнюю, проверяет каталог/чужую память, затем загружает только назначенную.
 
 <a id="module-agent-model-manager-py"></a>
 
@@ -1794,6 +2143,82 @@ def select(self, prompt, limit=3)
 ```
 
 Ранжирует метаданные по словам prompt и возвращает не больше limit совпадений.
+
+<a id="module-agent-smart-context-py"></a>
+
+## `agent/smart_context.py`
+
+Детерминированное сжатие временного контекста с архивом ограничений и фактов без LLM-запросов и изменения канонической истории.
+
+### `context_size`
+
+[Исходник](../../agent/smart_context.py#L11)
+
+```python
+def context_size(messages)
+```
+
+Считает символы сериализованного JSON, а не токены модели.
+
+### `text_digest`
+
+[Исходник](../../agent/smart_context.py#L15)
+
+```python
+def text_digest(text)
+```
+
+Возвращает первые 16 hex символов SHA-256 для сверки сокращённого источника.
+
+### `salient_text`
+
+[Исходник](../../agent/smart_context.py#L19)
+
+```python
+def salient_text(text, query='', limit=1200)
+```
+
+Выбирает строки по запросу, ограничениям, началу и концу; маркирует фрагменты и исходный размер.
+
+### `compact_tool_result`
+
+[Исходник](../../agent/smart_context.py#L35)
+
+```python
+def compact_tool_result(content, query, limit)
+```
+
+Сохраняет валидный JSON с путём, статусом, ошибкой и fingerprint; сокращает крупные чтения и списки.
+
+### `context_archive`
+
+[Исходник](../../agent/smart_context.py#L58)
+
+```python
+def context_archive(units, budget)
+```
+
+Собирает ограничения исходных пользователей, краткие запросы, решения и последние факты tools; при невозможности сохранить ограничения останавливается.
+
+### `context_archive.render`
+
+[Исходник](../../agent/smart_context.py#L79)
+
+```python
+def render()
+```
+
+Сериализует архив как данные истории без повышения роли или прав.
+
+### `smart_compact_messages`
+
+[Исходник](../../agent/smart_context.py#L88)
+
+```python
+def smart_compact_messages(messages, max_chars=80000, keep_recent_rounds=12, request_index=None)
+```
+
+Защищает текущий запрос и код, сохраняет целые пары tools, архивирует старые группы и возвращает метрики без изменения истории.
 
 <a id="module-agent-task-activity-py"></a>
 
@@ -2592,6 +3017,92 @@ def _approval_result(self)
 
 Property совместимости для проверки последнего решения в тестах.
 
+<a id="module-core-python-assistant-service-py"></a>
+
+## `core/python/assistant_service.py`
+
+Локальные часы, ограниченный AST-калькулятор, атомарные заметки и отменяемые таймеры Лолы.
+
+### `calculate`
+
+[Исходник](../../core/python/assistant_service.py#L23)
+
+```python
+def calculate(expression)
+```
+
+Разбирает арифметику через AST с лимитами сложности, степени и конечного результата; не выполняет Python.
+
+### `calculate.evaluate`
+
+[Исходник](../../core/python/assistant_service.py#L28)
+
+```python
+def evaluate(node)
+```
+
+Рекурсивно разрешает только числа, скобки и whitelist арифметических операций.
+
+### `AssistantService`
+
+[Исходник](../../core/python/assistant_service.py#L41)
+
+```python
+class AssistantService
+```
+
+Владеет локальным хранилищем заметок, блокировкой и ограниченными таймерами до закрытия приложения.
+
+### `AssistantService.__init__`
+
+[Исходник](../../core/python/assistant_service.py#L42)
+
+```python
+def __init__(self, emit)
+```
+
+Инициализирует состояние экземпляра AssistantService; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `AssistantService.notes`
+
+[Исходник](../../core/python/assistant_service.py#L45)
+
+```python
+def notes(self)
+```
+
+Читает ограниченный JSON список заметок; повреждённый файл сохраняется без перезаписи.
+
+### `AssistantService.execute`
+
+[Исходник](../../core/python/assistant_service.py#L52)
+
+```python
+def execute(self, name, args)
+```
+
+Выполняет именованную утилиту, валидирует параметры, атомарно пишет заметки или управляет таймерами.
+
+### `AssistantService.fire`
+
+[Исходник](../../core/python/assistant_service.py#L84)
+
+```python
+def fire(self, key)
+```
+
+Однократно удаляет таймер, отменяет callback и отправляет уведомление, если сервис ещё работает.
+
+### `AssistantService.shutdown`
+
+[Исходник](../../core/python/assistant_service.py#L90)
+
+```python
+def shutdown(self)
+```
+
+Отменяет все таймеры и запрещает новые операции.
+
 <a id="module-core-python-bridge-py"></a>
 
 ## `core/python/bridge.py`
@@ -2640,7 +3151,7 @@ Dispatcher RPC под общим TaskService lock: области чатов, п
 
 ### `main`
 
-[Исходник](../../core/python/bridge.py#L198)
+[Исходник](../../core/python/bridge.py#L202)
 
 ```python
 def main() -> None
@@ -2654,9 +3165,19 @@ def main() -> None
 
 Явно включаемые PC tools: human-prompt folder grants, read-only файлы, bounded web search и host screenshot broker.
 
+### `music_url`
+
+[Исходник](../../core/python/desktop_service.py#L33)
+
+```python
+def music_url(value)
+```
+
+Разрешает только HTTPS музыкальные хосты без credentials и нестандартного порта.
+
 ### `prompt_folders`
 
-[Исходник](../../core/python/desktop_service.py#L24)
+[Исходник](../../core/python/desktop_service.py#L40)
 
 ```python
 def prompt_folders(prompt)
@@ -2666,7 +3187,7 @@ def prompt_folders(prompt)
 
 ### `SearchResults`
 
-[Исходник](../../core/python/desktop_service.py#L41)
+[Исходник](../../core/python/desktop_service.py#L57)
 
 ```python
 class SearchResults(HTMLParser)
@@ -2676,7 +3197,7 @@ HTMLParser для ограниченного набора ссылок и заг
 
 ### `SearchResults.__init__`
 
-[Исходник](../../core/python/desktop_service.py#L43)
+[Исходник](../../core/python/desktop_service.py#L59)
 
 ```python
 def __init__(self)
@@ -2686,7 +3207,7 @@ def __init__(self)
 
 ### `SearchResults.handle_starttag`
 
-[Исходник](../../core/python/desktop_service.py#L46)
+[Исходник](../../core/python/desktop_service.py#L62)
 
 ```python
 def handle_starttag(self, tag, attrs)
@@ -2696,7 +3217,7 @@ def handle_starttag(self, tag, attrs)
 
 ### `SearchResults.handle_data`
 
-[Исходник](../../core/python/desktop_service.py#L58)
+[Исходник](../../core/python/desktop_service.py#L74)
 
 ```python
 def handle_data(self, data)
@@ -2706,7 +3227,7 @@ def handle_data(self, data)
 
 ### `SearchResults.handle_endtag`
 
-[Исходник](../../core/python/desktop_service.py#L62)
+[Исходник](../../core/python/desktop_service.py#L78)
 
 ```python
 def handle_endtag(self, tag)
@@ -2714,9 +3235,19 @@ def handle_endtag(self, tag)
 
 Завершает ссылку и сохраняет не больше восьми результатов.
 
+### `search_web`
+
+[Исходник](../../core/python/desktop_service.py#L85)
+
+```python
+def search_web(query, cancelled)
+```
+
+Получает до восьми ограниченных текстовых результатов: DuckDuckGo HTML, затем Bing RSS при отказе, без чтения страниц и XML DTD.
+
 ### `DesktopService`
 
-[Исходник](../../core/python/desktop_service.py#L69)
+[Исходник](../../core/python/desktop_service.py#L120)
 
 ```python
 class DesktopService
@@ -2726,7 +3257,7 @@ class DesktopService
 
 ### `DesktopService.__init__`
 
-[Исходник](../../core/python/desktop_service.py#L70)
+[Исходник](../../core/python/desktop_service.py#L121)
 
 ```python
 def __init__(self, emit)
@@ -2736,7 +3267,7 @@ def __init__(self, emit)
 
 ### `DesktopService.configure`
 
-[Исходник](../../core/python/desktop_service.py#L76)
+[Исходник](../../core/python/desktop_service.py#L127)
 
 ```python
 def configure(self, params)
@@ -2746,7 +3277,7 @@ def configure(self, params)
 
 ### `DesktopService.request`
 
-[Исходник](../../core/python/desktop_service.py#L81)
+[Исходник](../../core/python/desktop_service.py#L132)
 
 ```python
 def request(self, operation, args, cancelled)
@@ -2756,7 +3287,7 @@ def request(self, operation, args, cancelled)
 
 ### `DesktopService.respond`
 
-[Исходник](../../core/python/desktop_service.py#L94)
+[Исходник](../../core/python/desktop_service.py#L145)
 
 ```python
 def respond(self, params)
@@ -2766,7 +3297,7 @@ def respond(self, params)
 
 ### `DesktopService.execute`
 
-[Исходник](../../core/python/desktop_service.py#L104)
+[Исходник](../../core/python/desktop_service.py#L155)
 
 ```python
 def execute(self, name, args, prompt, cancelled)
@@ -2907,14 +3438,14 @@ def __init__(self, emit)
 [Исходник](../../core/python/neural_speech.py#L18)
 
 ```python
-def status(self)
+def status(self, provider=None)
 ```
 
 Возвращает состояние и фиксированный профиль miya-anime-ru без аудиобуфера или текста.
 
 ### `NeuralSpeech.speak`
 
-[Исходник](../../core/python/neural_speech.py#L23)
+[Исходник](../../core/python/neural_speech.py#L24)
 
 ```python
 def speak(self, params, profile)
@@ -2924,7 +3455,7 @@ def speak(self, params, profile)
 
 ### `NeuralSpeech.speak.run`
 
-[Исходник](../../core/python/neural_speech.py#L34)
+[Исходник](../../core/python/neural_speech.py#L36)
 
 ```python
 def run()
@@ -2934,7 +3465,7 @@ def run()
 
 ### `NeuralSpeech.fetch`
 
-[Исходник](../../core/python/neural_speech.py#L52)
+[Исходник](../../core/python/neural_speech.py#L63)
 
 ```python
 async def fetch(self, text, profile, cancelled)
@@ -2944,7 +3475,7 @@ async def fetch(self, text, profile, cancelled)
 
 ### `NeuralSpeech.fetch.request`
 
-[Исходник](../../core/python/neural_speech.py#L53)
+[Исходник](../../core/python/neural_speech.py#L64)
 
 ```python
 async def request()
@@ -2954,7 +3485,7 @@ async def request()
 
 ### `NeuralSpeech.fetch.cancellation`
 
-[Исходник](../../core/python/neural_speech.py#L65)
+[Исходник](../../core/python/neural_speech.py#L76)
 
 ```python
 async def cancellation()
@@ -2964,7 +3495,7 @@ async def cancellation()
 
 ### `NeuralSpeech.playback`
 
-[Исходник](../../core/python/neural_speech.py#L76)
+[Исходник](../../core/python/neural_speech.py#L87)
 
 ```python
 def playback(self, params)
@@ -2974,7 +3505,7 @@ def playback(self, params)
 
 ### `NeuralSpeech.stop`
 
-[Исходник](../../core/python/neural_speech.py#L83)
+[Исходник](../../core/python/neural_speech.py#L94)
 
 ```python
 def stop(self)
@@ -2984,7 +3515,7 @@ def stop(self)
 
 ### `NeuralSpeech.shutdown`
 
-[Исходник](../../core/python/neural_speech.py#L90)
+[Исходник](../../core/python/neural_speech.py#L101)
 
 ```python
 def shutdown(self)
@@ -3278,7 +3809,7 @@ def shutdown(self)
 
 ### `TaskService`
 
-[Исходник](../../core/python/task_service.py#L24)
+[Исходник](../../core/python/task_service.py#L28)
 
 ```python
 class TaskService
@@ -3288,7 +3819,7 @@ class TaskService
 
 ### `TaskService.__init__`
 
-[Исходник](../../core/python/task_service.py#L25)
+[Исходник](../../core/python/task_service.py#L29)
 
 ```python
 def __init__(self, emit, engine_factory=AgentEngine)
@@ -3296,9 +3827,49 @@ def __init__(self, emit, engine_factory=AgentEngine)
 
 Инициализирует состояние экземпляра TaskService; параметры показаны в сигнатуре, назначение описано у класса.
 
+### `TaskService.workflow_preferences`
+
+[Исходник](../../core/python/task_service.py#L59)
+
+```python
+def workflow_preferences(self)
+```
+
+Возвращает настройки IDE без секретов.
+
+### `TaskService.configure_workflow`
+
+[Исходник](../../core/python/task_service.py#L62)
+
+```python
+def configure_workflow(self, params)
+```
+
+Проверяет настройки и ключи до сохранения; блокирует смену во время задачи, ключи оставляет в памяти.
+
+### `TaskService.start_workflow_discovery`
+
+[Исходник](../../core/python/task_service.py#L74)
+
+```python
+def start_workflow_discovery(self, params, respond)
+```
+
+Снимает конфигурацию выбранной роли и запускает отменяемое чтение каталога в отдельном потоке.
+
+### `TaskService.start_workflow_discovery.discover`
+
+[Исходник](../../core/python/task_service.py#L87)
+
+```python
+def discover()
+```
+
+Выбирает каталог нативного lifecycle либо обычный OpenAI discovery и возвращает ограниченную ошибку.
+
 ### `TaskService.idle`
 
-[Исходник](../../core/python/task_service.py#L52)
+[Исходник](../../core/python/task_service.py#L95)
 
 ```python
 def idle(self)
@@ -3308,7 +3879,7 @@ def idle(self)
 
 ### `TaskService.configure`
 
-[Исходник](../../core/python/task_service.py#L57)
+[Исходник](../../core/python/task_service.py#L100)
 
 ```python
 def configure(self, params)
@@ -3318,7 +3889,7 @@ def configure(self, params)
 
 ### `TaskService.preferences`
 
-[Исходник](../../core/python/task_service.py#L65)
+[Исходник](../../core/python/task_service.py#L108)
 
 ```python
 def preferences(self)
@@ -3328,7 +3899,7 @@ def preferences(self)
 
 ### `TaskService.request_delegation`
 
-[Исходник](../../core/python/task_service.py#L69)
+[Исходник](../../core/python/task_service.py#L112)
 
 ```python
 def request_delegation(self, name, args)
@@ -3338,17 +3909,17 @@ def request_delegation(self, name, args)
 
 ### `TaskService.prepare_handoff`
 
-[Исходник](../../core/python/task_service.py#L81)
+[Исходник](../../core/python/task_service.py#L124)
 
 ```python
 def prepare_handoff(self, root, params)
 ```
 
-После завершения Мии создаёт отдельный чат основной модели; IDE требует выбранного проекта, сохраняет источник результата.
+После завершения Лолы создаёт отдельный чат основной модели; IDE требует выбранного проекта, сохраняет источник результата.
 
 ### `TaskService.discard_handoff`
 
-[Исходник](../../core/python/task_service.py#L95)
+[Исходник](../../core/python/task_service.py#L138)
 
 ```python
 def discard_handoff(self, params)
@@ -3358,17 +3929,17 @@ def discard_handoff(self, params)
 
 ### `TaskService.companion_preferences`
 
-[Исходник](../../core/python/task_service.py#L102)
+[Исходник](../../core/python/task_service.py#L145)
 
 ```python
 def companion_preferences(self)
 ```
 
-Возвращает публичные поля отдельного профиля Мии без API keys.
+Возвращает публичные поля отдельного профиля Лолы без API keys.
 
 ### `TaskService.configure_companion`
 
-[Исходник](../../core/python/task_service.py#L105)
+[Исходник](../../core/python/task_service.py#L148)
 
 ```python
 def configure_companion(self, params)
@@ -3378,7 +3949,7 @@ def configure_companion(self, params)
 
 ### `TaskService.models`
 
-[Исходник](../../core/python/task_service.py#L111)
+[Исходник](../../core/python/task_service.py#L154)
 
 ```python
 def models(self, config=None, cancelled=None)
@@ -3388,7 +3959,7 @@ def models(self, config=None, cancelled=None)
 
 ### `TaskService.diagnostic_config`
 
-[Исходник](../../core/python/task_service.py#L114)
+[Исходник](../../core/python/task_service.py#L157)
 
 ```python
 def diagnostic_config(self, params=None)
@@ -3398,7 +3969,7 @@ def diagnostic_config(self, params=None)
 
 ### `TaskService.start_model_probe`
 
-[Исходник](../../core/python/task_service.py#L119)
+[Исходник](../../core/python/task_service.py#L162)
 
 ```python
 def start_model_probe(self, params, respond)
@@ -3408,7 +3979,7 @@ def start_model_probe(self, params, respond)
 
 ### `TaskService.start_model_probe.run_probe`
 
-[Исходник](../../core/python/task_service.py#L126)
+[Исходник](../../core/python/task_service.py#L169)
 
 ```python
 def run_probe()
@@ -3418,7 +3989,7 @@ def run_probe()
 
 ### `TaskService.cancel_model_setup`
 
-[Исходник](../../core/python/task_service.py#L135)
+[Исходник](../../core/python/task_service.py#L178)
 
 ```python
 def cancel_model_setup(self)
@@ -3428,7 +3999,7 @@ def cancel_model_setup(self)
 
 ### `TaskService.start_model_discovery`
 
-[Исходник](../../core/python/task_service.py#L140)
+[Исходник](../../core/python/task_service.py#L183)
 
 ```python
 def start_model_discovery(self, respond, params=None)
@@ -3438,7 +4009,7 @@ def start_model_discovery(self, respond, params=None)
 
 ### `TaskService.start_model_discovery.run_discovery`
 
-[Исходник](../../core/python/task_service.py#L147)
+[Исходник](../../core/python/task_service.py#L190)
 
 ```python
 def run_discovery()
@@ -3448,7 +4019,7 @@ def run_discovery()
 
 ### `TaskService.move_chat`
 
-[Исходник](../../core/python/task_service.py#L157)
+[Исходник](../../core/python/task_service.py#L200)
 
 ```python
 def move_chat(self, params)
@@ -3458,7 +4029,7 @@ def move_chat(self, params)
 
 ### `TaskService.chats`
 
-[Исходник](../../core/python/task_service.py#L171)
+[Исходник](../../core/python/task_service.py#L214)
 
 ```python
 def chats(self, root, mode=None)
@@ -3468,7 +4039,7 @@ def chats(self, root, mode=None)
 
 ### `TaskService.rename`
 
-[Исходник](../../core/python/task_service.py#L177)
+[Исходник](../../core/python/task_service.py#L220)
 
 ```python
 def rename(self, root, params)
@@ -3478,7 +4049,7 @@ def rename(self, root, params)
 
 ### `TaskService.select_chat`
 
-[Исходник](../../core/python/task_service.py#L193)
+[Исходник](../../core/python/task_service.py#L236)
 
 ```python
 def select_chat(self, root, chat_id=None, mode=None)
@@ -3488,7 +4059,7 @@ def select_chat(self, root, chat_id=None, mode=None)
 
 ### `TaskService._recover_chat`
 
-[Исходник](../../core/python/task_service.py#L209)
+[Исходник](../../core/python/task_service.py#L252)
 
 ```python
 def _recover_chat(self)
@@ -3498,7 +4069,7 @@ def _recover_chat(self)
 
 ### `TaskService._persist_chat`
 
-[Исходник](../../core/python/task_service.py#L278)
+[Исходник](../../core/python/task_service.py#L321)
 
 ```python
 def _persist_chat(self)
@@ -3508,7 +4079,7 @@ def _persist_chat(self)
 
 ### `TaskService._task_event`
 
-[Исходник](../../core/python/task_service.py#L283)
+[Исходник](../../core/python/task_service.py#L326)
 
 ```python
 def _task_event(self, task)
@@ -3518,7 +4089,7 @@ def _task_event(self, task)
 
 ### `TaskService._event`
 
-[Исходник](../../core/python/task_service.py#L289)
+[Исходник](../../core/python/task_service.py#L332)
 
 ```python
 def _event(self, kind, **data)
@@ -3528,7 +4099,7 @@ def _event(self, kind, **data)
 
 ### `TaskService._flush_text`
 
-[Исходник](../../core/python/task_service.py#L292)
+[Исходник](../../core/python/task_service.py#L335)
 
 ```python
 def _flush_text(self)
@@ -3538,7 +4109,7 @@ def _flush_text(self)
 
 ### `TaskService._flush_scheduled`
 
-[Исходник](../../core/python/task_service.py#L301)
+[Исходник](../../core/python/task_service.py#L344)
 
 ```python
 def _flush_scheduled(self, run_id)
@@ -3548,7 +4119,7 @@ def _flush_scheduled(self, run_id)
 
 ### `TaskService._persist_draft`
 
-[Исходник](../../core/python/task_service.py#L306)
+[Исходник](../../core/python/task_service.py#L349)
 
 ```python
 def _persist_draft(self)
@@ -3558,7 +4129,7 @@ def _persist_draft(self)
 
 ### `TaskService._persist_draft_scheduled`
 
-[Исходник](../../core/python/task_service.py#L311)
+[Исходник](../../core/python/task_service.py#L354)
 
 ```python
 def _persist_draft_scheduled(self, run_id, turn)
@@ -3568,7 +4139,7 @@ def _persist_draft_scheduled(self, run_id, turn)
 
 ### `TaskService._text_delta`
 
-[Исходник](../../core/python/task_service.py#L322)
+[Исходник](../../core/python/task_service.py#L365)
 
 ```python
 def _text_delta(self, turn, text)
@@ -3578,7 +4149,7 @@ def _text_delta(self, turn, text)
 
 ### `TaskService._chat_event`
 
-[Исходник](../../core/python/task_service.py#L352)
+[Исходник](../../core/python/task_service.py#L395)
 
 ```python
 def _chat_event(self, role, text)
@@ -3588,7 +4159,7 @@ def _chat_event(self, role, text)
 
 ### `TaskService._request_approval`
 
-[Исходник](../../core/python/task_service.py#L360)
+[Исходник](../../core/python/task_service.py#L403)
 
 ```python
 def _request_approval(self, path, diff, exists)
@@ -3598,7 +4169,7 @@ def _request_approval(self, path, diff, exists)
 
 ### `TaskService.resolve_approval`
 
-[Исходник](../../core/python/task_service.py#L368)
+[Исходник](../../core/python/task_service.py#L411)
 
 ```python
 def resolve_approval(self, params)
@@ -3608,7 +4179,7 @@ def resolve_approval(self, params)
 
 ### `TaskService.cancel`
 
-[Исходник](../../core/python/task_service.py#L379)
+[Исходник](../../core/python/task_service.py#L422)
 
 ```python
 def cancel(self)
@@ -3618,7 +4189,7 @@ def cancel(self)
 
 ### `TaskService.start`
 
-[Исходник](../../core/python/task_service.py#L388)
+[Исходник](../../core/python/task_service.py#L431)
 
 ```python
 def start(self, root: Path, params)
@@ -3628,17 +4199,17 @@ def start(self, root: Path, params)
 
 ### `TaskService.start.dispatch`
 
-[Исходник](../../core/python/task_service.py#L418)
+[Исходник](../../core/python/task_service.py#L465)
 
 ```python
 def dispatch(name, args)
 ```
 
-Направляет только разрешённые PC tools, delegate_task Мии или обычные инструменты выбранного проекта; grants делегирования берёт из исходного человеческого запроса.
+Направляет только разрешённые PC tools, delegate_task Лолы или обычные инструменты выбранного проекта; grants делегирования берёт из исходного человеческого запроса.
 
 ### `TaskService._save_messages`
 
-[Исходник](../../core/python/task_service.py#L456)
+[Исходник](../../core/python/task_service.py#L506)
 
 ```python
 def _save_messages(self, messages)
@@ -3648,7 +4219,7 @@ def _save_messages(self, messages)
 
 ### `TaskService._run`
 
-[Исходник](../../core/python/task_service.py#L468)
+[Исходник](../../core/python/task_service.py#L518)
 
 ```python
 def _run(self)
@@ -3658,7 +4229,7 @@ def _run(self)
 
 ### `TaskService.shutdown`
 
-[Исходник](../../core/python/task_service.py#L508)
+[Исходник](../../core/python/task_service.py#L558)
 
 ```python
 def shutdown(self)
@@ -3840,7 +4411,7 @@ def transcribe()
 
 ### `TranscriptionService.request_audio`
 
-[Исходник](../../core/python/transcription_service.py#L46)
+[Исходник](../../core/python/transcription_service.py#L47)
 
 ```python
 async def request_audio(self, audio, profile, cancelled)
@@ -3850,7 +4421,7 @@ async def request_audio(self, audio, profile, cancelled)
 
 ### `TranscriptionService.request_audio.request`
 
-[Исходник](../../core/python/transcription_service.py#L47)
+[Исходник](../../core/python/transcription_service.py#L48)
 
 ```python
 async def request()
@@ -3860,7 +4431,7 @@ async def request()
 
 ### `TranscriptionService.request_audio.cancellation`
 
-[Исходник](../../core/python/transcription_service.py#L60)
+[Исходник](../../core/python/transcription_service.py#L61)
 
 ```python
 async def cancellation()
@@ -3870,7 +4441,7 @@ async def cancellation()
 
 ### `TranscriptionService.stop`
 
-[Исходник](../../core/python/transcription_service.py#L71)
+[Исходник](../../core/python/transcription_service.py#L72)
 
 ```python
 def stop(self)
@@ -3880,7 +4451,7 @@ def stop(self)
 
 ### `TranscriptionService.shutdown`
 
-[Исходник](../../core/python/transcription_service.py#L76)
+[Исходник](../../core/python/transcription_service.py#L77)
 
 ```python
 def shutdown(self)
@@ -3942,7 +4513,7 @@ def main()
 
 ## `tools/check_live_model.py`
 
-Opt-in smoke реальной модели: disposable AppData/проект, Chat/IDE/Мия, без approvals записи, JSON отчёт.
+Opt-in smoke реальной модели: disposable AppData/проект, Chat/IDE/Лола, без approvals записи, JSON отчёт.
 
 ### `fingerprint`
 
@@ -4132,25 +4703,51 @@ def prepare(root)
 
 Stage server/DLLs/licenses and offline VC++ bootstrap under ignored build/.
 
+<a id="module-tools-tts-piper-server-py"></a>
+
+## `tools/tts/piper_server.py`
+
+CPU Piper адаптер прежнего HTTP TTS API: русский ONNX голос, PCM16 WAV, лимиты и отмена между предложениями.
+
+### `synthesize`
+
+[Исходник](../../tools/tts/piper_server.py#L15)
+
+```python
+def synthesize(voice, text, guard)
+```
+
+Собирает чанки Piper в PCM16 mono WAV до 120 секунд/15 МиБ и проверяет отмену после каждого предложения.
+
+### `main`
+
+[Исходник](../../tools/tts/piper_server.py#L37)
+
+```python
+def main()
+```
+
+Загружает ONNX голос через CPUExecutionProvider, подключает синтез к общему HTTP handler и слушает только localhost.
+
 <a id="module-tools-tts-qwen-server-py"></a>
 
 ## `tools/tts/qwen_server.py`
 
-Отдельный localhost Qwen3-TTS VoiceDesign сервер с русским языком, описанием голоса и PCM16 WAV.
+Отдельный localhost Qwen3-TTS сервер: VoiceDesign 1.7B или CustomVoice 0.6B с готовым голосом, русский язык и PCM16 WAV.
 
 ### `synthesize`
 
-[Исходник](../../tools/tts/qwen_server.py#L12)
+[Исходник](../../tools/tts/qwen_server.py#L17)
 
 ```python
 def synthesize(model, text, style)
 ```
 
-Генерирует русский звук с VoiceDesign, фиксированным seed и ограничением токенов; кодирует PCM16 WAV в памяти.
+Генерирует русский звук: готовый speaker через CustomVoice либо описание через VoiceDesign; фиксирует seed и ограничение токенов, кодирует PCM16 WAV в памяти.
 
 ### `Handler`
 
-[Исходник](../../tools/tts/qwen_server.py#L23)
+[Исходник](../../tools/tts/qwen_server.py#L32)
 
 ```python
 class Handler(BaseHTTPRequestHandler)
@@ -4160,7 +4757,7 @@ Loopback HTTP handler с JSON-only POST, запретом Origin и одним �
 
 ### `Handler.do_GET`
 
-[Исходник](../../tools/tts/qwen_server.py#L24)
+[Исходник](../../tools/tts/qwen_server.py#L33)
 
 ```python
 def do_GET(self)
@@ -4170,17 +4767,27 @@ def do_GET(self)
 
 ### `Handler.do_POST`
 
-[Исходник](../../tools/tts/qwen_server.py#L28)
+[Исходник](../../tools/tts/qwen_server.py#L39)
 
 ```python
 def do_POST(self)
 ```
 
-Проверяет размер/тип текста и стиля, ограничивает concurrency и возвращает WAV без CORS.
+Проверяет запрос и concurrency, останавливает talker при отключении клиента/deadline и освобождает слот в finally.
+
+### `Handler.do_POST.guard`
+
+[Исходник](../../tools/tts/qwen_server.py#L53)
+
+```python
+def guard(module, args)
+```
+
+PyTorch forward pre-hook проверяет срок 150 секунд и закрытие HTTP-сокета без чтения текста запроса.
 
 ### `Handler.reply`
 
-[Исходник](../../tools/tts/qwen_server.py#L45)
+[Исходник](../../tools/tts/qwen_server.py#L78)
 
 ```python
 def reply(self, code, body, content_type)
@@ -4190,7 +4797,7 @@ def reply(self, code, body, content_type)
 
 ### `Handler.log_message`
 
-[Исходник](../../tools/tts/qwen_server.py#L49)
+[Исходник](../../tools/tts/qwen_server.py#L82)
 
 ```python
 def log_message(self, format, *args)
@@ -4200,10 +4807,154 @@ def log_message(self, format, *args)
 
 ### `main`
 
-[Исходник](../../tools/tts/qwen_server.py#L53)
+[Исходник](../../tools/tts/qwen_server.py#L86)
 
 ```python
 def main()
 ```
 
-Загружает официальный VoiceDesign на CPU/CUDA и слушает только 127.0.0.1:9080.
+Выбирает VoiceDesign 1.7B либо CustomVoice 0.6B и speaker, получает локальный снимок, выбирает CPU/CUDA и dtype, проверяет запас VRAM и слушает только 127.0.0.1:9080.
+
+<a id="module-tools-tts-training-export-and-evaluate-py"></a>
+
+## `tools/tts/training/export_and_evaluate.py`
+
+ONNX экспорт с совместимым tracer и CPU/STT проверкой четырёх новых фраз без объявления совпадения тембра.
+
+### `main`
+
+[Исходник](../../tools/tts/training/export_and_evaluate.py#L23)
+
+```python
+def main()
+```
+
+Экспортирует обученный VITS через legacy ONNX tracer, проверяет модель, синтезирует новые фразы на CPU и сохраняет оценку STT/задержки.
+
+<a id="module-tools-tts-training-generate-serena-py"></a>
+
+## `tools/tts/training/generate_serena.py`
+
+Возобновляемый корпус Qwen Serena: закреплённая revision, PCM22k WAV, локальный STT отбор и provenance каждого примера.
+
+### `texts`
+
+[Исходник](../../tools/tts/training/generate_serena.py#L14)
+
+```python
+def texts()
+```
+
+Собирает уникальный русский корпус из исходных фраз и бытовых комбинаций без перезаписи WAV при продолжении.
+
+### `normalize`
+
+[Исходник](../../tools/tts/training/generate_serena.py#L38)
+
+```python
+def normalize(text)
+```
+
+Удаляет различия регистра, ё и пунктуации для приблизительного сравнения текста с STT.
+
+### `main`
+
+[Исходник](../../tools/tts/training/generate_serena.py#L43)
+
+```python
+def main()
+```
+
+Фиксирует manifest, пакетно генерирует Serena, передискретизирует WAV, проверяет STT и сохраняет принятые metadata/журнал.
+
+<a id="module-tools-tts-training-pipeline-py"></a>
+
+## `tools/tts/training/pipeline.py`
+
+Однопроцессный локальный контроллер этапов с атомарным состоянием, границами шагов и остановкой при ошибках.
+
+### `save_state`
+
+[Исходник](../../tools/tts/training/pipeline.py#L13)
+
+```python
+def save_state(path, **values)
+```
+
+Атомарно обновляет JSON состояния этапа, PID и ошибку либо оценку без преждевременного статуса готовности.
+
+### `run`
+
+[Исходник](../../tools/tts/training/pipeline.py#L22)
+
+```python
+def run(command, log_path)
+```
+
+Запускает зависимый subprocess со структурированными аргументами и отдельным локальным журналом, возвращает exit code.
+
+### `main`
+
+[Исходник](../../tools/tts/training/pipeline.py#L31)
+
+```python
+def main()
+```
+
+Удерживает Windows lock, ждёт generator, выполняет ступени 6000/12000 шагов, экспорт и проверку; сообщает trial_ready только после ASR.
+
+<a id="module-tools-tts-training-run-training-py"></a>
+
+## `tools/tts/training/run_training.py`
+
+Ограниченное Windows дообучение VITS: преобразование Linux checkpoint, warmstart, eSpeak workaround и resume.
+
+### `SaveFinalCheckpoint`
+
+[Исходник](../../tools/tts/training/run_training.py#L11)
+
+```python
+class SaveFinalCheckpoint(Callback)
+```
+
+Сохраняет фактические последние веса даже при достижении max_steps посередине эпохи.
+
+### `SaveFinalCheckpoint.on_train_end`
+
+[Исходник](../../tools/tts/training/run_training.py#L13)
+
+```python
+def on_train_end(self, trainer, pl_module)
+```
+
+Вызывает trainer.save_checkpoint для final.ckpt в корне training, независимо от эпохальных val_mel checkpoints.
+
+### `prepare_checkpoint`
+
+[Исходник](../../tools/tts/training/run_training.py#L17)
+
+```python
+def prepare_checkpoint(source, target)
+```
+
+Из доверенного Linux checkpoint извлекает state_dict с временной совместимостью Path, исключает старый оптимизатор и сохраняет описание hyperparameters.
+
+### `main`
+
+[Исходник](../../tools/tts/training/run_training.py#L31)
+
+```python
+def main()
+```
+
+Проверяет объём данных, задаёт warmstart/resume, BF16 GPU и ограниченные шаги, исправляет путь eSpeak и состав checkpoint callbacks.
+
+### `main.resume_fit_start`
+
+[Исходник](../../tools/tts/training/run_training.py#L85)
+
+```python
+def resume_fit_start(model)
+```
+
+Отключает сохранённый однократный warmstart при resume, чтобы LightningCLI не сбрасывал обученные веса к базовому голосу.

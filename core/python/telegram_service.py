@@ -72,7 +72,7 @@ class TelegramService:
     def dispatch(self, name, argument):
         """Execute a bounded command under the shared TaskService control lock."""
         if name in ('/start','/help'):
-            return '/status — состояние\n/result — последний ответ\n/resume — продолжить паузу\n/stop — остановить\n/chat текст — основная модель\n/ide текст — выбранный проект\n/miya текст — Мия\n/approval — текущий diff\n/approve ID или /reject ID — решение по точному ID\nПапки для инструментов ПК укажите в двойных кавычках.'
+            return '/status — состояние\n/result — последний ответ\n/resume — продолжить паузу\n/stop — остановить\n/chat текст — основная модель\n/ide текст — выбранный проект\n/lola текст — Лола\n/approval — текущий diff\n/approve ID или /reject ID — решение по точному ID\nПапки для инструментов ПК укажите в двойных кавычках.'
         if name=='/status':
             snapshot=self.tasks.engine.task_snapshot() if self.tasks.engine else None
             return 'Задача: '+str((snapshot or {}).get('status','idle'))+'\nМодель: '+self.tasks.config.get('model','')+'\nПроект: '+str(self.root() or 'не выбран')
@@ -98,9 +98,9 @@ class TelegramService:
         if name in ('/approve','/reject'):
             self.tasks.resolve_approval({'run_id':self.tasks.run_id,'approval_id':argument,'decision':'apply' if name=='/approve' else 'reject'})
             return 'Решение принято'
-        if name in ('/chat','/ide','/miya'):
+        if name in ('/chat','/ide','/miya','/lola'):
             if not argument:raise ValueError('После команды нужен текст задачи')
-            self.tasks.idle();mode={'/chat':'chat','/ide':'ide','/miya':'voice'}[name]
+            self.tasks.idle();mode={'/chat':'chat','/ide':'ide','/miya':'voice','/lola':'voice'}[name]
             root=self.root() if mode=='ide' else ''
             if root is None:raise ValueError('Для IDE сначала выберите папку на ПК')
             selected=self.tasks.select_chat(root,mode=mode);self.remote_chat=selected['chat']['id']

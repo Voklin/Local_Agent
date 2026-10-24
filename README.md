@@ -1,5 +1,12 @@
 # LocalAgent
 
+В локальной сборке 6.7: последовательные роли IDE с загрузкой/выгрузкой моделей, Лола с озвучкой Serena на CPU, мягкий интерфейс ассистента,
+настраиваемые Chat/IDE и обновлённые настройки моделей.
+[Оформление, рефакторинг, миграция и проверки](docs/33-lola-refactor-and-appearance.md).
+[Роли IDE, настройка и проверки](docs/34-ide-roles-and-model-lifecycle.md).
+[Умный контекст, музыка, заметки и таймеры Лолы](docs/35-smart-context-and-lola-tools.md).
+Публикация релиза выполняется только вручную; PR содержит актуальные исходники.
+
 Настольный агент для работы с кодом: Electron + React + TypeScript и Python-ядро с подключением OpenAI-совместимой модели.
 
 **Начать изучение: [подробное руководство на русском](docs/README.md).**
@@ -47,6 +54,6 @@ npm run docs:check
 
 Три режима Chat/IDE/Ассистент и восстановление пустых ответов описаны в [главе 16](docs/16-workspaces-and-answer-recovery.md).
 
-Рабочие расширения: [редактор](docs/18-editor.md), [поиск/Ctrl+P](docs/19-project-search.md), [запуск GGUF](docs/20-local-runtime.md), [память и чат](docs/21-memory-and-chat.md), [Мия и системная озвучка](docs/22-voice-companion.md). Для собственного GGUF в установочной версии CPU-сервер включён: выберите модель в настройках. Можно указать другой llama-server; загрузка весов моделей не выполняется. Мия имеет отдельную историю и модель, настраиваемый характер и Windows TTS; микрофон распознаётся через настроенный STT-сервер. Есть JSON tool calling, KV-кеш и owner-only Telegram-контроль. [Новые возможности](docs/25-json-tools-and-cache.md), [Мия/STT](docs/26-miya-model-and-stt.md), [PC/Telegram](docs/27-desktop-and-telegram.md).
+Рабочие расширения: [редактор](docs/18-editor.md), [поиск/Ctrl+P](docs/19-project-search.md), [запуск GGUF](docs/20-local-runtime.md), [память и чат](docs/21-memory-and-chat.md), [Лола и системная озвучка](docs/22-voice-companion.md). Для собственного GGUF в установочной версии CPU-сервер включён: выберите модель в настройках. Можно указать другой llama-server; загрузка весов моделей не выполняется. Лола имеет отдельную историю и модель, настраиваемый характер и Windows TTS; микрофон распознаётся через настроенный STT-сервер. Есть JSON tool calling, KV-кеш и owner-only Telegram-контроль. [Новые возможности](docs/25-json-tools-and-cache.md), [Лола/STT](docs/26-miya-model-and-stt.md), [PC/Telegram](docs/27-desktop-and-telegram.md).
 
-Нейроозвучка «Мия · аниме на русском» и фраза активации: [глава 29](docs/29-neural-voice-and-wake.md). Для Qwen3-TTS требуется отдельная установка speech-среды/модели; для активации — работающий STT.
+Нейроозвучка «Лола · аниме на русском» и фраза активации: [глава 29](docs/29-neural-voice-and-wake.md). Для Qwen3-TTS требуется отдельная установка speech-среды/модели; для активации — работающий STT.

@@ -1,9 +1,28 @@
-import { app, BrowserWindow, dialog, ipcMain, session, desktopCapturer, shell, screen, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session, desktopCapturer, shell, screen, safeStorage, Notification as NativeNotification } from 'electron';
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
+import { DesktopApplications } from './desktopApps';
+import { SpeechRuntime } from './speechRuntime';
+import { validateMusicURL, validateAudioPath } from './assistantMedia';
+
+let managedSpeech:SpeechRuntime|null=null;
+function speechRuntime() {
+  if(!managedSpeech)managedSpeech=new SpeechRuntime(
+    path.join(process.env.LOCALAPPDATA||app.getPath('userData'),'LocalCodingAgent'),
+    app.isPackaged?path.join(process.resourcesPath,'tts'):path.resolve(__dirname,'../../../tools/tts'),
+    path.resolve(__dirname,'../../../artifacts/voice/serena-piper/ru_RU-miya-serena-medium.onnx'));
+  return managedSpeech;
+}
+
+function desktopApplications() {
+  return new DesktopApplications(app.getPath('userData'),file=>new Promise<void>((resolve,reject)=>{
+    const child=spawn(file,[],{shell:false,detached:true,stdio:'ignore',cwd:path.dirname(file)});
+    child.once('error',reject);child.once('spawn',()=>{child.unref();resolve();});
+  }),()=>shell.openExternal('https://www.bing.com/'));
+}
 
 let win: BrowserWindow | null = null;
 let backend: ChildProcessWithoutNullStreams | null = null;
@@ -39,9 +58,18 @@ async function desktopRequest(message:any) {
       if(!source||source.thumbnail.isEmpty())throw Error('Снимок экрана недоступен');
       publish({event:'desktop_artifact',image:source.thumbnail.toDataURL(),title:'Скриншот экрана'});
       result={ok:true,capture_id:message.request_id,note:'Скриншот показан в приложении. Без VLM модель не получает изображение и не должна описывать его содержимое.'};
+    }else if(message.operation==='list_applications') {
+      result={ok:true,applications:desktopApplications().list()};
+    }else if(message.operation==='open_application') {
+      result=await desktopApplications().open(String(message.args?.app_id||''));
     }else if(message.operation==='search') {
       const query=String(message.args?.query||'');if(!query||query.length>500)throw Error('Некорректный запрос');
-      await shell.openExternal('https://duckduckgo.com/?q='+encodeURIComponent(query));result={ok:true};
+      await shell.openExternal('https://www.bing.com/search?q='+encodeURIComponent(query));result={ok:true};
+    }else if(message.operation==='music') {
+      await shell.openExternal(validateMusicURL(message.args?.url));result={ok:true,browser_opened:true,playback_confirmed:false};
+    }else if(message.operation==='local_audio') {
+      const error=await shell.openPath(validateAudioPath(message.args?.path,message.args?.roots));
+      result=error?{ok:false,error}:{ok:true,player_opened:true,playback_confirmed:false};
     }
   }catch(error){result={ok:false,error:String(error)};}
   await callBackend('desktop_result',{request_id:message.request_id,result});
@@ -61,6 +89,7 @@ function startBackend() {
   createInterface({ input: child.stdout }).on('line', (line) => {
     try {
       const msg = JSON.parse(line);
+      if(msg.event==='assistant_notice'&&NativeNotification.isSupported()){try{new NativeNotification({title:String(msg.title||'Лола').slice(0,160),body:String(msg.text||'').slice(0,300)}).show();}catch{diagnostic('assistant:notification-unavailable');}}
       if (typeof msg.event === 'string') { if(msg.event==='desktop_request')void desktopRequest(msg);else publish(msg); return; }
       const entry = pending.get(msg.id);
       if (entry) { clearTimeout(entry.timer); pending.delete(msg.id); entry.resolve(msg); }
@@ -121,6 +150,7 @@ app.on('before-quit', event => {
     }).finally(() => { confirmingClose = false; });
     return;
   }
+  if(!quitting)void managedSpeech?.stop();
   if (quitting || !backend) return;
   event.preventDefault(); quitting = true; diagnostic('app:quit');
   const child=backend;
@@ -136,6 +166,9 @@ function handle(channel: string, handler: (...args: any[]) => any) {
   });
 }
 handle('core:health', () => callBackend('health'));
+handle('ide:workflow',()=>callBackend('get_ide_workflow'));
+handle('ide:configure-workflow',params=>callBackend('configure_ide_workflow',params));
+handle('ide:models',params=>callBackend('list_ide_models',params));
 handle('project:choose', async () => {
   const result = await dialog.showOpenDialog(win!, { title: 'Выбрать папку проекта', properties: ['openDirectory'] });
   if (result.canceled || !result.filePaths[0]) return { canceled: true };
@@ -178,11 +211,30 @@ handle('telegram:disconnect',()=>callBackend('telegram_stop'));
 handle('telegram:forget',()=>{const file=path.join(app.getPath('userData'),'telegram-secret.bin');if(fs.existsSync(file))fs.unlinkSync(file);return {ok:true};});
 handle('desktop:settings',()=>callBackend('desktop_settings'));
 handle('desktop:configure',params=>callBackend('configure_desktop',{enabled:params?.enabled===true}));
+handle('desktop:applications',()=>({ok:true,applications:desktopApplications().list()}));
+handle('desktop:add-application',async()=>{
+  const selected=await dialog.showOpenDialog(win!,{title:'Разрешить Лоле запуск приложения',properties:['openFile'],filters:[{name:'Приложение Windows',extensions:['exe']}]});
+  return {ok:true,applications:selected.canceled?desktopApplications().list():desktopApplications().add(selected.filePaths[0])};
+});
+handle('desktop:remove-application',params=>({ok:true,applications:desktopApplications().remove(String(params?.id||''))}));
 handle('chat:move',params=>callBackend('move_chat_mode',{chat_id:params?.chat_id,mode:params?.mode,target:params?.target}));
 handle('companion:cancel-handoff',params=>callBackend('discard_handoff',{id:params?.id}));
 handle('companion:handoff',params=>callBackend('prepare_handoff',{id:params?.id}));
 handle('companion:settings',()=>callBackend('get_companion_settings'));
 handle('companion:configure',params=>callBackend('configure_companion',params));
+handle('voice:runtime',async(operation:string)=>{
+  try {
+    if(operation==='start')return await speechRuntime().start();
+    if(operation==='stop')return await speechRuntime().stop();
+    if(operation==='status')return await speechRuntime().status();
+    if(operation==='install') {
+      const selected=await dialog.showOpenDialog(win!,{title:'Выберите обученную модель Serena',properties:['openFile'],filters:[{name:'Serena ONNX',extensions:['onnx']}]});
+      if(selected.canceled)return {ok:false,error:'Выбор отменён'};
+      return speechRuntime().install(selected.filePaths[0]);
+    }
+    return {ok:false,error:'Неизвестная операция озвучки'};
+  }catch{return {ok:false,error:'Не удалось настроить локальную озвучку. Проверьте файлы голоса и компоненты Piper.'};}
+});
 handle('voice:transcribe',params=>callBackend('transcribe',{audio:params?.audio}));
 handle('voice:cancel-transcription',()=>callBackend('cancel_transcription'));
 handle('voice:status',()=>callBackend('voice_status'));
