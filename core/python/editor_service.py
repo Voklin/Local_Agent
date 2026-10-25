@@ -5,6 +5,8 @@ import uuid
 from agent.security import canonical_root, resolve_allowed_path
 from agent.tools import preview_file_change, write_file
 
+MAX_EDITOR_BYTES = 1_000_000
+
 
 class EditorService:
     def __init__(self):
@@ -18,10 +20,11 @@ class EditorService:
         target = resolve_allowed_path(base, path, must_exist=True)
         if not target.is_file():
             raise ValueError('Редактор открывает только обычные файлы')
-        if target.stat().st_size > 1_000_000:
+        if target.stat().st_size > MAX_EDITOR_BYTES:
             raise ValueError('Файл превышает лимит редактора 1 МБ')
-        raw = target.read_bytes()
-        if len(raw) > 1_000_000:
+        with target.open('rb') as source:
+            raw = source.read(MAX_EDITOR_BYTES + 1)
+        if len(raw) > MAX_EDITOR_BYTES:
             raise ValueError('Файл вырос за пределы лимита редактора')
         try:
             text = raw.decode('utf-8')
@@ -39,7 +42,7 @@ class EditorService:
         content = params.get('content')
         if not isinstance(content, str) or '\x00' in content:
             raise ValueError('Содержимое должно быть текстом без NUL')
-        if len(content.encode('utf-8')) > 1_000_000:
+        if len(content.encode('utf-8')) > MAX_EDITOR_BYTES:
             raise ValueError('Изменение превышает лимит 1 МБ')
         current = self.read(root, str(params.get('path', '')))
         if params.get('revision') != current['revision']:
@@ -47,9 +50,12 @@ class EditorService:
                     'error': 'Файл изменился на диске. Черновик сохранён в редакторе; перечитайте файл перед новым изменением.'}
         normalized = content.replace('\r\n', '\n')
         proposed = normalized.replace('\n', '\r\n') if current['newline'] == 'crlf' else normalized
-        preview = preview_file_change(root, current['path'], proposed)
+        preview = preview_file_change(root, current['path'], proposed, max_existing_bytes=MAX_EDITOR_BYTES)
         if not preview['ok']:
             return preview
+        if not preview['snapshot']['exists'] or preview['snapshot']['sha256'] != current['revision']['sha256']:
+            return {'ok': False, 'code': 'FILE_CHANGED',
+                    'error': 'Файл изменился во время подготовки diff. Черновик сохранён; перечитайте файл перед новым изменением.'}
         if preview['snapshot']['sha256'] == preview['snapshot']['proposed_sha256']:
             return {'ok': True, 'unchanged': True, 'file': current}
         proposal_id = uuid.uuid4().hex
@@ -68,7 +74,7 @@ class EditorService:
         if decision != 'apply':
             return {'ok': True, 'applied': False}
         result = write_file(root, pending['path'], pending['content'], overwrite=True,
-                            approved=True, expected_snapshot=pending['snapshot'])
+                            approved=True, expected_snapshot=pending['snapshot'], max_existing_bytes=MAX_EDITOR_BYTES)
         if not result['ok']:
             return result
         try:

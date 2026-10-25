@@ -21,6 +21,7 @@ def main():
                     '--name', 'lca-core', '--paths', str(root), '--noupx',
                     '--distpath', str(root / 'build/core'), '--workpath', str(root / 'build/pyinstaller'),
                     '--specpath', str(root / 'build'), '--exclude-module', 'PySide6',
+                    '--collect-submodules', 'mcp.client', '--collect-data', 'jsonschema_specifications',
                     '--collect-submodules', 'openai.resources', '--collect-submodules', 'openai.types',
                     '--add-data', str(root / 'skills') + ':skills', *runtime_data,
                     str(root / 'core/python/bridge.py')], cwd=root, check=True)

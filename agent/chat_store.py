@@ -53,7 +53,7 @@ def list_chats() -> list[dict[str, Any]]:
 
 
 def _metadata(chat):
-    return {**{k: str(chat.get(k, '')) for k in ('id', 'title', 'created_at', 'updated_at', 'project_root', 'model')}, 'mode': chat.get('mode', 'ide' if chat.get('project_root') else 'chat')}
+    return {**{k: str(chat.get(k, '')) for k in ('id', 'title', 'created_at', 'updated_at', 'project_root', 'model')}, 'mode': chat.get('mode', 'ide' if chat.get('project_root') else 'chat'), 'project_id':chat.get('project_id',''), 'pinned':chat.get('pinned') is True, 'archived':chat.get('archived') is True}
 
 
 def _cache_chat(chat=None, deleted_id=None):

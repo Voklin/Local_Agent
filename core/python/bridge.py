@@ -13,6 +13,7 @@ for stream in (sys.stdin, sys.stdout, sys.stderr):
 if not getattr(sys, 'frozen', False):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from core.python.task_service import TaskService
+from agent.companion_policy import clean_speech_text
 from core.python.editor_service import EditorService
 from core.python.project_search import ProjectSearchService
 from core.python.runtime_service import RuntimeService
@@ -62,6 +63,55 @@ def handle(method: str, params: dict) -> dict:
 
 def _handle(method: str, params: dict) -> dict:
     global project_root
+    if method == 'connections_list':
+        return {'ok':True,'profiles':tasks.connections.list()}
+    if method == 'connections_save':
+        tasks.idle()
+        return {'ok':True,'profile':tasks.connections.save(params)}
+    if method == 'connections_delete':
+        tasks.idle();tasks.connections.remove(params.get('id'))
+        return {'ok':True}
+    if method == 'extensions_list':
+        return tasks.extensions.catalog()
+    if method == 'extensions_configure':
+        tasks.idle()
+        return tasks.extensions.configure(params)
+    if method == 'extensions_import':
+        tasks.idle()
+        return tasks.extensions.import_plugin(params.get('manifest'))
+    if method == 'mcp_discover':
+        return tasks.extensions.discover_server(str(params.get('id','')))
+    if method == 'workspace_list':
+        return {'ok':True,'projects':tasks.projects.list(),'selected':tasks.project_id}
+    if method == 'workspace_save':
+        tasks.idle()
+        return {'ok':True,'project':tasks.projects.save(params)}
+    if method == 'workspace_select':
+        tasks.idle()
+        project=tasks.projects.get(params.get('id',''))
+        root=Path(project['root']).resolve(strict=True) if project.get('root') else None
+        if root and not root.is_dir():raise ValueError('Папка проекта недоступна')
+        project_search.cancel();editor.clear();tasks.chat=None;tasks.project_id=project['id'];project_root=root
+        return {'ok':True,'project':project,'root':str(root) if root else '', 'name':project['name']}
+    if method == 'workspace_delete':
+        tasks.idle()
+        if params.get('confirmed') is not True:raise ValueError('Подтвердите удаление проекта из списка')
+        identity=params.get('id');tasks.projects.get(identity)
+        from agent.chat_store import read_chat_catalog,load_chat,save_chat,STORE_LOCK
+        with STORE_LOCK:
+            for item in read_chat_catalog()['chats']:
+                if item.get('project_id','')==identity:
+                    chat=load_chat(item['id']);chat['project_id']='';save_chat(chat)
+            tasks.projects.remove(identity)
+        if tasks.project_id==identity:tasks.project_id='';tasks.chat=None
+        return {'ok':True}
+    if method in ('chat_update','chat_delete','chat_fork','chat_export','chat_search'):
+        mode=params.get('mode','chat')
+        if mode not in ('chat','ide','voice'):raise ValueError('Неизвестный режим')
+        scope=project_root if mode=='ide' else ''
+        if scope is None:raise ValueError('Сначала откройте папку')
+        action={'chat_update':'update','chat_delete':'delete','chat_fork':'fork','chat_export':'export','chat_search':'search'}[method]
+        return getattr(tasks.conversations,action)(scope,params)
     if method == 'telegram_status':
         return telegram.status()
     if method == 'telegram_start':
@@ -83,10 +133,6 @@ def _handle(method: str, params: dict) -> dict:
         return tasks.prepare_handoff(project_root,params)
     if method == 'get_companion_settings':
         return tasks.companion_preferences()
-    if method == 'get_ide_workflow':
-        return tasks.workflow_preferences()
-    if method == 'configure_ide_workflow':
-        return tasks.configure_workflow(params)
     if method == 'configure_companion':
         return tasks.configure_companion(params)
     if method == 'cancel_transcription':
@@ -96,6 +142,7 @@ def _handle(method: str, params: dict) -> dict:
     if method == 'voice_refresh':
         return neural_speech.status(tasks.companion_config['tts_provider']) if tasks.companion_config['tts_provider'] in ('qwen3','piper') else speech.refresh()
     if method == 'voice_speak':
+        params={**params,'text':clean_speech_text(params.get('text',''))}
         return neural_speech.speak(params,tasks.companion_config) if tasks.companion_config['tts_provider'] in ('qwen3','piper') else speech.speak(params)
     if method == 'voice_playback':
         return neural_speech.playback(params)
@@ -181,7 +228,7 @@ def _handle(method: str, params: dict) -> dict:
                 continue
             if p.name in {'.git', '__pycache__', 'node_modules', '.venv'}:
                 continue
-            items.append({'name': p.name, 'path': str(p.relative_to(project_root)), 'kind': 'directory' if p.is_dir() else 'file'})
+            items.append({'name': p.name, 'path': p.relative_to(project_root).as_posix(), 'kind': 'directory' if p.is_dir() else 'file'})
         return {'ok': True, 'items': items, 'truncated': len(items) >= MAX_ENTRIES}
     if method == 'read_file':
         target = resolve_inside(str(params.get('path', '')))
@@ -193,7 +240,7 @@ def _handle(method: str, params: dict) -> dict:
             content = target.read_text(encoding='utf-8')
         except UnicodeDecodeError:
             content = target.read_text(encoding='utf-8', errors='replace')
-        return {'ok': True, 'content': content, 'path': str(target.relative_to(project_root))}
+        return {'ok': True, 'content': content, 'path': target.relative_to(project_root).as_posix()}
     # No direct write or shell API: writes go through the engine approval protocol.
     raise ValueError(f'Неизвестный или пока не подключённый метод: {method}')
 
@@ -208,14 +255,18 @@ def main() -> None:
                 raise ValueError('Ожидается JSON-объект запроса и параметров')
             req_id = req.get('id')
             method = str(req.get('method', ''))
+            if method == 'mcp_discover':
+                def discover(request_id=req_id,server_id=str((req.get('params') or {}).get('id',''))):
+                    try:result=tasks.extensions.discover_server(server_id)
+                    except Exception as exc:result={'ok':False,'error':str(exc)[:300]}
+                    emit({'id':request_id,**result})
+                threading.Thread(target=discover,daemon=True,name='mcp-discover').start()
+                continue
             if method == 'transcribe':
                 transcription.start(req.get('params') or {}, dict(tasks.companion_config), lambda result, request_id=req_id: emit({'id':request_id, **result}))
                 continue
             if method == 'list_models':
                 tasks.start_model_discovery(lambda result, request_id=req_id: emit({'id': request_id, **result}), req.get('params') or None)
-                continue
-            if method == 'list_ide_models':
-                tasks.start_workflow_discovery(req.get('params') or {},lambda result, request_id=req_id: emit({'id':request_id,**result}))
                 continue
             if method == 'test_model':
                 tasks.start_model_probe(req.get('params') or None, lambda result, request_id=req_id: emit({'id': request_id, **result}))

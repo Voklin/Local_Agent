@@ -1,13 +1,16 @@
+import { ExtensionsSettings } from './ExtensionsSettings';
+import { ConnectionProfiles } from './ConnectionProfiles';
+import { VoiceSettings } from './VoiceSettings';
+import { BrandMark } from './BrandMark';
 import { AppearanceSettings } from './AppearanceSettings';
-import { IDEWorkflowSettings } from './IDEWorkflowSettings';
 import { GenerationFields, generationFields as fields, defaultGeneration, type GenerationSettings } from './GenerationFields';
 export { defaultGeneration, type GenerationSettings } from './GenerationFields';
 import { ConnectionsSettings } from './ConnectionsSettings';
 import { LocalRuntimePanel } from './LocalRuntimePanel';
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Eye, EyeOff, RotateCcw, Server, Settings2, X } from 'lucide-react';
+import { CheckCircle2, Eye, EyeOff, RotateCcw, Server, X } from 'lucide-react';
 
-export type ModelConfig = { tool_protocol?: string; base_url: string; model: string; api_key: string; settings: GenerationSettings };
+export type ModelConfig = { api_protocol?:string; tool_protocol?: string; base_url: string; model: string; api_key: string; settings: GenerationSettings };
 export function ModelSettings({ initial, busy, onSaved, onClose, initialSection='connection' }: {
   initial: ModelConfig; busy: boolean; onSaved: (config: ModelConfig) => void; onClose: () => void;initialSection?:string;
 }) {
@@ -26,7 +29,7 @@ export function ModelSettings({ initial, busy, onSaved, onClose, initialSection=
   }, []);
 
   function change<K extends keyof ModelConfig>(key: K, value: ModelConfig[K]) {
-    setDraft(current => ({...current, [key]:value}));
+    setDraft(current => ({...current, ...(key==='base_url'&&value!==current.base_url?{api_key:''}:{}), [key]:value}));
     if (key === 'base_url') setModels([]);
     setNotice({kind:'info', text:'Есть несохранённые изменения. Проверка и список моделей относятся к полям в этом окне.'});
   }
@@ -86,13 +89,14 @@ export function ModelSettings({ initial, busy, onSaved, onClose, initialSection=
 
   return <div className="modal-backdrop settings-backdrop">
     <section ref={dialog} className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="model-settings-title" onKeyDown={handleKeys}>
-      <header className="settings-header"><div><Settings2 size={20}/><div><h2 id="model-settings-title">Модель и подключение</h2><p>Одна конфигурация для Chat и IDE</p></div></div><button className="icon-button" title="Закрыть настройки" disabled={!!operation} onClick={onClose}><X size={20}/></button></header>
-      <nav className="settings-tabs" aria-label="Разделы настроек">{[{id:'connection',label:'Подключение'},{id:'generation',label:'Ответы модели'},{id:'runtime',label:'Локальный запуск'},{id:'connections',label:'Инструменты'},{id:'workflow',label:'Роли IDE'},{id:'appearance',label:'Оформление'}].map(tab=><button type="button" key={tab.id} aria-pressed={section===tab.id} disabled={!!operation} onClick={()=>setSection(tab.id)}>{tab.label}</button>)}</nav>
+      <header className="settings-header"><div><BrandMark size={27}/><div><h2 id="model-settings-title">По-вашему.</h2><p>Настройки Neutral</p></div></div><button className="icon-button" title="Закрыть настройки" disabled={!!operation} onClick={onClose}><X size={20}/></button></header>
+      <nav className="settings-tabs" aria-label="Разделы настроек">{[{id:'connection',label:'Модели'},{id:'voice',label:'Голос и Лола'},{id:'extensions',label:'Расширения'},{id:'connections',label:'Компьютер и Telegram'},{id:'appearance',label:'Оформление'},{id:'generation',label:'Контекст и лимиты'},{id:'runtime',label:'Локальный запуск'}].map(tab=><button type="button" key={tab.id} aria-pressed={section===tab.id} disabled={!!operation} onClick={()=>setSection(tab.id)}>{tab.label}</button>)}</nav>
       <form className="model-settings" onSubmit={event => {event.preventDefault(); void perform('save');}} noValidate>
         <div className="settings-scroll">
           {busy&&<div className="settings-notice">Дождитесь завершения задачи, чтобы менять настройки.</div>}
-          <section hidden={section!=='connection'} className="settings-section"><h3><Server size={16}/>Подключение</h3>
-            <div className="endpoint-presets"><span>Быстрый адрес</span><button type="button" disabled={locked} onClick={()=>change('base_url','http://127.0.0.1:1234/v1')}>LM Studio</button><button type="button" disabled={locked} onClick={()=>change('base_url','http://127.0.0.1:11434/v1')}>Ollama</button></div>
+          <section hidden={section!=='connection'} className="settings-section"><div className="section-intro"><span className="eyebrow">ПОДКЛЮЧЕНИЕ</span><h3>Модели, которые подходят вам.</h3><p>Локальный сервер или внешний API — выберите удобный способ.</p></div><ConnectionProfiles value={draft} locked={locked} onSelect={config=>{setDraft(config);setModels([]);}}/><h3><Server size={16}/>Сервер и модель</h3>
+            <div className="endpoint-presets"><span>Быстрый адрес</span><button type="button" disabled={locked} onClick={()=>{change('base_url','http://127.0.0.1:1234/v1');change('api_protocol','chat');}}>LM Studio</button><button type="button" disabled={locked} onClick={()=>{change('base_url','http://127.0.0.1:11434/v1');change('api_protocol','chat');}}>Ollama</button><button type="button" disabled={locked} onClick={()=>{change('base_url','https://api.openai.com/v1');change('api_protocol','responses');change('tool_protocol','native');change('model','');}}>OpenAI API</button></div>
+            <label>Тип API<select aria-label="Тип API" value={draft.api_protocol||'chat'} disabled={locked} onChange={e=>change('api_protocol',e.target.value)}><option value="chat">OpenAI-совместимый · LM Studio / Ollama</option><option value="responses">OpenAI · Responses API</option></select><small>{draft.api_protocol==='responses'?'Нужен ключ OpenAI API. Подписка ChatGPT не подключает API автоматически. Параметры случайности выбирает сервер; бюджет ответа задаётся в лимитах.':'Подходит для локальных и совместимых облачных серверов.'}</small></label>
             <label>Протокол инструментов<select aria-label="Протокол инструментов" value={draft.tool_protocol||'native'} disabled={locked} onChange={e=>change('tool_protocol',e.target.value)}><option value="native">Native tools API</option><option value="json">JSON в тексте · Qwen 2.5 Coder</option></select><small>JSON не требует нативной поддержки tools у модели. Вызовы выполняются через обычные проверки и подтверждения.</small></label>
             <label>URL сервера<input name="base_url" maxLength={2000} value={draft.base_url} disabled={locked} onChange={event=>change('base_url',event.target.value)} placeholder="http://127.0.0.1:1234/v1"/><small>Адрес OpenAI-совместимого API с /v1. Для внешнего сервера запустите его отдельно; GGUF можно запустить ниже.</small></label>
             <label>API-ключ <span className="field-optional">если требуется сервером</span><div className="key-input"><input name="api_key" maxLength={4000} type={visibleKey?'text':'password'} autoComplete="off" value={draft.api_key} disabled={locked} onChange={event=>change('api_key',event.target.value)}/><button type="button" className="icon-button" title={visibleKey?'Скрыть ключ':'Показать ключ'} onClick={()=>setVisibleKey(!visibleKey)}>{visibleKey?<EyeOff size={16}/>:<Eye size={16}/>}</button></div><small>Ключ не сохраняется на диск. Для локального сервера обычно не нужен.</small></label>
@@ -101,14 +105,14 @@ export function ModelSettings({ initial, busy, onSaved, onClose, initialSection=
             {!!models.length&&<div className="model-picker" aria-label="Модели сервера">{models.map(model=><button type="button" key={model} disabled={locked} className={draft.model===model?'selected':''} onClick={()=>change('model',model)}><span>{model}</span>{draft.model===model&&<CheckCircle2 size={14}/>}</button>)}</div>}
             <button type="button" className="secondary-button probe-model" disabled={locked||!draft.model.trim()} onClick={()=>void perform('probe')}>{operation==='probe'?'Проверяю ответ…':'Проверить ответ модели'}</button><small>Короткий запрос без файлов и истории, до 30 секунд, с выбранным ниже бюджетом токенов. Сервер может автоматически загрузить выбранную модель.</small>
           </section>
+          <div hidden={section!=='voice'}><VoiceSettings busy={locked}/></div><div hidden={section!=='extensions'}><ExtensionsSettings busy={locked}/></div>
           <div hidden={section!=='connections'}><ConnectionsSettings busy={locked}/></div><div hidden={section!=='runtime'}><LocalRuntimePanel locked={locked} onUse={(url,model)=>{setDraft(current=>({...current,base_url:url,model,api_key:''}));setModels([]);setSection('connection');}}/></div>
           <section hidden={section!=='generation'} className="settings-section"><div className="settings-section-heading"><h3>Генерация и лимиты</h3><button type="button" className="reset-generation" disabled={locked} onClick={resetGeneration}><RotateCcw size={13}/>Сбросить параметры</button></div>
             <div className="generation-presets">{[{label:'Точный код',temperature:0.2,max_tokens:8192},{label:'Разговор',temperature:0.5,max_tokens:4096},{label:'Короткий ответ',temperature:0.3,max_tokens:1024}].map(preset=><button type="button" className="secondary-button" disabled={locked} key={preset.label} onClick={()=>change('settings',{...draft.settings,temperature:preset.temperature,top_p:1,max_tokens:preset.max_tokens})}>{preset.label}</button>)}</div>
             <GenerationFields value={draft.settings} locked={locked} onChange={settings=>change('settings',settings)}/>
-            <p className="settings-help">Для внешнего сервера контекст, GPU и chat template настраиваются в LM Studio/Ollama. Для собственного GGUF контекст и GPU-слои задаются в разделе выше. Эти поля управляют запросами LocalAgent.</p>
+            <p className="settings-help">Для внешнего сервера контекст, GPU и chat template настраиваются в LM Studio/Ollama. Для собственного GGUF контекст и GPU-слои задаются в разделе выше. Эти поля управляют запросами Neutral.</p>
           </section>
           <div hidden={section!=='appearance'}><AppearanceSettings/></div>
-          <div hidden={section!=='workflow'}><IDEWorkflowSettings busy={locked} primary={draft}/></div>
         </div>
         <footer className="settings-footer"><div className={`settings-feedback ${notice.kind}`} role={notice.kind==='error'?'alert':'status'}>{notice.text}</div><div className="settings-actions">{operation&&operation!=='save'&&<button type="button" className="secondary-button" onClick={()=>void window.lca.cancelModelSetup()}>Отменить проверку</button>}<button type="button" className="secondary-button" disabled={!!operation} onClick={onClose}>Закрыть</button><button type="submit" className="primary-button save-model-settings" disabled={locked}>{operation==='save'?'Сохраняю…':'Сохранить настройки'}</button></div></footer>
       </form>

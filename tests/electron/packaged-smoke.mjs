@@ -68,13 +68,11 @@ async function run(executable, directory, first, modelUrl) {
       await delay(100);
     }
     assert.equal(health?.service, 'python-core-bridge', stderr);
-    const workflow=await evaluate(socket,'window.lca.getIDEWorkflow()');
-    assert.equal(workflow.ok,true);assert.equal(workflow.enabled,false);assert.equal(Object.keys(workflow.roles).length,4);
-    if(first) {
-      const roles={...workflow.roles,conductor:{...workflow.roles.conductor,model:'packaged-role',provider:'external',api_key:'packaged-role-secret'}};
-      const result=await evaluate(socket,`window.lca.configureIDEWorkflow({...${JSON.stringify(workflow)},context_length:8192,roles:${JSON.stringify(roles)}})`);
-      assert.equal(result.ok,true);assert.ok(!JSON.stringify(result).includes('packaged-role-secret'));
-    } else {assert.equal(workflow.context_length,8192);assert.equal(workflow.roles.conductor.model,'packaged-role');}
+    assert.equal(await evaluate(socket,"typeof window.lca.getIDEWorkflow"),'undefined');
+    const connections=await evaluate(socket,'window.lca.listConnections()');
+    assert.equal(connections.ok,true);
+    if(first){const saved=await evaluate(socket,`window.lca.saveConnection({name:'Packaged API',base_url:'https://api.openai.com/v1',model:'packaged-api',api_protocol:'responses',api_key:'packaged-role-secret'})`);assert.equal(saved.ok,true);assert.ok(!JSON.stringify(saved).includes('packaged-role-secret'));}
+    else{assert.ok(connections.profiles.some(p=>p.model==='packaged-api'&&p.api_protocol==='responses'));}
     const applications=await evaluate(socket,'window.lca.desktopApplications()');
     assert.equal(applications.ok,true);assert.ok(applications.applications.some(item=>item.id==='browser'));
     assert.ok(applications.applications.every(item=>typeof item.name==='string'&&!('file' in item)));
@@ -125,7 +123,7 @@ async function run(executable, directory, first, modelUrl) {
 }
 
 async function main() {
-  const executable = path.resolve(process.argv[2] || 'artifacts/windows/win-unpacked/LocalAgent.exe');
+  const executable = path.resolve(process.argv[2] || 'artifacts/windows/win-unpacked/Neutral.exe');
   await fs.access(executable);
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'localagent-package-'));
   const model = http.createServer((_request, response) => {
@@ -139,7 +137,7 @@ async function main() {
     await run(executable, directory, false, modelUrl);
     const preferences = await fs.readFile(path.join(directory, 'LocalCodingAgent/model-preferences.json'), 'utf8');
     assert.ok(!preferences.includes('packaging-test-secret'));
-    assert.ok(!(await fs.readFile(path.join(directory,'LocalCodingAgent/ide-workflow.json'),'utf8')).includes('packaged-role-secret'));
+    assert.ok(!(await fs.readFile(path.join(directory,'LocalCodingAgent/connections.json'),'utf8')).includes('packaged-role-secret'));
     const log = await fs.readFile(path.join(directory, 'profile/logs/main.log'), 'utf8');
     assert.ok(log.includes('packaged=true') && log.includes('app:quit'));
     assert.ok(!log.includes('packaging-test-secret'));

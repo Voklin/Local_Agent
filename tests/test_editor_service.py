@@ -2,8 +2,10 @@ import hashlib
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from core.python.editor_service import EditorService
+from agent.tools import preview_file_change
 
 
 class EditorServiceTests(unittest.TestCase):
@@ -65,6 +67,32 @@ class EditorServiceTests(unittest.TestCase):
         result = self.proposal('first\nsecond\n')
         self.assertTrue(result['unchanged'])
         self.assertIsNone(self.service.pending)
+
+    def test_editor_can_save_files_up_to_one_mb_and_recheck_conflicts(self):
+        original = b'a' * 999_999 + b'\n'
+        self.file.write_bytes(original)
+        self.assertFalse(preview_file_change(self.root, 'text.txt', 'agent draft')['ok'])
+        proposal = self.proposal('b' + original[1:].decode())
+        self.assertTrue(proposal['ok'], proposal)
+        result = self.service.resolve(self.root, {'proposal_id':proposal['proposal_id'],'decision':'apply'})
+        self.assertTrue(result['applied'], result)
+        self.assertEqual(self.file.read_bytes(), b'b' + original[1:])
+        proposal = self.proposal('c' + original[1:].decode())
+        self.file.write_bytes(original)
+        result = self.service.resolve(self.root, {'proposal_id':proposal['proposal_id'],'decision':'apply'})
+        self.assertEqual(result['code'], 'FILE_CHANGED')
+        self.assertEqual(self.file.read_bytes(), original)
+
+    def test_change_between_revision_check_and_diff_does_not_authorize_stale_draft(self):
+        document = self.service.read(self.root, 'text.txt')
+        def external_change(*args, **kwargs):
+            self.file.write_text('external edit', encoding='utf-8')
+            return preview_file_change(*args, **kwargs)
+        with patch('core.python.editor_service.preview_file_change', side_effect=external_change):
+            result = self.service.preview(self.root, {'path':'text.txt','content':'stale draft','revision':document['revision']})
+        self.assertEqual(result.get('code'), 'FILE_CHANGED', result)
+        self.assertIsNone(self.service.pending)
+        self.assertEqual(self.file.read_text(), 'external edit')
 
     def test_outside_binary_invalid_utf8_and_large_files_are_rejected(self):
         outside = Path(self.temp.name) / 'outside.txt'

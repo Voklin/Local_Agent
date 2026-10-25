@@ -56,6 +56,14 @@ class BridgeTests(unittest.TestCase):
     def test_list_and_read(self):
         self.assertEqual(bridge.handle('list_files', {})['items'][0]['name'], 'hello.py')
         self.assertEqual(bridge.handle('read_file', {'path':'hello.py'})['content'], 'print("hi")')
+
+    def test_nested_explorer_paths_match_editor_paths(self):
+        folder=self.root/'nested';folder.mkdir()
+        (folder/'file.txt').write_text('draft source',encoding='utf-8')
+        item=bridge.handle('list_files',{'path':'nested'})['items'][0]
+        document=bridge.handle('editor_read',{'path':item['path']})
+        self.assertEqual(item['path'],document['path'])
+        self.assertEqual(item['path'],'nested/file.txt')
     def test_parent_traversal_rejected(self):
         with self.assertRaises(PermissionError): bridge.handle('read_file', {'path':'../outside.txt'})
     def test_write_is_not_exposed(self):

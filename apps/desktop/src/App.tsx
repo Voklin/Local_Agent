@@ -1,7 +1,10 @@
+import { BrandMark } from './BrandMark';
+import { Welcome } from './Welcome';
+import { ConversationSidebar } from './ConversationSidebar';
+import { MessageSquare, Sparkles } from 'lucide-react';
 import { useAppearance } from './AppearanceSettings';
-import { IDEWorkflowBar, ideRoles } from './IDEWorkflowSettings';
 import { useEffect, useRef, useState } from 'react';
-import { Bot, ChevronDown, Code2, FileCode2, Folder, FolderOpen, GitBranch, History, Play, Plus, Settings2, ShieldCheck, Square, SquareTerminal, Search, Brain, Pencil } from 'lucide-react';
+import { Bot, ChevronDown, Code2, FileCode2, Folder, FolderOpen, GitBranch, History, Play, Plus, Settings2, ShieldCheck, Square, SquareTerminal, Search, Brain } from 'lucide-react';
 import { MemoryPanel } from './MemoryPanel';
 import { ChatText } from './ChatText';
 import { ProjectSearch } from './ProjectSearch';
@@ -20,6 +23,8 @@ const greeting: Message[] = [{role: 'assistant', text: 'Выберите пап�
 export default function App() {
   const appearance=useAppearance();
   const [assistantNotices,setAssistantNotices]=useState<{id:number;title:string;text:string}[]>([]);
+  const [workspaceId,setWorkspaceId]=useState('');
+  const [apiProtocol,setApiProtocol]=useState('chat');
   const [mode, setMode] = useState<WorkspaceMode>('chat');
   const [activation,setActivation]=useState<{id:number;text:string;send:boolean}|null>(null);
   const modeRef = useRef<WorkspaceMode>('chat');
@@ -59,9 +64,6 @@ export default function App() {
   const [generation, setGeneration] = useState<GenerationSettings>({...defaultGeneration});
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection,setSettingsSection]=useState('connection');
-  const [workflow,setWorkflow]=useState<any>({enabled:false,mode:'pipeline',roles:{}});
-  const workflowReady=workflow.enabled&&(workflow.mode==='pipeline'?ideRoles.map(role=>role.id):[workflow.mode]).every(role=>!!(workflow.roles[role]?.model||model));
-  useEffect(()=>{let alive=true;const refresh=()=>void window.lca.getIDEWorkflow().then(result=>{if(alive&&result.ok)setWorkflow(result);}).catch(()=>{});refresh();window.addEventListener('ide-workflow-changed',refresh);return()=>{alive=false;window.removeEventListener('ide-workflow-changed',refresh);};},[]);
   const [settingsReady, setSettingsReady] = useState(false);
   const [stopping, setStopping] = useState(false);
   const chatId = useRef('');
@@ -84,7 +86,7 @@ export default function App() {
   useEffect(() => {
     window.lca.health().then(r => setHealth(r.ok ? 'Python Core подключён' : r.error)).catch(e => setHealth(String(e)));
     window.lca.getModelSettings().then(r => {
-      if (r.ok) { setBaseUrl(r.base_url); setModel(r.model); setToolProtocol(r.tool_protocol||'native'); setGeneration({...defaultGeneration, ...r.settings}); }
+      if (r.ok) { setApiProtocol(r.api_protocol||'chat'); setBaseUrl(r.base_url); setModel(r.model); setToolProtocol(r.tool_protocol||'native'); setGeneration({...defaultGeneration, ...r.settings}); }
       else report(r.error);
     }).catch(e => report(String(e))).finally(() => setSettingsReady(true));
     void refreshChats();
@@ -96,7 +98,7 @@ export default function App() {
       if(e.event==='desktop_artifact'){setDesktopImage(e.image);return;}
       if (e.event === 'backend_stopped') {
         setHealth('Python Core остановлен. Выберите проект заново.');
-        setBusy(false); setStopping(false); active.current = false; setApproval(null); setRoot(''); setFiles([]);
+        setBusy(false); setStopping(false); active.current = false; setApproval(null); setWorkspaceId(''); setRoot(''); setFiles([]);
         setSelectedFile(''); selectedRef.current = ''; setProject('Выберите проект');
         chatId.current = ''; runId.current = ''; setTask(null); setChats([]); return;
       }
@@ -137,6 +139,8 @@ export default function App() {
   useEffect(()=>{
     function shortcuts(event:KeyboardEvent) {
       if (!(event.ctrlKey||event.metaKey) || document.querySelector('[role="dialog"]')) return;
+      if(event.key.toLowerCase()==='n'){event.preventDefault();if(!active.current&&(mode!=='ide'||root))void selectChat();return;}
+      if(event.key.toLowerCase()==='k'){event.preventDefault();setNav('History');setTimeout(()=>document.getElementById('conversation-search')?.focus(),0);return;}
       if(event.key.toLowerCase()==='p' || (event.shiftKey&&event.key.toLowerCase()==='f')) {
         event.preventDefault();
         const quick=event.key.toLowerCase()==='p';
@@ -145,7 +149,17 @@ export default function App() {
     }
     window.addEventListener('keydown',shortcuts);
     return ()=>window.removeEventListener('keydown',shortcuts);
-  },[]);
+  },[mode,root]);
+  function resetConversation(){chatId.current='';runId.current='';setChat([]);setTask(null);setApproval(null);setPrompt('');}
+  async function switchWorkspace(id:string){
+    if(active.current)return false;
+    if(editorRef.current?.hasDirty()&&!(await window.lca.confirmEditorDiscard()).discard)return false;
+    const result=await window.lca.selectWorkspace({id});
+    if(!result.ok){report(result.error);return false;}
+    editorRef.current?.reset();setWorkspaceId(id);setRoot(result.root);setProject(result.project.name);setSelectedFile('');selectedRef.current='';resetConversation();setMemoryOpen(false);setRenaming(null);setFiles([]);setDirectory('.');
+    if(result.root)await refreshFiles('.');await refreshChats();return true;
+  }
+  function openFork(result:any){chatId.current=result.chat.id;runId.current='';setChat(result.chat.messages.filter((m:any)=>['user','assistant'].includes(m.role)&&typeof m.content==='string').map((m:any)=>({role:m.role,text:m.content})));setTask(null);setPrompt(result.prompt||'');void refreshChats();}
   async function openSearchFile(path:string,line:number) {
     setQuickOpen(false);
     if(modeRef.current!=='ide') await switchMode('ide');
@@ -166,6 +180,7 @@ export default function App() {
     followChat.current=true;setAtBottom(true);setMemoryOpen(false);setRenaming(null);
     setMode('ide'); modeRef.current = 'ide'; setNav('Explorer');
     editorRef.current?.reset();
+    if(workspaceId)await window.lca.saveWorkspace({id:workspaceId,root:r.root});
     setRoot(r.root); setProject(r.name); setSelectedFile(''); selectedRef.current = '';
     setChat(greeting); chatId.current = ''; setTask(null); setShowProgress(false);
     await refreshFiles('.'); await refreshChats();
@@ -200,10 +215,6 @@ export default function App() {
     (r.warnings || []).forEach(showWarning);
     await refreshChats();
     return r.chat.id as string;
-  }
-  async function moveChat(id:string) {
-    try{const result=await window.lca.moveChat(id,mode,mode==='voice'?'chat':'voice');if(!result.ok)throw Error(result.error);if(chatId.current===id){chatId.current='';setChat([]);setTask(null);}await refreshChats();}
-    catch(error){report(String(error));}
   }
   async function returnToMiya() {
     if(active.current||!handoffResult)return;
@@ -241,12 +252,12 @@ export default function App() {
     }catch(error){setRenameNotice(String(error));}finally{setRenameWorking(false);}
   }
   async function configure() {
-    const r = await window.lca.configureModel({base_url: baseUrl, model, api_key: apiKey, tool_protocol:toolProtocol, settings:generation});
+    const r = await window.lca.configureModel({base_url: baseUrl, model, api_key: apiKey, api_protocol:apiProtocol, tool_protocol:toolProtocol, settings:generation});
     if (!r.ok) throw new Error(r.error);
   }
   async function sendPrompt(resume = false, voiceText?:string) {
     const value = (voiceText??prompt).trim();
-    if (active.current || !settingsReady || (mode === 'ide' && !root) || (mode === 'voice' && voiceText===undefined) || (mode!=='voice'&&!model&&!(mode==='ide'&&workflowReady)) || (!resume && !value)) return;
+    if (active.current || !settingsReady || (mode === 'ide' && !root) || (mode === 'voice' && voiceText===undefined) || (mode!=='voice'&&!model) || (!resume && !value)) return;
     // Block repeated clicks before the first IPC round trip.
     active.current = true; setBusy(true); setStopping(false);
     try {
@@ -288,13 +299,13 @@ export default function App() {
   const parent = directory.split(/[\\/]/).slice(0, -1).join('/') || '.';
   return <div className={`app-shell mode-${mode}${appearance.sidebar?'':' sidebar-hidden'}${appearance.statusbar?'':' statusbar-hidden'}${appearance.output?'':' output-hidden'}`} data-theme={appearance.theme} data-accent={appearance.accent} data-density={appearance.density}><NeuralAudio/>
     {quickOpen&&<div className="search-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setQuickOpen(false);}}><ProjectSearch root={root} visible quick focus={searchFocus} onClose={()=>setQuickOpen(false)} onOpen={(path,line)=>void openSearchFile(path,line)}/></div>}
-    <header className="topbar"><div className="brand"><div className="brand-mark"><Code2 size={18}/></div><span>LOCAL<b>AGENT</b></span></div><button className="project-pill" onClick={chooseProject} disabled={busy}><FolderOpen size={15}/>{project}<ChevronDown size={14}/></button><div className="mode-tabs" role="tablist" aria-label="Режим работы">{(['chat','ide','voice'] as WorkspaceMode[]).map(m=><button role="tab" aria-selected={mode===m} disabled={busy} className={mode===m?'selected':''} key={m} onClick={()=>void switchMode(m)}>{m==='chat'?'Chat':m==='ide'?'IDE':'Лола'}</button>)}</div><div className="top-spacer"/><WakeListener busy={busy} onWake={activateMiya}/><span className="status">{health}</span><button className="icon-button" title="Настройки модели" onClick={()=>{setSettingsSection('connection');setSettingsOpen(true);}}><Settings2 size={17}/></button></header>
+    <header className="topbar"><div className="brand"><BrandMark size={28}/><span>Neutral</span><small>DESKTOP</small></div><div className="topbar-caption">Ваше пространство для идей</div>{mode==='ide'&&<button className="project-pill" onClick={()=>void chooseProject()} disabled={busy} title={root||'Выбрать папку проекта'}><FolderOpen size={14}/>{root?root.split(/[\\/]/).pop():'Выбрать папку'}<ChevronDown size={12}/></button>}<div className="top-spacer"/><WakeListener busy={busy} onWake={activateMiya}/><span className="status" title={health}><i/>{health.includes('подключён')?'Готов к работе':health}</span><button className="model-pill" title="Настройки модели" onClick={()=>{setSettingsSection('connection');setSettingsOpen(true);}}><span className="model-dot"/>{model||'Подключить модель'}<ChevronDown size={13}/></button><button className="icon-button" title="Настройки Neutral" onClick={()=>{setSettingsSection('connection');setSettingsOpen(true);}}><Settings2 size={17}/></button></header>
     <div className="workarea">
-      <nav className="activity-bar">{[{id:'Explorer',icon:Folder},{id:'Search',icon:Search},{id:'History',icon:History},{id:'Memory',icon:Brain},{id:'Models',icon:Settings2}].map(x=><button key={x.id} className={(x.id==='Models'?settingsOpen:nav===x.id)?'active':''} disabled={x.id==='Memory'&&(!root||mode!=='ide')} onClick={()=>x.id==='Models'?setSettingsOpen(true):x.id==='Memory'?setMemoryOpen(true):setNav(x.id)} title={x.id==='Memory'?'Память проекта':x.id}><x.icon size={19}/></button>)}</nav>
-      <aside className="sidebar"><div className="side-heading"><span>{nav==='History'?(mode==='voice'?'ИСТОРИЯ ЛОЛЫ':'ИСТОРИЯ ЧАТОВ'):nav==='Search'?'ПОИСК ПО ПРОЕКТУ':nav==='Models'?'НАСТРОЙКИ МОДЕЛИ':'ФАЙЛЫ ПРОЕКТА'}</span><button onClick={()=>nav==='History'?refreshChats():refreshFiles(directory)} title="Обновить"><ChevronDown size={15}/></button></div>
+      <nav className="activity-bar"><div className="mode-tabs" role="tablist" aria-label="Режим работы">{([{id:'chat',label:'Chat',icon:MessageSquare},{id:'ide',label:'IDE',icon:Code2},{id:'voice',label:'Лола',icon:Sparkles}] as const).map(item=><button role="tab" key={item.id} aria-selected={mode===item.id} disabled={busy} className={mode===item.id?'selected':''} onClick={()=>void switchMode(item.id)}><item.icon size={21}/><span>{item.label}</span></button>)}</div><div className="rail-divider"/>{[{id:'History',icon:History,title:'Разговоры'},{id:'Explorer',icon:Folder,title:'Файлы проекта'},{id:'Search',icon:Search,title:'Поиск по проекту'},{id:'Memory',icon:Brain,title:'Память проекта'}].filter(x=>mode==='ide'||x.id==='History').map(x=><button key={x.id} className={nav===x.id?'active':''} title={x.title} disabled={x.id==='Memory'&&!root} onClick={()=>x.id==='Memory'?setMemoryOpen(true):setNav(x.id)}><x.icon size={18}/></button>)}<div className="rail-spacer"/><button className="rail-settings" title="Настройки" onClick={()=>{setSettingsSection('connection');setSettingsOpen(true);}}><Settings2 size={20}/></button></nav>
+      <aside className="sidebar"><ConversationSidebar mode={mode} root={root} visible={nav==='History'} busy={busy} activeId={chatId.current} refresh={chats} workspaceId={workspaceId} onWorkspace={switchWorkspace} onOpen={id=>void selectChat(id)} onRename={c=>{setRenaming({id:c.id,title:c.title});setRenameNotice('');}} onReset={resetConversation} onFork={openFork} onError={report}/>
+<div className="side-heading"><span>{nav==='History'?(mode==='voice'?'Разговоры с Лолой':'Разговоры'):nav==='Search'?'ПОИСК ПО ПРОЕКТУ':nav==='Models'?'НАСТРОЙКИ МОДЕЛИ':'ФАЙЛЫ ПРОЕКТА'}</span><button onClick={()=>nav==='History'?refreshChats():refreshFiles(directory)} title="Обновить"><ChevronDown size={15}/></button></div>
         <ProjectSearch root={root} visible={nav==='Search'&&!quickOpen} quick={false} focus={searchFocus} onClose={()=>setNav('Explorer')} onOpen={(path,line)=>void openSearchFile(path,line)}/>
         {nav==='Explorer' && <div className="file-list">{directory!=='.'&&<button className="file-row" onClick={()=>refreshFiles(parent)}>..</button>}{files.map(f=><button key={f.path} className={`file-row ${selectedFile===f.path?'selected':''}`} onClick={()=>openFile(f)}>{f.kind==='directory'?<Folder size={15}/>:<FileCode2 size={15}/>}<span>{f.name}</span></button>)}{!root&&<div className="empty-small">Выберите папку проекта</div>}</div>}
-        {nav==='History' && <div className="file-list"><button className="file-row" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={15}/>Новый чат</button>{chats.map(c=><div className="chat-history-row" key={c.id}><button className="file-row" disabled={busy} onClick={()=>selectChat(c.id)}><History size={15}/><span>{c.title}</span></button>{mode!=='ide'&&<button className="icon-button move-chat" title={mode==='voice'?'Перенести в Chat':'Перенести к Лоле'} disabled={busy} onClick={()=>void moveChat(c.id)}>{mode==='voice'?'C':'Л'}</button>}<button className="rename-chat icon-button" title="Переименовать чат" disabled={busy} onClick={()=>{setRenaming({id:c.id,title:c.title});setRenameNotice('');}}><Pencil size={13}/></button></div>)}</div>}
         <div className="sidebar-footer"><div className="project-status"><GitBranch size={14}/><span>{root?'Локальный проект':'Проект не выбран'}</span></div></div>
       </aside>
       <main className={mode==='ide'?'main-panel':'editor-hidden'}><EditorPanel ref={editorRef} root={root} busy={busy} visible={mode==='ide'} onActive={path=>{setSelectedFile(path);selectedRef.current=path;}} onDirty={dirty=>{void window.lca.setEditorDirty(dirty);}} onProject={()=>void chooseProject()} onModels={()=>setSettingsOpen(true)} onLog={report}/>
@@ -303,16 +314,16 @@ export default function App() {
       {handoffResult&&!busy&&<button className="handoff-return" onClick={()=>void returnToMiya()}>Результат готов · вернуться к Лоле</button>}
       {desktopImage&&<div className="desktop-artifact"><button onClick={()=>setDesktopImage('')}>Закрыть скриншот</button><img src={desktopImage} alt="Скриншот по запросу пользователя"/></div>}
       {handoff&&<div className="handoff-card"><b>Лола передаёт задачу в {handoff.target.toUpperCase()}</b><p>{handoff.prompt}</p><button disabled={busy} onClick={()=>void acceptHandoff()}>Выполнить основной моделью</button><button disabled={busy} onClick={()=>void declineHandoff()}>Не выполнять</button></div>}
-      {mode==='voice'?<VoicePanel task={task} activation={activation} conversationKey={chatId.current} completed={task?.status==='completed'} messages={chat} busy={busy} onAsk={text=>void sendPrompt(false,text)} onCancel={()=>void cancel()} onChat={()=>void switchMode('chat')}/>:<aside className="agent-panel"><div className="agent-heading"><div><Bot size={17}/><b>{mode==='chat'?'Разговор с моделью':'Агент проекта'}</b></div><button className="icon-button" title="Новый чат" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={16}/></button></div>{mode==='ide'&&<IDEWorkflowBar workflow={workflow} busy={busy} onConfigure={()=>{setSettingsSection('workflow');setSettingsOpen(true);}}/>}<div className="agent-context"><span className="context-chip"><Folder size={13}/>{mode==='chat'?'Личный чат · без файловых инструментов':project}</span><span className="context-chip">Модель: {mode==='ide'&&workflow.enabled?'Роли IDE':model||'не выбрана'}</span>{task&&<button className="progress-toggle" aria-expanded={showProgress} onClick={()=>setShowProgress(!showProgress)}>Ход задачи · {task.status==='completed'?'завершена':task.status==='paused'?'приостановлена':'в работе'} <ChevronDown size={13}/></button>}</div>
-        {showProgress&&task&&<div className="progress-drawer"><TaskProgress task={task} busy={busy} onResume={()=>void sendPrompt(true)}/></div>}<div className="chat-messages" onScroll={event=>{const node=event.currentTarget;const bottom=node.scrollHeight-node.scrollTop-node.clientHeight<80;followChat.current=bottom;setAtBottom(bottom);}}>{chat.map((m,i)=><div className={`message ${m.role}`} key={i}>{m.role==='assistant'&&<div className="avatar"><Bot size={14}/></div>}<div className="message-content"><ChatText text={m.text}/>{m.streaming&&<span className="streaming-caret" aria-label="Ответ генерируется">▍</span>}</div></div>)}<div ref={messagesEnd}/></div>
+      {mode==='voice'?<VoicePanel task={task} activation={activation} conversationKey={chatId.current} completed={task?.status==='completed'} messages={chat} busy={busy} onAsk={text=>void sendPrompt(false,text)} onCancel={()=>void cancel()} onChat={()=>void switchMode('chat')}/>:<aside className="agent-panel"><div className="agent-heading"><div><Bot size={17}/><b>{mode==='chat'?'Разговор с моделью':'Агент проекта'}</b></div><button className="icon-button" title="Новый чат" disabled={(mode==='ide'&&!root)||busy} onClick={()=>selectChat()}><Plus size={16}/></button></div><div className="agent-context"><span className="context-chip"><Folder size={13}/>{mode==='chat'?(workspaceId?project:'Личное пространство'):project}</span><span className="context-chip">Модель: {model||'не выбрана'}</span>{task&&<button className="progress-toggle" aria-expanded={showProgress} onClick={()=>setShowProgress(!showProgress)}>Ход задачи · {task.status==='completed'?'завершена':task.status==='paused'?'приостановлена':'в работе'} <ChevronDown size={13}/></button>}</div>
+        {showProgress&&task&&<div className="progress-drawer"><TaskProgress task={task} busy={busy} onResume={()=>void sendPrompt(true)}/></div>}<div className="chat-messages" onScroll={event=>{const node=event.currentTarget;const bottom=node.scrollHeight-node.scrollTop-node.clientHeight<80;followChat.current=bottom;setAtBottom(bottom);}}>{!chat.some(m=>m.role==='user')&&<Welcome mode={mode} onPrompt={text=>{setPrompt(text);document.querySelector<HTMLTextAreaElement>('.composer textarea')?.focus();}} onIde={()=>void switchMode('ide')}/ >}{chat.filter(m=>chat.some(x=>x.role==='user')||m.role==='system').map((m,i)=><div className={`message ${m.role}`} key={i}>{m.role==='assistant'&&<div className="avatar"><Bot size={14}/></div>}<div className="message-content"><ChatText text={m.text}/>{m.streaming&&<span className="streaming-caret" aria-label="Ответ генерируется">▍</span>}</div></div>)}<div ref={messagesEnd}/></div>
         {!atBottom&&<button className="follow-chat" onClick={()=>{followChat.current=true;setAtBottom(true);messagesEnd.current?.scrollIntoView({behavior:'instant'});}}>К последнему сообщению ↓</button>}
-        <div className="composer"><textarea aria-label="Задача агенту" value={prompt} disabled={busy} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendPrompt();}}} placeholder={mode==='ide'&&!root?'Сначала выберите проект':!model&&!(mode==='ide'&&workflowReady)?'Укажите модель в настройках':'Опишите задачу…'}/><div className="composer-footer"><span>{stopping?'Останавливаем…':busy?'Агент работает…':'Enter для отправки'}</span>{busy?<button className="send-button" title="Остановить" disabled={stopping} onClick={cancel}><Square size={14}/></button>:<button className="send-button" title="Отправить" onClick={()=>sendPrompt()} disabled={!prompt.trim()||(mode==='ide'&&!root)||(!model&&!(mode==='ide'&&workflowReady))||!settingsReady}><Play size={14}/></button>}</div></div><div className="agent-foot"><ShieldCheck size={13}/> {mode==='ide'?'Подтверждение перед записью':'Локальная модель · история сохраняется на этом ПК'}</div>
+        <div className="composer"><textarea aria-label="Задача агенту" value={prompt} disabled={busy} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendPrompt();}}} placeholder={mode==='ide'&&!root?'Сначала выберите проект':!model?'Укажите модель в настройках':'Опишите задачу…'}/><div className="composer-footer"><span>{stopping?'Останавливаем…':busy?'Агент работает…':'Enter для отправки'}</span>{busy?<button className="send-button" title="Остановить" disabled={stopping} onClick={cancel}><Square size={14}/></button>:<button className="send-button" title="Отправить" onClick={()=>sendPrompt()} disabled={!prompt.trim()||(mode==='ide'&&!root)||(!model)||!settingsReady}><Play size={14}/></button>}</div></div><div className="agent-foot"><ShieldCheck size={13}/> {mode==='ide'?'Подтверждение перед записью':'Локальная модель · история сохраняется на этом ПК'}</div>
       </aside>}
-    </div><footer className="statusbar"><span><GitBranch size={12}/>{project}</span><span><ShieldCheck size={12}/>{mode==='ide'?'Файлы ограничены папкой проекта':mode==='chat'?'Chat · файловые инструменты отключены':'Ассистент · локальная озвучка'}</span><span className="statusbar-right">Electron · React · Python</span></footer>
+    </div><footer className="statusbar"><span><GitBranch size={12}/>{project}</span><span><ShieldCheck size={12}/>{mode==='ide'?'Файлы ограничены папкой проекта':mode==='chat'?'Chat · файловые инструменты отключены':'Ассистент · локальная озвучка'}</span><span className="statusbar-right">Neutral · Ваше пространство</span></footer>
     <div className="assistant-notices" aria-live="polite">{assistantNotices.map(item=><div className="assistant-notice" role="status" key={item.id}><b>{item.title}</b><p>{item.text}</p><button className="secondary-button" aria-label="Закрыть напоминание" onClick={()=>setAssistantNotices(items=>items.filter(value=>value.id!==item.id))}>Закрыть</button></div>)}</div>
     {memoryOpen&&root&&<MemoryPanel key={root} root={root} busy={busy} onClose={()=>setMemoryOpen(false)}/>}
     {renaming&&<div className="modal-backdrop"><section className="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="rename-title"><h2 id="rename-title">Название чата</h2><form onSubmit={event=>{event.preventDefault();void renameChat();}}><input autoFocus aria-label="Название чата" value={renaming.title} maxLength={120} disabled={renameWorking} onChange={event=>setRenaming({...renaming,title:event.target.value})}/><p role="status">{renameNotice}</p><div className="settings-actions"><button type="button" disabled={renameWorking} onClick={()=>setRenaming(null)}>Отмена</button><button className="primary-button" type="submit" disabled={busy||renameWorking||!renaming.title.trim()}>Переименовать</button></div></form></section></div>}
-    {settingsOpen&&settingsReady&&<ModelSettings initialSection={settingsSection} initial={{base_url:baseUrl,model,api_key:apiKey,tool_protocol:toolProtocol,settings:generation}} busy={busy} onClose={()=>setSettingsOpen(false)} onSaved={config=>{setBaseUrl(config.base_url);setModel(config.model);setToolProtocol(config.tool_protocol||'native');setApiKey(config.api_key);setGeneration(config.settings);report('Настройки модели сохранены');}}/>}
-    {approval&&<div className="modal-backdrop"><section className="approval-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-title"><h2 id="approval-title">{approval.exists?'Изменение файла':'Новый файл'}: {approval.path}</h2><p>Проверьте изменения перед записью.</p><pre>{approval.diff||'Текстовых изменений нет'}</pre><div className="approval-actions"><button disabled={deciding} onClick={()=>decide('cancel')}>Отменить задачу</button><button disabled={deciding} onClick={()=>decide('reject')}>Отклонить изменение</button><button className="primary-button" disabled={deciding} onClick={()=>decide('apply')}>Применить изменение</button></div></section></div>}
+    {settingsOpen&&settingsReady&&<ModelSettings initialSection={settingsSection} initial={{api_protocol:apiProtocol,base_url:baseUrl,model,api_key:apiKey,tool_protocol:toolProtocol,settings:generation}} busy={busy} onClose={()=>setSettingsOpen(false)} onSaved={config=>{setApiProtocol(config.api_protocol||'chat');setBaseUrl(config.base_url);setModel(config.model);setToolProtocol(config.tool_protocol||'native');setApiKey(config.api_key);setGeneration(config.settings);report('Настройки модели сохранены');}}/>}
+    {approval&&<div className="modal-backdrop"><section className="approval-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-title"><h2 id="approval-title">{['mcp','command'].includes(approval.kind)?(approval.kind==='command'?'Команда проекта':'Действие MCP'):approval.exists?'Изменение файла':'Новый файл'}: {approval.path}</h2><p>{['mcp','command'].includes(approval.kind)?(approval.kind==='command'?'Программа выполнит локальный код с вашими правами. Проверьте команду, аргументы и рабочую папку.':'Сервер выполнит действие с указанными ниже параметрами.'):'Проверьте изменения перед записью.'}</p><pre>{approval.diff||'Текстовых изменений нет'}</pre><div className="approval-actions"><button disabled={deciding} onClick={()=>decide('cancel')}>Отменить задачу</button><button disabled={deciding} onClick={()=>decide('reject')}>{['mcp','command'].includes(approval.kind)?'Отклонить действие':'Отклонить изменение'}</button><button className="primary-button" disabled={deciding} onClick={()=>decide('apply')}>{['mcp','command'].includes(approval.kind)?'Разрешить действие':'Применить изменение'}</button></div></section></div>}
   </div>;
 }

@@ -1,6 +1,6 @@
 {
   "appId": "io.localagent.desktop",
-  "productName": "LocalAgent",
+  "productName": "Neutral",
   "directories": {
     "app": "apps/desktop",
     "output": "artifacts/windows"
@@ -14,7 +14,12 @@
     {
       "from": "tools/tts",
       "to": "tts",
-      "filter": ["*.py", "*.ps1", "*.txt", "*.md"]
+      "filter": [
+        "*.py",
+        "*.ps1",
+        "*.txt",
+        "*.md"
+      ]
     },
     {
       "from": "build/core/lca-core",
@@ -29,6 +34,10 @@
       "filter": [
         "**/*"
       ]
+    },
+    {
+      "from": "assets/neutral.png",
+      "to": "brand/neutral.png"
     }
   ],
   "asar": true,
@@ -41,9 +50,10 @@
         ]
       }
     ],
-    "signExecutable": false
+    "signExecutable": false,
+    "icon": "assets/neutral.ico"
   },
-  "artifactName": "LocalAgent-${version}-setup-${arch}.${ext}",
+  "artifactName": "Neutral-${version}-setup-${arch}.${ext}",
   "nsis": {
     "oneClick": false,
     "perMachine": false,

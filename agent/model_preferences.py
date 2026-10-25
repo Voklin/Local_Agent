@@ -17,7 +17,7 @@ SETTING_LIMITS = {
     'max_agent_turns': (200, 1, 500, True),
     'max_runtime_minutes': (180, 1, 1440, True),
 }
-DEFAULTS = {'tool_protocol':'native', 'base_url': 'http://127.0.0.1:1234/v1', 'model': '',
+DEFAULTS = {'api_protocol':'chat','tool_protocol':'native', 'base_url': 'http://127.0.0.1:1234/v1', 'model': '',
             'settings': {key: rule[0] for key, rule in SETTING_LIMITS.items()}}
 
 
@@ -46,7 +46,9 @@ def validate_preferences(params):
     protocol = params.get('tool_protocol', 'native')
     if protocol not in ('native','json'):
         raise ValueError('Протокол инструментов: native или json')
-    return {'tool_protocol':protocol, 'base_url': base_url, 'model': str(params.get('model', '')).strip()[:300],
+    api_protocol=params.get('api_protocol','chat')
+    if api_protocol not in ('chat','responses'):raise ValueError('API: Chat Completions или Responses')
+    return {'api_protocol':api_protocol,'tool_protocol':protocol, 'base_url': base_url, 'model': str(params.get('model', '')).strip()[:300],
             'settings': validate_settings(params.get('settings', {}))}
 
 

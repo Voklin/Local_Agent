@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MicrophoneRecorder } from './microphone';
 import { CompanionSettings } from './CompanionSettings';
 import { ChatText } from './ChatText';
+import { plainVoiceText } from './voiceText';
 import { Mic, Volume2, Sparkles, Settings, X } from 'lucide-react';
 import { LolaAvatar, type LolaState } from './LolaAvatar';
 import type { TaskSnapshot } from './TaskProgress';
@@ -96,7 +97,7 @@ export function VoicePanel({ activation, onChat, onAsk, onCancel, busy, messages
   const alive=useRef(true);
   const lastRead=useRef('');
   const replyEntry=messages.map((message,index)=>({message,index})).reverse().find(entry=>entry.message.role==='assistant'&&!entry.message.streaming);
-  const reply=replyEntry?.message.text||'';
+  const reply=plainVoiceText(replyEntry?.message.text||'');
   const replyKey=conversationKey+':'+replyEntry?.index+':'+reply;
   const voiceActive=['loading','synthesizing','speaking','stopping'].includes(status.state);
   useEffect(()=>{
@@ -184,7 +185,7 @@ export function VoicePanel({ activation, onChat, onAsk, onCancel, busy, messages
       {(notice||status.error)&&<p className="voice-error" role="status">{notice||status.error}</p>}
       </div>
     </dialog>
-    <section className="voice-conversation" aria-label="Разговор с ассистентом">{messages.slice(-8).map((message,index)=><div className={`voice-message ${message.role}`} key={index}><b>{message.role==='user'?'Вы':message.role==='assistant'?'Лола':'Состояние'}</b><ChatText text={message.text}/>{message.streaming&&<span>▍</span>}</div>)}</section>
+    <section className="voice-conversation" aria-label="Разговор с ассистентом">{messages.slice(-8).map((message,index)=><div className={`voice-message ${message.role}`} key={index}><b>{message.role==='user'?'Вы':message.role==='assistant'?'Лола':'Состояние'}</b><ChatText text={message.role==='assistant'?plainVoiceText(message.text):message.text}/>{message.streaming&&<span>▍</span>}</div>)}</section>
     <form className="voice-composer" onSubmit={event=>{event.preventDefault();send();}}><textarea aria-label="Сообщение ассистенту" maxLength={50000} disabled={busy||recording||transcribing} value={input} onChange={event=>setInput(event.target.value)} placeholder={model?'Напишите Лолы…':'Выберите модель в настройках'}/>{busy?<button type="button" className="primary-button" onClick={onCancel}>Остановить ответ</button>:<button className="primary-button" disabled={!model||!input.trim()||recording||transcribing} type="submit">Отправить ассистенту</button>}</form>
   </main>;
 }

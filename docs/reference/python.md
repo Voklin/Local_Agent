@@ -10,26 +10,30 @@
 
 - [agent/__init__.py](#module-agent-init-py)
 - [agent/chat_store.py](#module-agent-chat-store-py)
+- [agent/companion_policy.py](#module-agent-companion-policy-py)
 - [agent/companion_preferences.py](#module-agent-companion-preferences-py)
+- [agent/connection_profiles.py](#module-agent-connection-profiles-py)
 - [agent/context_manager.py](#module-agent-context-manager-py)
 - [agent/conversation.py](#module-agent-conversation-py)
 - [agent/delegation.py](#module-agent-delegation-py)
 - [agent/editor_io.py](#module-agent-editor-io-py)
 - [agent/engine.py](#module-agent-engine-py)
-- [agent/ide_coordinator.py](#module-agent-ide-coordinator-py)
-- [agent/ide_workflow.py](#module-agent-ide-workflow-py)
 - [agent/json_tools.py](#module-agent-json-tools-py)
 - [agent/mcp.py](#module-agent-mcp-py)
+- [agent/mcp_client.py](#module-agent-mcp-client-py)
 - [agent/model_client.py](#module-agent-model-client-py)
 - [agent/model_discovery.py](#module-agent-model-discovery-py)
 - [agent/model_gateway.py](#module-agent-model-gateway-py)
-- [agent/model_lifecycle.py](#module-agent-model-lifecycle-py)
 - [agent/model_manager.py](#module-agent-model-manager-py)
 - [agent/model_preferences.py](#module-agent-model-preferences-py)
 - [agent/model_probe.py](#module-agent-model-probe-py)
 - [agent/planner.py](#module-agent-planner-py)
 - [agent/process_job.py](#module-agent-process-job-py)
+- [agent/progress_guard.py](#module-agent-progress-guard-py)
+- [agent/project_command.py](#module-agent-project-command-py)
 - [agent/project_memory.py](#module-agent-project-memory-py)
+- [agent/projects.py](#module-agent-projects-py)
+- [agent/responses_adapter.py](#module-agent-responses-adapter-py)
 - [agent/runtime.py](#module-agent-runtime-py)
 - [agent/security.py](#module-agent-security-py)
 - [agent/skills.py](#module-agent-skills-py)
@@ -42,8 +46,10 @@
 - [agent/worker.py](#module-agent-worker-py)
 - [core/python/assistant_service.py](#module-core-python-assistant-service-py)
 - [core/python/bridge.py](#module-core-python-bridge-py)
+- [core/python/conversation_service.py](#module-core-python-conversation-service-py)
 - [core/python/desktop_service.py](#module-core-python-desktop-service-py)
 - [core/python/editor_service.py](#module-core-python-editor-service-py)
+- [core/python/extension_service.py](#module-core-python-extension-service-py)
 - [core/python/memory_service.py](#module-core-python-memory-service-py)
 - [core/python/neural_speech.py](#module-core-python-neural-speech-py)
 - [core/python/project_search.py](#module-core-python-project-search-py)
@@ -57,6 +63,7 @@
 - [tools/check_docs.py](#module-tools-check-docs-py)
 - [tools/check_live_model.py](#module-tools-check-live-model-py)
 - [tools/doc_notes.py](#module-tools-doc-notes-py)
+- [tools/generate_brand_icons.py](#module-tools-generate-brand-icons-py)
 - [tools/generate_code_reference.py](#module-tools-generate-code-reference-py)
 - [tools/prepare_windows_dependencies.py](#module-tools-prepare-windows-dependencies-py)
 - [tools/tts/piper_server.py](#module-tools-tts-piper-server-py)
@@ -220,6 +227,32 @@ def title_from_messages(messages: list[dict[str, Any]]) -> str
 
 Выбирает первое непустое user-сообщение и делает короткий заголовок.
 
+<a id="module-agent-companion-policy-py"></a>
+
+## `agent/companion_policy.py`
+
+Граница делегирования Лолы по исходному намерению человека и очистка ответов/озвучки от разметки.
+
+### `is_coding_request`
+
+[Исходник](../../agent/companion_policy.py#L6)
+
+```python
+def is_coding_request(prompt)
+```
+
+Определяет разрешённое делегирование по исходному запросу; исключает бытовые значения слова «код» и программы мероприятий.
+
+### `clean_speech_text`
+
+[Исходник](../../agent/companion_policy.py#L18)
+
+```python
+def clean_speech_text(text)
+```
+
+Удаляет Markdown/HTML/reasoning и блоки кода, сохраняет читаемые слова и переводит числовое умножение в речь.
+
 <a id="module-agent-companion-preferences-py"></a>
 
 ## `agent/companion_preferences.py`
@@ -255,6 +288,62 @@ def save_profile(params)
 ```
 
 Атомарно сохраняет только разрешённые публичные поля, исключая model/STT API keys.
+
+<a id="module-agent-connection-profiles-py"></a>
+
+## `agent/connection_profiles.py`
+
+Именованные публичные конфигурации моделей без API-ключей.
+
+### `ConnectionProfiles`
+
+[Исходник](../../agent/connection_profiles.py#L9)
+
+```python
+class ConnectionProfiles
+```
+
+Каталог именованных публичных параметров API-моделей; секретные поля не принимаются в сохранённый профиль.
+
+### `ConnectionProfiles.__init__`
+
+[Исходник](../../agent/connection_profiles.py#L10)
+
+```python
+def __init__(self, directory=None)
+```
+
+Инициализирует состояние экземпляра ConnectionProfiles; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `ConnectionProfiles.list`
+
+[Исходник](../../agent/connection_profiles.py#L13)
+
+```python
+def list(self)
+```
+
+Читает ограниченный по размеру список профилей из пользовательского каталога.
+
+### `ConnectionProfiles.save`
+
+[Исходник](../../agent/connection_profiles.py#L20)
+
+```python
+def save(self, params)
+```
+
+Проверяет имя/ID/параметры и атомарно добавляет или заменяет один из максимум 30 профилей.
+
+### `ConnectionProfiles.remove`
+
+[Исходник](../../agent/connection_profiles.py#L30)
+
+```python
+def remove(self, identity)
+```
+
+Удаляет выбранную запись, сохраняя другие профили и активную конфигурацию модели.
 
 <a id="module-agent-context-manager-py"></a>
 
@@ -420,7 +509,7 @@ def save_project_text(project_root: str | Path, requested: str | Path, text: str
 
 ### `EventHook`
 
-[Исходник](../../agent/engine.py#L37)
+[Исходник](../../agent/engine.py#L38)
 
 ```python
 class EventHook
@@ -430,7 +519,7 @@ class EventHook
 
 ### `EventHook.__init__`
 
-[Исходник](../../agent/engine.py#L39)
+[Исходник](../../agent/engine.py#L40)
 
 ```python
 def __init__(self)
@@ -440,7 +529,7 @@ def __init__(self)
 
 ### `EventHook.connect`
 
-[Исходник](../../agent/engine.py#L42)
+[Исходник](../../agent/engine.py#L43)
 
 ```python
 def connect(self, callback)
@@ -450,7 +539,7 @@ def connect(self, callback)
 
 ### `EventHook.emit`
 
-[Исходник](../../agent/engine.py#L45)
+[Исходник](../../agent/engine.py#L46)
 
 ```python
 def emit(self, *args)
@@ -460,7 +549,7 @@ def emit(self, *args)
 
 ### `AgentEngine`
 
-[Исходник](../../agent/engine.py#L50)
+[Исходник](../../agent/engine.py#L51)
 
 ```python
 class AgentEngine
@@ -470,7 +559,7 @@ class AgentEngine
 
 ### `AgentEngine.requestInterruption`
 
-[Исходник](../../agent/engine.py#L55)
+[Исходник](../../agent/engine.py#L56)
 
 ```python
 def requestInterruption(self)
@@ -480,7 +569,7 @@ def requestInterruption(self)
 
 ### `AgentEngine.isInterruptionRequested`
 
-[Исходник](../../agent/engine.py#L60)
+[Исходник](../../agent/engine.py#L61)
 
 ```python
 def isInterruptionRequested(self)
@@ -490,17 +579,17 @@ def isInterruptionRequested(self)
 
 ### `AgentEngine.__init__`
 
-[Исходник](../../agent/engine.py#L63)
+[Исходник](../../agent/engine.py#L64)
 
 ```python
-def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None, allow_tools=True, companion=False, tool_protocol='native', persona='', tool_definitions=None, tool_handler=None, role_instruction='', stage_only=False)
+def __init__(self, base_url, api_key, model, project_root, prompt, force_tool=None, settings=None, history=None, memory=None, auto_memory=True, task_id=None, allow_tools=True, companion=False, tool_protocol='native', persona='', tool_definitions=None, tool_handler=None, context_note='', managed_extensions=False, api_protocol='chat')
 ```
 
 Инициализирует состояние экземпляра AgentEngine; параметры показаны в сигнатуре, назначение описано у класса.
 
 ### `AgentEngine._checkpoint`
 
-[Исходник](../../agent/engine.py#L101)
+[Исходник](../../agent/engine.py#L103)
 
 ```python
 def _checkpoint(self, stage=None, event='')
@@ -510,7 +599,7 @@ def _checkpoint(self, stage=None, event='')
 
 ### `AgentEngine.task_snapshot`
 
-[Исходник](../../agent/engine.py#L111)
+[Исходник](../../agent/engine.py#L113)
 
 ```python
 def task_snapshot(self)
@@ -520,7 +609,7 @@ def task_snapshot(self)
 
 ### `AgentEngine.resolve_write_approval`
 
-[Исходник](../../agent/engine.py#L114)
+[Исходник](../../agent/engine.py#L116)
 
 ```python
 def resolve_write_approval(self, decision)
@@ -530,7 +619,7 @@ def resolve_write_approval(self, decision)
 
 ### `AgentEngine._ask_write_approval`
 
-[Исходник](../../agent/engine.py#L125)
+[Исходник](../../agent/engine.py#L127)
 
 ```python
 def _ask_write_approval(self, path, diff, exists)
@@ -540,7 +629,7 @@ def _ask_write_approval(self, path, diff, exists)
 
 ### `AgentEngine._emit_change`
 
-[Исходник](../../agent/engine.py#L147)
+[Исходник](../../agent/engine.py#L149)
 
 ```python
 def _emit_change(self, path, diff, exists, status, error='')
@@ -550,7 +639,7 @@ def _emit_change(self, path, diff, exists, status, error='')
 
 ### `AgentEngine._looks_like_action_request`
 
-[Исходник](../../agent/engine.py#L157)
+[Исходник](../../agent/engine.py#L159)
 
 ```python
 @staticmethod
@@ -561,7 +650,7 @@ def _looks_like_action_request(prompt)
 
 ### `AgentEngine._verify_task_completion`
 
-[Исходник](../../agent/engine.py#L167)
+[Исходник](../../agent/engine.py#L169)
 
 ```python
 def _verify_task_completion(self, client, messages, max_tokens)
@@ -571,245 +660,13 @@ def _verify_task_completion(self, client, messages, max_tokens)
 
 ### `AgentEngine.run`
 
-[Исходник](../../agent/engine.py#L203)
+[Исходник](../../agent/engine.py#L205)
 
 ```python
 def run(self)
 ```
 
 Строит контекст, выполняет потоковые ходы и tools, обрабатывает остановку, сохраняет состояние и закрывает клиент.
-
-<a id="module-agent-ide-coordinator-py"></a>
-
-## `agent/ide_coordinator.py`
-
-Четыре роли IDE, локальные передачи кода, ограниченное исправление, существующие diff approvals и подтверждённая проверка файлов.
-
-### `RoleOutputError`
-
-[Исходник](../../agent/ide_coordinator.py#L28)
-
-```python
-class RoleOutputError(ValueError)
-```
-
-Выделяет ошибки формата, для которых разрешён один повтор без записи неверного результата.
-
-### `IDECoordinator`
-
-[Исходник](../../agent/ide_coordinator.py#L32)
-
-```python
-class IDECoordinator(AgentEngine)
-```
-
-Последовательно координирует четыре AgentEngine с изоляцией прав, локальными артефактами и проверкой результата.
-
-### `IDECoordinator.__init__`
-
-[Исходник](../../agent/ide_coordinator.py#L33)
-
-```python
-def __init__(self, *, workflow_options, role_configs, resume=False, stage_factory=AgentEngine, lifecycle_factory=ModelLifecycle, **kwargs)
-```
-
-Инициализирует состояние экземпляра IDECoordinator; параметры показаны в сигнатуре, назначение описано у класса.
-
-### `IDECoordinator._flow_snapshot`
-
-[Исходник](../../agent/ide_coordinator.py#L55)
-
-```python
-def _flow_snapshot(self)
-```
-
-Добавляет безопасные названия/ID/статусы ролей и номер исправления к существующей задаче.
-
-### `IDECoordinator._persist`
-
-[Исходник](../../agent/ide_coordinator.py#L60)
-
-```python
-def _persist(self)
-```
-
-Атомарно сохраняет передачи ролей вне проекта и уведомляет UI о checkpoint.
-
-### `IDECoordinator._lifecycle_event`
-
-[Исходник](../../agent/ide_coordinator.py#L64)
-
-```python
-def _lifecycle_event(self, text)
-```
-
-Сохраняет точную активную модель для последующей очистки, передаёт состояние загрузки в журнал/план.
-
-### `IDECoordinator.requestInterruption`
-
-[Исходник](../../agent/ide_coordinator.py#L71)
-
-```python
-def requestInterruption(self)
-```
-
-Останавливает общий цикл и текущий дочерний HTTP/approval цикл.
-
-### `IDECoordinator.resolve_write_approval`
-
-[Исходник](../../agent/ide_coordinator.py#L75)
-
-```python
-def resolve_write_approval(self, decision)
-```
-
-Пересылает решение только текущему AgentEngine, сохраняющему проверку diff и revision.
-
-### `IDECoordinator._child_task`
-
-[Исходник](../../agent/ide_coordinator.py#L78)
-
-```python
-def _child_task(self, snapshot)
-```
-
-Объединяет counters, доказательства чтения и состояние дочерней роли; completed этапа не завершает весь цикл.
-
-### `IDECoordinator._chat`
-
-[Исходник](../../agent/ide_coordinator.py#L92)
-
-```python
-def _chat(self, role, text)
-```
-
-Помечает ответ ролью и сохраняет общую историю без подмены исходного запроса служебными prompt.
-
-### `IDECoordinator._handoff`
-
-[Исходник](../../agent/ide_coordinator.py#L97)
-
-```python
-def _handoff(self, role, checks)
-```
-
-Передаёт полные релевантные материалы/прочитанные файлы; при превышении бюджета останавливается без обрезки кода.
-
-### `IDECoordinator._capture_context`
-
-[Исходник](../../agent/ide_coordinator.py#L108)
-
-```python
-def _capture_context(self, messages)
-```
-
-Из успешных read_file tool results собирает контекст файлов для автора кода без собственных файловых инструментов.
-
-### `IDECoordinator._structured_output`
-
-[Исходник](../../agent/ide_coordinator.py#L116)
-
-```python
-def _structured_output(self, text, role)
-```
-
-Валидирует JSON автора/проверяющего, полные path/content и границы проекта до использования артефакта.
-
-### `IDECoordinator._syntax_checks`
-
-[Исходник](../../agent/ide_coordinator.py#L132)
-
-```python
-def _syntax_checks(self)
-```
-
-Читает только modified_files через sandbox и безопасно проверяет Python AST/JSON без запуска кода.
-
-### `IDECoordinator._stage`
-
-[Исходник](../../agent/ide_coordinator.py#L146)
-
-```python
-def _stage(self, role, checks)
-```
-
-Выбирает модель и права роли, связывает события/approvals, учитывает общий бюджет, проверяет ответ до передачи дальше.
-
-### `IDECoordinator._stage.delta`
-
-[Исходник](../../agent/ide_coordinator.py#L168)
-
-```python
-def delta(turn, text)
-```
-
-Даёт потокам уникальные role/cycle/turn ID и обозначает роль в первом фрагменте.
-
-### `IDECoordinator._verdict`
-
-[Исходник](../../agent/ide_coordinator.py#L190)
-
-```python
-def _verdict(self, text, checks)
-```
-
-Требует pass без issues, успешных статических проверок и чтения каждого изменённого файла текущим проверяющим.
-
-### `IDECoordinator.run`
-
-[Исходник](../../agent/ide_coordinator.py#L199)
-
-```python
-def run(self)
-```
-
-Выполняет полный/одиночный этап, один повтор формата, до двух циклов исправлений, pause/resume и обязательную выгрузку.
-
-<a id="module-agent-ide-workflow-py"></a>
-
-## `agent/ide_workflow.py`
-
-Whitelist ролей IDE, отдельное сохранение без ключей и разрешение наследуемых моделей/endpoint без утечки основного токена.
-
-### `validate_workflow`
-
-[Исходник](../../agent/ide_workflow.py#L14)
-
-```python
-def validate_workflow(params)
-```
-
-Проверяет четыре роли, режим, провайдер, относительные настройки URL/ID, контекст и число исправлений; отбрасывает секреты.
-
-### `load_workflow`
-
-[Исходник](../../agent/ide_workflow.py#L40)
-
-```python
-def load_workflow()
-```
-
-Загружает отдельный JSON либо возвращает выключенный совместимый профиль по умолчанию.
-
-### `save_workflow`
-
-[Исходник](../../agent/ide_workflow.py#L45)
-
-```python
-def save_workflow(params)
-```
-
-Атомарно сохраняет только прошедшие whitelist настройки без API-ключей.
-
-### `resolve_roles`
-
-[Исходник](../../agent/ide_workflow.py#L49)
-
-```python
-def resolve_roles(workflow, primary, secrets=None)
-```
-
-Подставляет основные URL/ID и только для того же URL наследует основной ключ; проверяет назначение используемых ролей.
 
 <a id="module-agent-json-tools-py"></a>
 
@@ -984,6 +841,72 @@ def manifest(self)
 
 Формирует список включённых конфигураций для дальнейшей интеграции.
 
+<a id="module-agent-mcp-client-py"></a>
+
+## `agent/mcp_client.py`
+
+Настоящие соединения MCP stdio/Streamable HTTP с discovery, ограничениями, отменой и закрытием transport.
+
+### `validate_server`
+
+[Исходник](../../agent/mcp_client.py#L12)
+
+```python
+def validate_server(value)
+```
+
+Проверяет ID, transport, URL или command/args и возвращает только разрешённые публичные поля.
+
+### `MCPClient`
+
+[Исходник](../../agent/mcp_client.py#L34)
+
+```python
+class MCPClient
+```
+
+Исполнитель короткоживущих MCP соединений; токен передаётся отдельно от публичных настроек.
+
+### `MCPClient.__init__`
+
+[Исходник](../../agent/mcp_client.py#L35)
+
+```python
+def __init__(self, log_dir)
+```
+
+Инициализирует состояние экземпляра MCPClient; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `MCPClient.operation`
+
+[Исходник](../../agent/mcp_client.py#L38)
+
+```python
+def operation(self, server, name=None, arguments=None, interrupted=None, token='')
+```
+
+Запускает coroutine из синхронного диспетчера и превращает ошибки соединения в ограниченный результат.
+
+### `MCPClient._operate`
+
+[Исходник](../../agent/mcp_client.py#L43)
+
+```python
+async def _operate(self, server, name, arguments, interrupted, token)
+```
+
+Ограничивает общее время и отслеживает отмену, закрывая transport и его внутреннюю задачу.
+
+### `MCPClient._operate.exchange`
+
+[Исходник](../../agent/mcp_client.py#L48)
+
+```python
+async def exchange()
+```
+
+Открывает stdio/HTTP клиент, получает страницы схем или выполняет один tool, ограничивая результаты.
+
 <a id="module-agent-model-client-py"></a>
 
 ## `agent/model_client.py`
@@ -1032,7 +955,7 @@ async def _produce(self, params)
 
 ### `ModelStream.__iter__`
 
-[Исходник](../../agent/model_client.py#L27)
+[Исходник](../../agent/model_client.py#L35)
 
 ```python
 def __iter__(self)
@@ -1042,7 +965,7 @@ def __iter__(self)
 
 ### `ModelStream.__next__`
 
-[Исходник](../../agent/model_client.py#L30)
+[Исходник](../../agent/model_client.py#L38)
 
 ```python
 def __next__(self)
@@ -1052,7 +975,7 @@ def __next__(self)
 
 ### `ModelStream.close`
 
-[Исходник](../../agent/model_client.py#L40)
+[Исходник](../../agent/model_client.py#L48)
 
 ```python
 def close(self)
@@ -1062,7 +985,7 @@ def close(self)
 
 ### `ModelClient`
 
-[Исходник](../../agent/model_client.py#L44)
+[Исходник](../../agent/model_client.py#L52)
 
 ```python
 class ModelClient
@@ -1072,17 +995,17 @@ Async SDK в отдельном loop-потоке с синхронными crea
 
 ### `ModelClient.__init__`
 
-[Исходник](../../agent/model_client.py#L45)
+[Исходник](../../agent/model_client.py#L53)
 
 ```python
-def __init__(self, base_url, api_key, interrupted, timeout=180, tool_protocol='native')
+def __init__(self, base_url, api_key, interrupted, timeout=180, tool_protocol='native', api_protocol='chat')
 ```
 
 Инициализирует состояние экземпляра ModelClient; параметры показаны в сигнатуре, назначение описано у класса.
 
 ### `ModelClient.check_cancelled`
 
-[Исходник](../../agent/model_client.py#L56)
+[Исходник](../../agent/model_client.py#L66)
 
 ```python
 def check_cancelled(self)
@@ -1092,7 +1015,7 @@ def check_cancelled(self)
 
 ### `ModelClient.submit`
 
-[Исходник](../../agent/model_client.py#L60)
+[Исходник](../../agent/model_client.py#L70)
 
 ```python
 def submit(self, coroutine)
@@ -1102,7 +1025,7 @@ def submit(self, coroutine)
 
 ### `ModelClient._forget`
 
-[Исходник](../../agent/model_client.py#L69)
+[Исходник](../../agent/model_client.py#L79)
 
 ```python
 def _forget(self, future)
@@ -1112,7 +1035,7 @@ def _forget(self, future)
 
 ### `ModelClient.result`
 
-[Исходник](../../agent/model_client.py#L73)
+[Исходник](../../agent/model_client.py#L83)
 
 ```python
 def result(self, future)
@@ -1122,7 +1045,7 @@ def result(self, future)
 
 ### `ModelClient.create`
 
-[Исходник](../../agent/model_client.py#L83)
+[Исходник](../../agent/model_client.py#L93)
 
 ```python
 def create(self, **params)
@@ -1130,9 +1053,29 @@ def create(self, **params)
 
 Возвращает ModelStream для stream=True или готовый async-ответ для stream=False.
 
+### `ModelClient.create.complete`
+
+[Исходник](../../agent/model_client.py#L101)
+
+```python
+async def complete()
+```
+
+Выбирает нестриминговый Chat Completions или Responses и приводит результат к ожидаемому интерфейсу choices.
+
+### `ModelClient.request`
+
+[Исходник](../../agent/model_client.py#L108)
+
+```python
+async def request(self, endpoint, params)
+```
+
+Повторяет временные сетевые/429/5xx ошибки до начала ответа максимум два раза; не повторяет частичный поток.
+
 ### `ModelClient.cancel`
 
-[Исходник](../../agent/model_client.py#L93)
+[Исходник](../../agent/model_client.py#L118)
 
 ```python
 def cancel(self)
@@ -1142,7 +1085,7 @@ def cancel(self)
 
 ### `ModelClient.close`
 
-[Исходник](../../agent/model_client.py#L99)
+[Исходник](../../agent/model_client.py#L124)
 
 ```python
 def close(self)
@@ -1152,7 +1095,7 @@ def close(self)
 
 ### `ModelClient.close.shutdown`
 
-[Исходник](../../agent/model_client.py#L100)
+[Исходник](../../agent/model_client.py#L125)
 
 ```python
 async def shutdown()
@@ -1282,113 +1225,6 @@ def status(self)
 ```
 
 Возвращает endpoint и состояние локального runtime; endpoint может содержать ключ, не публикуйте его как безопасные preferences.
-
-<a id="module-agent-model-lifecycle-py"></a>
-
-## `agent/model_lifecycle.py`
-
-Последовательная отменяемая загрузка/выгрузка назначенных моделей LM Studio 0.4+/Ollama и read-only каталог.
-
-### `ModelLifecycle`
-
-[Исходник](../../agent/model_lifecycle.py#L8)
-
-```python
-class ModelLifecycle
-```
-
-Управляет одной активной моделью роли, не запускает shell и не завершает чужие процессы.
-
-### `ModelLifecycle.__init__`
-
-[Исходник](../../agent/model_lifecycle.py#L9)
-
-```python
-def __init__(self, roles, interrupted, context_length=4096, notify=None)
-```
-
-Инициализирует состояние экземпляра ModelLifecycle; параметры показаны в сигнатуре, назначение описано у класса.
-
-### `ModelLifecycle.origin`
-
-[Исходник](../../agent/model_lifecycle.py#L14)
-
-```python
-@staticmethod
-def origin(config)
-```
-
-Разрешает нативное управление только на корне проверенного сервера без произвольных префиксов маршрута.
-
-### `ModelLifecycle.request`
-
-[Исходник](../../agent/model_lifecycle.py#L19)
-
-```python
-def request(self, config, method, route, payload=None, cleanup=False)
-```
-
-Выполняет ограниченный запрос с коротким наблюдением Event отмены и отдельным deadline очистки.
-
-### `ModelLifecycle.request.run`
-
-[Исходник](../../agent/model_lifecycle.py#L20)
-
-```python
-async def run()
-```
-
-Владеет asyncio request и гарантирует его отмену/закрытие при выходе.
-
-### `ModelLifecycle.request.run.fetch`
-
-[Исходник](../../agent/model_lifecycle.py#L21)
-
-```python
-async def fetch()
-```
-
-Передаёт токен только выбранному endpoint без redirects/proxy env; ограничивает JSON ответ двумя МБ.
-
-### `ModelLifecycle.catalog`
-
-[Исходник](../../agent/model_lifecycle.py#L44)
-
-```python
-def catalog(self, config)
-```
-
-Читает LM Studio model keys/instances, Ollama tags/ps или OpenAI model IDs без загрузки весов.
-
-### `ModelLifecycle.unload`
-
-[Исходник](../../agent/model_lifecycle.py#L56)
-
-```python
-def unload(self, config, instance, cleanup=False)
-```
-
-Выгружает точный instance_id LM Studio либо exact Ollama model через keep_alive=0.
-
-### `ModelLifecycle.release`
-
-[Исходник](../../agent/model_lifecycle.py#L65)
-
-```python
-def release(self)
-```
-
-Выгружает известную активную модель; при ошибке сохраняет владение и запрещает последующую загрузку.
-
-### `ModelLifecycle.acquire`
-
-[Исходник](../../agent/model_lifecycle.py#L72)
-
-```python
-def acquire(self, config)
-```
-
-Повторно использует ту же модель либо выгружает прежнюю, проверяет каталог/чужую память, затем загружает только назначенную.
 
 <a id="module-agent-model-manager-py"></a>
 
@@ -1641,7 +1477,7 @@ def validate_preferences(params)
 
 ### `load_preferences`
 
-[Исходник](../../agent/model_preferences.py#L53)
+[Исходник](../../agent/model_preferences.py#L55)
 
 ```python
 def load_preferences()
@@ -1651,7 +1487,7 @@ def load_preferences()
 
 ### `save_preferences`
 
-[Исходник](../../agent/model_preferences.py#L61)
+[Исходник](../../agent/model_preferences.py#L63)
 
 ```python
 def save_preferences(params)
@@ -1677,7 +1513,7 @@ async def _request_probe(config, max_bytes)
 
 ### `_probe`
 
-[Исходник](../../agent/model_probe.py#L38)
+[Исходник](../../agent/model_probe.py#L42)
 
 ```python
 async def _probe(config, cancelled, timeout, max_bytes)
@@ -1687,7 +1523,7 @@ async def _probe(config, cancelled, timeout, max_bytes)
 
 ### `probe_model`
 
-[Исходник](../../agent/model_probe.py#L54)
+[Исходник](../../agent/model_probe.py#L58)
 
 ```python
 def probe_model(config, *, cancelled=None, timeout=30, max_bytes=100000)
@@ -1849,6 +1685,68 @@ def close(self)
 
 Идемпотентно закрывает последний job handle, завершая присоединённые процессы.
 
+<a id="module-agent-progress-guard-py"></a>
+
+## `agent/progress_guard.py`
+
+Окно отпечатков вызовов и результатов для остановки чередующихся циклов без продвижения.
+
+### `ProgressGuard`
+
+[Исходник](../../agent/progress_guard.py#L7)
+
+```python
+class ProgressGuard
+```
+
+Ограниченное окно SHA256 отпечатков имени, аргументов и результата вызова.
+
+### `ProgressGuard.__init__`
+
+[Исходник](../../agent/progress_guard.py#L8)
+
+```python
+def __init__(self, window=16, threshold=4)
+```
+
+Инициализирует состояние экземпляра ProgressGuard; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `ProgressGuard.observe`
+
+[Исходник](../../agent/progress_guard.py#L12)
+
+```python
+def observe(self, name, arguments, result)
+```
+
+Добавляет результат и обнаруживает четыре одинаковых исхода в последних шестнадцати действиях, включая A/B цикл.
+
+<a id="module-agent-project-command-py"></a>
+
+## `agent/project_command.py`
+
+Опциональный запуск тестов/сборок после отдельного подтверждения; ограниченный вывод, время и ProcessJob.
+
+### `run_project_command`
+
+[Исходник](../../agent/project_command.py#L15)
+
+```python
+def run_project_command(root, args, interrupted, approve)
+```
+
+Проверяет cwd/аргументы, требует отдельное подтверждение и запускает программу без shell с deadline и ограниченным выводом.
+
+### `run_project_command.read`
+
+[Исходник](../../agent/project_command.py#L43)
+
+```python
+def read()
+```
+
+Непрерывно освобождает stdout/stderr pipe, сохраняя не больше 64 КБ и считая объём для признака усечения.
+
 <a id="module-agent-project-memory-py"></a>
 
 ## `agent/project_memory.py`
@@ -1964,6 +1862,138 @@ def merge_memory_update(existing: dict[str, Any], update: Any, project_root: str
 ```
 
 Объединяет только разрешённые поля модельного обновления с существующей памятью и валидирует итог.
+
+<a id="module-agent-projects-py"></a>
+
+## `agent/projects.py`
+
+Атомарное хранение именованных пространств: папка, инструкции и метаданные.
+
+### `ProjectStore`
+
+[Исходник](../../agent/projects.py#L10)
+
+```python
+class ProjectStore
+```
+
+Каталог пространств, объединяющих разговоры общими инструкциями и необязательной папкой IDE.
+
+### `ProjectStore.__init__`
+
+[Исходник](../../agent/projects.py#L11)
+
+```python
+def __init__(self, directory=None)
+```
+
+Инициализирует состояние экземпляра ProjectStore; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `ProjectStore.list`
+
+[Исходник](../../agent/projects.py#L15)
+
+```python
+def list(self)
+```
+
+Читает до 1 МБ каталога и явно сообщает повреждение вместо молчаливой потери данных.
+
+### `ProjectStore.get`
+
+[Исходник](../../agent/projects.py#L24)
+
+```python
+def get(self, project_id)
+```
+
+Возвращает выбранный проект либо совместимое личное пространство с пустым ID.
+
+### `ProjectStore.save`
+
+[Исходник](../../agent/projects.py#L30)
+
+```python
+def save(self, params)
+```
+
+Проверяет имя, инструкции и существование папки; атомарно сохраняет проект с временными метками.
+
+### `ProjectStore.remove`
+
+[Исходник](../../agent/projects.py#L51)
+
+```python
+def remove(self, project_id)
+```
+
+Удаляет только метаданные группы; перенос разговоров организует bridge, файлы проекта не затрагиваются.
+
+<a id="module-agent-responses-adapter-py"></a>
+
+## `agent/responses_adapter.py`
+
+Преобразование канонической истории и потоковых событий OpenAI Responses в существующий цикл агента.
+
+### `response_request`
+
+[Исходник](../../agent/responses_adapter.py#L5)
+
+```python
+def response_request(params, cache=None)
+```
+
+Преобразует сообщения/tool results в Responses input, добавляет инструкции и store=false, сохраняет reasoning continuity внутри запуска.
+
+### `chat_chunk`
+
+[Исходник](../../agent/responses_adapter.py#L28)
+
+```python
+def chat_chunk(content=None, calls=None, finish=None)
+```
+
+Создаёт минимальный совместимый объект choices/delta для существующего потокового AgentEngine.
+
+### `ResponseEvents`
+
+[Исходник](../../agent/responses_adapter.py#L32)
+
+```python
+class ResponseEvents
+```
+
+Состояние преобразования одного Responses stream: индексы функций и уже полученные аргументы.
+
+### `ResponseEvents.__init__`
+
+[Исходник](../../agent/responses_adapter.py#L33)
+
+```python
+def __init__(self, cache)
+```
+
+Инициализирует состояние экземпляра ResponseEvents; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `ResponseEvents.translate`
+
+[Исходник](../../agent/responses_adapter.py#L36)
+
+```python
+def translate(self, event)
+```
+
+Переводит текст и аргументы функций, обрабатывает завершение/ошибку и сохраняет output items для следующего tool turn.
+
+### `response_completion`
+
+[Исходник](../../agent/responses_adapter.py#L59)
+
+```python
+def response_completion(response)
+```
+
+Приводит нестриминговый output_text к интерфейсу Chat Completion, используемому проверкой завершения и памятью.
 
 <a id="module-agent-runtime-py"></a>
 
@@ -2105,7 +2135,7 @@ def discover(self)
 
 ### `SkillManager._metadata`
 
-[Исходник](../../agent/skills.py#L15)
+[Исходник](../../agent/skills.py#L16)
 
 ```python
 def _metadata(self, path)
@@ -2115,7 +2145,7 @@ def _metadata(self, path)
 
 ### `SkillManager._summary`
 
-[Исходник](../../agent/skills.py#L22)
+[Исходник](../../agent/skills.py#L23)
 
 ```python
 @staticmethod
@@ -2126,7 +2156,7 @@ def _summary(text)
 
 ### `SkillManager.load`
 
-[Исходник](../../agent/skills.py#L28)
+[Исходник](../../agent/skills.py#L29)
 
 ```python
 def load(self, skill_id)
@@ -2136,7 +2166,7 @@ def load(self, skill_id)
 
 ### `SkillManager.select`
 
-[Исходник](../../agent/skills.py#L33)
+[Исходник](../../agent/skills.py#L34)
 
 ```python
 def select(self, prompt, limit=3)
@@ -2423,24 +2453,24 @@ def search_text(root, query, path='.', case_sensitive=False, max_depth=5)
 [Исходник](../../agent/tools.py#L123)
 
 ```python
-def preview_file_change(root, path, content)
+def preview_file_change(root, path, content, *, max_existing_bytes=MAX_READ_BYTES)
 ```
 
 Строит unified diff и снимок SHA-256 исходных байтов/предлагаемого текста с нормализованным путём, не записывая файл.
 
 ### `write_file`
 
-[Исходник](../../agent/tools.py#L166)
+[Исходник](../../agent/tools.py#L167)
 
 ```python
-def write_file(root, path, content, overwrite=False, *, approved=False, expected_snapshot=None)
+def write_file(root, path, content, overwrite=False, *, approved=False, expected_snapshot=None, max_existing_bytes=MAX_READ_BYTES)
 ```
 
 Требует approval и совпадающий снимок preview; дважды проверяет состояние, атомарно заменяет существующий файл или создаёт новый без перезаписи.
 
 ### `execute_tool`
 
-[Исходник](../../agent/tools.py#L231)
+[Исходник](../../agent/tools.py#L232)
 
 ```python
 def execute_tool(name, arguments, project_root, settings=None, *, approved=False, expected_snapshot=None)
@@ -2450,7 +2480,7 @@ def execute_tool(name, arguments, project_root, settings=None, *, approved=False
 
 ### `run_sandbox_self_test`
 
-[Исходник](../../agent/tools.py#L255)
+[Исходник](../../agent/tools.py#L256)
 
 ```python
 def run_sandbox_self_test()
@@ -2460,7 +2490,7 @@ def run_sandbox_self_test()
 
 ### `run_sandbox_self_test.SandboxTests`
 
-[Исходник](../../agent/tools.py#L260)
+[Исходник](../../agent/tools.py#L261)
 
 ```python
 class SandboxTests(unittest.TestCase)
@@ -2470,7 +2500,7 @@ class SandboxTests(unittest.TestCase)
 
 ### `run_sandbox_self_test.SandboxTests.setUp`
 
-[Исходник](../../agent/tools.py#L261)
+[Исходник](../../agent/tools.py#L262)
 
 ```python
 def setUp(self)
@@ -2480,7 +2510,7 @@ def setUp(self)
 
 ### `run_sandbox_self_test.SandboxTests.tearDown`
 
-[Исходник](../../agent/tools.py#L268)
+[Исходник](../../agent/tools.py#L269)
 
 ```python
 def tearDown(self)
@@ -2490,7 +2520,7 @@ def tearDown(self)
 
 ### `run_sandbox_self_test.SandboxTests.test_read_inside_allowed`
 
-[Исходник](../../agent/tools.py#L269)
+[Исходник](../../agent/tools.py#L270)
 
 ```python
 def test_read_inside_allowed(self)
@@ -2500,7 +2530,7 @@ def test_read_inside_allowed(self)
 
 ### `run_sandbox_self_test.SandboxTests.test_parent_traversal_denied`
 
-[Исходник](../../agent/tools.py#L270)
+[Исходник](../../agent/tools.py#L271)
 
 ```python
 def test_parent_traversal_denied(self)
@@ -2510,7 +2540,7 @@ def test_parent_traversal_denied(self)
 
 ### `run_sandbox_self_test.SandboxTests.test_absolute_outside_denied`
 
-[Исходник](../../agent/tools.py#L272)
+[Исходник](../../agent/tools.py#L273)
 
 ```python
 def test_absolute_outside_denied(self)
@@ -2520,7 +2550,7 @@ def test_absolute_outside_denied(self)
 
 ### `run_sandbox_self_test.SandboxTests.test_list_outside_denied`
 
-[Исходник](../../agent/tools.py#L274)
+[Исходник](../../agent/tools.py#L275)
 
 ```python
 def test_list_outside_denied(self)
@@ -2530,7 +2560,7 @@ def test_list_outside_denied(self)
 
 ### `run_sandbox_self_test.SandboxTests.test_search_outside_denied`
 
-[Исходник](../../agent/tools.py#L277)
+[Исходник](../../agent/tools.py#L278)
 
 ```python
 def test_search_outside_denied(self)
@@ -2540,7 +2570,7 @@ def test_search_outside_denied(self)
 
 ### `run_sandbox_self_test.SandboxTests.test_symlink_escape_denied`
 
-[Исходник](../../agent/tools.py#L280)
+[Исходник](../../agent/tools.py#L281)
 
 ```python
 def test_symlink_escape_denied(self)
@@ -3025,7 +3055,7 @@ Property совместимости для проверки последнего
 
 ### `calculate`
 
-[Исходник](../../core/python/assistant_service.py#L23)
+[Исходник](../../core/python/assistant_service.py#L26)
 
 ```python
 def calculate(expression)
@@ -3035,7 +3065,7 @@ def calculate(expression)
 
 ### `calculate.evaluate`
 
-[Исходник](../../core/python/assistant_service.py#L28)
+[Исходник](../../core/python/assistant_service.py#L31)
 
 ```python
 def evaluate(node)
@@ -3045,7 +3075,7 @@ def evaluate(node)
 
 ### `AssistantService`
 
-[Исходник](../../core/python/assistant_service.py#L41)
+[Исходник](../../core/python/assistant_service.py#L44)
 
 ```python
 class AssistantService
@@ -3055,7 +3085,7 @@ class AssistantService
 
 ### `AssistantService.__init__`
 
-[Исходник](../../core/python/assistant_service.py#L42)
+[Исходник](../../core/python/assistant_service.py#L45)
 
 ```python
 def __init__(self, emit)
@@ -3065,7 +3095,7 @@ def __init__(self, emit)
 
 ### `AssistantService.notes`
 
-[Исходник](../../core/python/assistant_service.py#L45)
+[Исходник](../../core/python/assistant_service.py#L48)
 
 ```python
 def notes(self)
@@ -3075,7 +3105,7 @@ def notes(self)
 
 ### `AssistantService.execute`
 
-[Исходник](../../core/python/assistant_service.py#L52)
+[Исходник](../../core/python/assistant_service.py#L57)
 
 ```python
 def execute(self, name, args)
@@ -3085,7 +3115,7 @@ def execute(self, name, args)
 
 ### `AssistantService.fire`
 
-[Исходник](../../core/python/assistant_service.py#L84)
+[Исходник](../../core/python/assistant_service.py#L92)
 
 ```python
 def fire(self, key)
@@ -3095,7 +3125,7 @@ def fire(self, key)
 
 ### `AssistantService.shutdown`
 
-[Исходник](../../core/python/assistant_service.py#L90)
+[Исходник](../../core/python/assistant_service.py#L98)
 
 ```python
 def shutdown(self)
@@ -3111,7 +3141,7 @@ JSON-lines вход процесса, dispatch команд, UI-файловый
 
 ### `emit`
 
-[Исходник](../../core/python/bridge.py#L28)
+[Исходник](../../core/python/bridge.py#L29)
 
 ```python
 def emit(message)
@@ -3121,7 +3151,7 @@ def emit(message)
 
 ### `resolve_inside`
 
-[Исходник](../../core/python/bridge.py#L49)
+[Исходник](../../core/python/bridge.py#L50)
 
 ```python
 def resolve_inside(relative: str) -> Path
@@ -3131,7 +3161,7 @@ def resolve_inside(relative: str) -> Path
 
 ### `handle`
 
-[Исходник](../../core/python/bridge.py#L59)
+[Исходник](../../core/python/bridge.py#L60)
 
 ```python
 def handle(method: str, params: dict) -> dict
@@ -3141,7 +3171,7 @@ Whitelist диспетчер RPC: состояние, проект, модель
 
 ### `_handle`
 
-[Исходник](../../core/python/bridge.py#L63)
+[Исходник](../../core/python/bridge.py#L64)
 
 ```python
 def _handle(method: str, params: dict) -> dict
@@ -3151,13 +3181,109 @@ Dispatcher RPC под общим TaskService lock: области чатов, п
 
 ### `main`
 
-[Исходник](../../core/python/bridge.py#L202)
+[Исходник](../../core/python/bridge.py#L249)
 
 ```python
 def main() -> None
 ```
 
 Цикл stdin JSON-lines с ID ответов, обработкой некорректного ввода и shutdown при EOF.
+
+### `main.discover`
+
+[Исходник](../../core/python/bridge.py#L259)
+
+```python
+def discover(request_id=req_id, server_id=str((req.get('params') or {}).get('id', '')))
+```
+
+Выполняет MCP discovery отдельным потоком, чтобы основной stdin-loop продолжал принимать запросы и отмену.
+
+<a id="module-core-python-conversation-service-py"></a>
+
+## `core/python/conversation_service.py`
+
+Операции организации чатов с проверкой пространства, режима и корня файлов.
+
+### `ConversationService`
+
+[Исходник](../../core/python/conversation_service.py#L10)
+
+```python
+class ConversationService
+```
+
+Сервис организации канонической истории без доступа к произвольным файлам проекта.
+
+### `ConversationService.__init__`
+
+[Исходник](../../core/python/conversation_service.py#L11)
+
+```python
+def __init__(self, tasks)
+```
+
+Инициализирует состояние экземпляра ConversationService; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `ConversationService.scoped`
+
+[Исходник](../../core/python/conversation_service.py#L14)
+
+```python
+def scoped(self, root, params)
+```
+
+Проверяет одновременно ID, режим, корень файлов и пространство; чужой чат не допускается к операции.
+
+### `ConversationService.update`
+
+[Исходник](../../core/python/conversation_service.py#L21)
+
+```python
+def update(self, root, params)
+```
+
+Меняет pin/archive/project_id только в idle-состоянии и сбрасывает активный выбор при перемещении или архиве.
+
+### `ConversationService.delete`
+
+[Исходник](../../core/python/conversation_service.py#L39)
+
+```python
+def delete(self, root, params)
+```
+
+Требует подтверждение, удаляет выбранный чат и checkpoint, сбрасывает активный выбор.
+
+### `ConversationService.fork`
+
+[Исходник](../../core/python/conversation_service.py#L49)
+
+```python
+def fork(self, root, params)
+```
+
+Копирует завершённую историю без активного checkpoint или готовит повтор последнего запроса в независимой ветке.
+
+### `ConversationService.export`
+
+[Исходник](../../core/python/conversation_service.py#L62)
+
+```python
+def export(self, root, params)
+```
+
+Формирует ограниченный Markdown/JSON для системного окна сохранения; не пишет путь из model arguments.
+
+### `ConversationService.search`
+
+[Исходник](../../core/python/conversation_service.py#L77)
+
+```python
+def search(self, root, params)
+```
+
+Ищет название и user/assistant текст внутри режима/пространства, разделяет архив и сортирует закреплённые выше.
 
 <a id="module-core-python-desktop-service-py"></a>
 
@@ -3313,7 +3439,7 @@ def execute(self, name, args, prompt, cancelled)
 
 ### `EditorService`
 
-[Исходник](../../core/python/editor_service.py#L9)
+[Исходник](../../core/python/editor_service.py#L11)
 
 ```python
 class EditorService
@@ -3323,7 +3449,7 @@ class EditorService
 
 ### `EditorService.__init__`
 
-[Исходник](../../core/python/editor_service.py#L10)
+[Исходник](../../core/python/editor_service.py#L12)
 
 ```python
 def __init__(self)
@@ -3333,7 +3459,7 @@ def __init__(self)
 
 ### `EditorService.clear`
 
-[Исходник](../../core/python/editor_service.py#L13)
+[Исходник](../../core/python/editor_service.py#L15)
 
 ```python
 def clear(self)
@@ -3343,7 +3469,7 @@ def clear(self)
 
 ### `EditorService.read`
 
-[Исходник](../../core/python/editor_service.py#L16)
+[Исходник](../../core/python/editor_service.py#L18)
 
 ```python
 def read(self, root, path)
@@ -3353,23 +3479,149 @@ def read(self, root, path)
 
 ### `EditorService.preview`
 
-[Исходник](../../core/python/editor_service.py#L37)
+[Исходник](../../core/python/editor_service.py#L40)
 
 ```python
 def preview(self, root, params)
 ```
 
-Сверяет editor revision с диском, готовит конкретный diff и сохраняет одноразовый proposal без записи.
+Сверяет editor revision с диском и снимком diff, готовит предложение до 1 МБ и сохраняет одноразовый proposal без записи.
 
 ### `EditorService.resolve`
 
-[Исходник](../../core/python/editor_service.py#L60)
+[Исходник](../../core/python/editor_service.py#L66)
 
 ```python
 def resolve(self, root, params)
 ```
 
 Проверяет ID/root/решение, потребляет proposal и выполняет Apply с повторной проверкой snapshot; Reject/Cancel не пишут.
+
+<a id="module-core-python-extension-service-py"></a>
+
+## `core/python/extension_service.py`
+
+Единый реестр разрешённых возможностей, progressive skills, импорт пакетов и снимки для одного запуска.
+
+### `function`
+
+[Исходник](../../core/python/extension_service.py#L19)
+
+```python
+def function(name, description, properties, required=())
+```
+
+Собирает единообразное определение function tool с JSON Schema и запретом лишних аргументов.
+
+### `ExtensionService`
+
+[Исходник](../../core/python/extension_service.py#L26)
+
+```python
+class ExtensionService
+```
+
+Владелец публичного реестра tools/пакетов/навыков/MCP и отдельного хранилища токенов в памяти.
+
+### `ExtensionService.__init__`
+
+[Исходник](../../core/python/extension_service.py#L27)
+
+```python
+def __init__(self, directory=None, bundled=None)
+```
+
+Инициализирует состояние экземпляра ExtensionService; параметры показаны в сигнатуре, назначение описано у класса.
+
+### `ExtensionService.save`
+
+[Исходник](../../core/python/extension_service.py#L42)
+
+```python
+def save(self)
+```
+
+Атомарно пишет публичное состояние без токенов и API-ключей.
+
+### `ExtensionService.skills`
+
+[Исходник](../../core/python/extension_service.py#L45)
+
+```python
+def skills(self)
+```
+
+Объединяет метаданные встроенных SKILL.md и ограниченные пользовательские JSON-инструкции с переключателями.
+
+### `ExtensionService.catalog`
+
+[Исходник](../../core/python/extension_service.py#L58)
+
+```python
+def catalog(self)
+```
+
+Возвращает GUI наборы, инструменты, навыки, пакеты и MCP; секрет не возвращается, доступен только has_token.
+
+### `ExtensionService.configure`
+
+[Исходник](../../core/python/extension_service.py#L74)
+
+```python
+def configure(self, params)
+```
+
+Проверяет и применяет конкретное действие переключения/редактирования, не предоставляя модели универсальное изменение настроек.
+
+### `ExtensionService._save_skill`
+
+[Исходник](../../core/python/extension_service.py#L118)
+
+```python
+def _save_skill(self, params, generated=False)
+```
+
+Проверяет длины и ID; создаёт пользовательскую инструкцию или новый выключенный черновик опыта модели.
+
+### `ExtensionService.import_plugin`
+
+[Исходник](../../core/python/extension_service.py#L131)
+
+```python
+def import_plugin(self, manifest)
+```
+
+Валидирует ограниченный декларативный пакет до записи; импортирует выключенные навыки/серверы без произвольного кода.
+
+### `ExtensionService.discover_server`
+
+[Исходник](../../core/python/extension_service.py#L154)
+
+```python
+def discover_server(self, identity)
+```
+
+Подключается к MCP, получает схемы, назначает уникальные псевдонимы и отвергает устаревший результат при смене настроек.
+
+### `ExtensionService.snapshot`
+
+[Исходник](../../core/python/extension_service.py#L171)
+
+```python
+def snapshot(self, groups)
+```
+
+Фиксирует разрешения одного запуска и каталог метаданных навыков; тела инструкций в prompt не подставляются заранее.
+
+### `ExtensionService.execute`
+
+[Исходник](../../core/python/extension_service.py#L192)
+
+```python
+def execute(self, snapshot, name, args, interrupted, approve)
+```
+
+Повторно проверяет разрешение, обслуживает skills и MCP, валидирует схему и запрашивает отдельное подтверждение внешнего действия.
 
 <a id="module-core-python-memory-service-py"></a>
 
@@ -3809,7 +4061,7 @@ def shutdown(self)
 
 ### `TaskService`
 
-[Исходник](../../core/python/task_service.py#L28)
+[Исходник](../../core/python/task_service.py#L31)
 
 ```python
 class TaskService
@@ -3819,7 +4071,7 @@ class TaskService
 
 ### `TaskService.__init__`
 
-[Исходник](../../core/python/task_service.py#L29)
+[Исходник](../../core/python/task_service.py#L32)
 
 ```python
 def __init__(self, emit, engine_factory=AgentEngine)
@@ -3827,49 +4079,9 @@ def __init__(self, emit, engine_factory=AgentEngine)
 
 Инициализирует состояние экземпляра TaskService; параметры показаны в сигнатуре, назначение описано у класса.
 
-### `TaskService.workflow_preferences`
-
-[Исходник](../../core/python/task_service.py#L59)
-
-```python
-def workflow_preferences(self)
-```
-
-Возвращает настройки IDE без секретов.
-
-### `TaskService.configure_workflow`
-
-[Исходник](../../core/python/task_service.py#L62)
-
-```python
-def configure_workflow(self, params)
-```
-
-Проверяет настройки и ключи до сохранения; блокирует смену во время задачи, ключи оставляет в памяти.
-
-### `TaskService.start_workflow_discovery`
-
-[Исходник](../../core/python/task_service.py#L74)
-
-```python
-def start_workflow_discovery(self, params, respond)
-```
-
-Снимает конфигурацию выбранной роли и запускает отменяемое чтение каталога в отдельном потоке.
-
-### `TaskService.start_workflow_discovery.discover`
-
-[Исходник](../../core/python/task_service.py#L87)
-
-```python
-def discover()
-```
-
-Выбирает каталог нативного lifecycle либо обычный OpenAI discovery и возвращает ограниченную ошибку.
-
 ### `TaskService.idle`
 
-[Исходник](../../core/python/task_service.py#L95)
+[Исходник](../../core/python/task_service.py#L66)
 
 ```python
 def idle(self)
@@ -3879,7 +4091,7 @@ def idle(self)
 
 ### `TaskService.configure`
 
-[Исходник](../../core/python/task_service.py#L100)
+[Исходник](../../core/python/task_service.py#L71)
 
 ```python
 def configure(self, params)
@@ -3889,7 +4101,7 @@ def configure(self, params)
 
 ### `TaskService.preferences`
 
-[Исходник](../../core/python/task_service.py#L108)
+[Исходник](../../core/python/task_service.py#L79)
 
 ```python
 def preferences(self)
@@ -3899,7 +4111,7 @@ def preferences(self)
 
 ### `TaskService.request_delegation`
 
-[Исходник](../../core/python/task_service.py#L112)
+[Исходник](../../core/python/task_service.py#L83)
 
 ```python
 def request_delegation(self, name, args)
@@ -3909,7 +4121,7 @@ def request_delegation(self, name, args)
 
 ### `TaskService.prepare_handoff`
 
-[Исходник](../../core/python/task_service.py#L124)
+[Исходник](../../core/python/task_service.py#L97)
 
 ```python
 def prepare_handoff(self, root, params)
@@ -3919,7 +4131,7 @@ def prepare_handoff(self, root, params)
 
 ### `TaskService.discard_handoff`
 
-[Исходник](../../core/python/task_service.py#L138)
+[Исходник](../../core/python/task_service.py#L111)
 
 ```python
 def discard_handoff(self, params)
@@ -3929,7 +4141,7 @@ def discard_handoff(self, params)
 
 ### `TaskService.companion_preferences`
 
-[Исходник](../../core/python/task_service.py#L145)
+[Исходник](../../core/python/task_service.py#L118)
 
 ```python
 def companion_preferences(self)
@@ -3939,7 +4151,7 @@ def companion_preferences(self)
 
 ### `TaskService.configure_companion`
 
-[Исходник](../../core/python/task_service.py#L148)
+[Исходник](../../core/python/task_service.py#L121)
 
 ```python
 def configure_companion(self, params)
@@ -3949,7 +4161,7 @@ def configure_companion(self, params)
 
 ### `TaskService.models`
 
-[Исходник](../../core/python/task_service.py#L154)
+[Исходник](../../core/python/task_service.py#L127)
 
 ```python
 def models(self, config=None, cancelled=None)
@@ -3959,7 +4171,7 @@ def models(self, config=None, cancelled=None)
 
 ### `TaskService.diagnostic_config`
 
-[Исходник](../../core/python/task_service.py#L157)
+[Исходник](../../core/python/task_service.py#L130)
 
 ```python
 def diagnostic_config(self, params=None)
@@ -3969,7 +4181,7 @@ def diagnostic_config(self, params=None)
 
 ### `TaskService.start_model_probe`
 
-[Исходник](../../core/python/task_service.py#L162)
+[Исходник](../../core/python/task_service.py#L135)
 
 ```python
 def start_model_probe(self, params, respond)
@@ -3979,7 +4191,7 @@ def start_model_probe(self, params, respond)
 
 ### `TaskService.start_model_probe.run_probe`
 
-[Исходник](../../core/python/task_service.py#L169)
+[Исходник](../../core/python/task_service.py#L142)
 
 ```python
 def run_probe()
@@ -3989,7 +4201,7 @@ def run_probe()
 
 ### `TaskService.cancel_model_setup`
 
-[Исходник](../../core/python/task_service.py#L178)
+[Исходник](../../core/python/task_service.py#L151)
 
 ```python
 def cancel_model_setup(self)
@@ -3999,7 +4211,7 @@ def cancel_model_setup(self)
 
 ### `TaskService.start_model_discovery`
 
-[Исходник](../../core/python/task_service.py#L183)
+[Исходник](../../core/python/task_service.py#L156)
 
 ```python
 def start_model_discovery(self, respond, params=None)
@@ -4009,7 +4221,7 @@ def start_model_discovery(self, respond, params=None)
 
 ### `TaskService.start_model_discovery.run_discovery`
 
-[Исходник](../../core/python/task_service.py#L190)
+[Исходник](../../core/python/task_service.py#L163)
 
 ```python
 def run_discovery()
@@ -4019,7 +4231,7 @@ def run_discovery()
 
 ### `TaskService.move_chat`
 
-[Исходник](../../core/python/task_service.py#L200)
+[Исходник](../../core/python/task_service.py#L173)
 
 ```python
 def move_chat(self, params)
@@ -4029,7 +4241,7 @@ def move_chat(self, params)
 
 ### `TaskService.chats`
 
-[Исходник](../../core/python/task_service.py#L214)
+[Исходник](../../core/python/task_service.py#L187)
 
 ```python
 def chats(self, root, mode=None)
@@ -4039,7 +4251,7 @@ def chats(self, root, mode=None)
 
 ### `TaskService.rename`
 
-[Исходник](../../core/python/task_service.py#L220)
+[Исходник](../../core/python/task_service.py#L193)
 
 ```python
 def rename(self, root, params)
@@ -4049,7 +4261,7 @@ def rename(self, root, params)
 
 ### `TaskService.select_chat`
 
-[Исходник](../../core/python/task_service.py#L236)
+[Исходник](../../core/python/task_service.py#L209)
 
 ```python
 def select_chat(self, root, chat_id=None, mode=None)
@@ -4059,7 +4271,7 @@ def select_chat(self, root, chat_id=None, mode=None)
 
 ### `TaskService._recover_chat`
 
-[Исходник](../../core/python/task_service.py#L252)
+[Исходник](../../core/python/task_service.py#L227)
 
 ```python
 def _recover_chat(self)
@@ -4069,7 +4281,7 @@ def _recover_chat(self)
 
 ### `TaskService._persist_chat`
 
-[Исходник](../../core/python/task_service.py#L321)
+[Исходник](../../core/python/task_service.py#L296)
 
 ```python
 def _persist_chat(self)
@@ -4079,7 +4291,7 @@ def _persist_chat(self)
 
 ### `TaskService._task_event`
 
-[Исходник](../../core/python/task_service.py#L326)
+[Исходник](../../core/python/task_service.py#L301)
 
 ```python
 def _task_event(self, task)
@@ -4089,17 +4301,17 @@ def _task_event(self, task)
 
 ### `TaskService._event`
 
-[Исходник](../../core/python/task_service.py#L332)
+[Исходник](../../core/python/task_service.py#L307)
 
 ```python
-def _event(self, kind, **data)
+def _event(self, event_type, **data)
 ```
 
 Добавляет общие run_id/chat_id к событию и передаёт emit.
 
 ### `TaskService._flush_text`
 
-[Исходник](../../core/python/task_service.py#L335)
+[Исходник](../../core/python/task_service.py#L310)
 
 ```python
 def _flush_text(self)
@@ -4109,7 +4321,7 @@ def _flush_text(self)
 
 ### `TaskService._flush_scheduled`
 
-[Исходник](../../core/python/task_service.py#L344)
+[Исходник](../../core/python/task_service.py#L319)
 
 ```python
 def _flush_scheduled(self, run_id)
@@ -4119,7 +4331,7 @@ def _flush_scheduled(self, run_id)
 
 ### `TaskService._persist_draft`
 
-[Исходник](../../core/python/task_service.py#L349)
+[Исходник](../../core/python/task_service.py#L324)
 
 ```python
 def _persist_draft(self)
@@ -4129,7 +4341,7 @@ def _persist_draft(self)
 
 ### `TaskService._persist_draft_scheduled`
 
-[Исходник](../../core/python/task_service.py#L354)
+[Исходник](../../core/python/task_service.py#L329)
 
 ```python
 def _persist_draft_scheduled(self, run_id, turn)
@@ -4139,7 +4351,7 @@ def _persist_draft_scheduled(self, run_id, turn)
 
 ### `TaskService._text_delta`
 
-[Исходник](../../core/python/task_service.py#L365)
+[Исходник](../../core/python/task_service.py#L340)
 
 ```python
 def _text_delta(self, turn, text)
@@ -4149,7 +4361,7 @@ def _text_delta(self, turn, text)
 
 ### `TaskService._chat_event`
 
-[Исходник](../../core/python/task_service.py#L395)
+[Исходник](../../core/python/task_service.py#L370)
 
 ```python
 def _chat_event(self, role, text)
@@ -4159,7 +4371,7 @@ def _chat_event(self, role, text)
 
 ### `TaskService._request_approval`
 
-[Исходник](../../core/python/task_service.py#L403)
+[Исходник](../../core/python/task_service.py#L379)
 
 ```python
 def _request_approval(self, path, diff, exists)
@@ -4167,9 +4379,19 @@ def _request_approval(self, path, diff, exists)
 
 Создаёт UUID предложения или немедленно отменяет его, если двигатель уже остановлен.
 
+### `TaskService._approve_external`
+
+[Исходник](../../core/python/task_service.py#L387)
+
+```python
+def _approve_external(self, title, arguments, approval_kind='mcp')
+```
+
+Ждёт отдельное решение MCP/команды, проверяет актуальный запуск и поддерживает отмену независимо от файлового apply_all.
+
 ### `TaskService.resolve_approval`
 
-[Исходник](../../core/python/task_service.py#L411)
+[Исходник](../../core/python/task_service.py#L401)
 
 ```python
 def resolve_approval(self, params)
@@ -4179,7 +4401,7 @@ def resolve_approval(self, params)
 
 ### `TaskService.cancel`
 
-[Исходник](../../core/python/task_service.py#L422)
+[Исходник](../../core/python/task_service.py#L415)
 
 ```python
 def cancel(self)
@@ -4189,7 +4411,7 @@ def cancel(self)
 
 ### `TaskService.start`
 
-[Исходник](../../core/python/task_service.py#L431)
+[Исходник](../../core/python/task_service.py#L425)
 
 ```python
 def start(self, root: Path, params)
@@ -4199,7 +4421,7 @@ def start(self, root: Path, params)
 
 ### `TaskService.start.dispatch`
 
-[Исходник](../../core/python/task_service.py#L465)
+[Исходник](../../core/python/task_service.py#L458)
 
 ```python
 def dispatch(name, args)
@@ -4209,7 +4431,7 @@ def dispatch(name, args)
 
 ### `TaskService._save_messages`
 
-[Исходник](../../core/python/task_service.py#L506)
+[Исходник](../../core/python/task_service.py#L502)
 
 ```python
 def _save_messages(self, messages)
@@ -4219,7 +4441,7 @@ def _save_messages(self, messages)
 
 ### `TaskService._run`
 
-[Исходник](../../core/python/task_service.py#L518)
+[Исходник](../../core/python/task_service.py#L516)
 
 ```python
 def _run(self)
@@ -4229,7 +4451,7 @@ def _run(self)
 
 ### `TaskService.shutdown`
 
-[Исходник](../../core/python/task_service.py#L558)
+[Исходник](../../core/python/task_service.py#L556)
 
 ```python
 def shutdown(self)
@@ -4560,6 +4782,22 @@ def register(module, text)
 ```
 
 Добавляет вручную написанные строки «имя | назначение» в словарь аннотаций.
+
+<a id="module-tools-generate-brand-icons-py"></a>
+
+## `tools/generate_brand_icons.py`
+
+Разработка: рендер SVG через Qt и запись PNG/многоразмерного ICO без Pillow.
+
+### `main`
+
+[Исходник](../../tools/generate_brand_icons.py#L9)
+
+```python
+def main()
+```
+
+Рендерит SVG в 512px PNG и записывает ICO directory/PNG-кадры семи разрешений для Windows.
 
 <a id="module-tools-generate-code-reference-py"></a>
 

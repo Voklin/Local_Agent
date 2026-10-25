@@ -8,6 +8,7 @@ class SkillManager:
         self.root = Path(root) if root else Path(__file__).resolve().parent.parent / "skills"
     def discover(self):
         result=[]
+        if getattr(self,'disabled',False):return result
         if not self.root.exists(): return result
         for p in sorted(self.root.rglob("SKILL.md")):
             result.append(self._metadata(p))

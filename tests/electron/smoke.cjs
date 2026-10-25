@@ -1,4 +1,4 @@
-// Run with Electron after building and starting Vite on 127.0.0.1:5173.
+// Run with Electron after building; the renderer uses the isolated dist files.
 // Uses the real main process, preload, renderer, bridge and engine.
 const { app, BrowserWindow, dialog, ipcMain, desktopCapturer, nativeImage } = require('electron');
 app.disableHardwareAcceleration();
@@ -66,10 +66,14 @@ const appData=fs.mkdtempSync(path.join(testRoot,'userdata-'));
 process.env.LOCALAPPDATA = appData;
 app.setPath('userData', path.join(appData, 'electron-profile'));
 BrowserWindow.prototype.show = function () {}; // Keep the test window hidden.
+BrowserWindow.prototype.loadURL = function () { return this.loadFile(path.resolve(__dirname,'../../apps/desktop/dist/index.html')); };
 let discardChoice = 1;
 dialog.showMessageBox = async () => ({response:discardChoice});
 fs.writeFileSync(path.join(project,'editor-a.txt'),'first\nsecond\n');
 fs.writeFileSync(path.join(project,'editor-b.py'),'print(1)\n');
+fs.mkdirSync(path.join(project,'nested'));
+fs.writeFileSync(path.join(project,'nested/draft.txt'),'nested source');
+fs.symlinkSync(path.join(project,'nested'),path.join(project,'alias-nested'),'junction');
 const allowedAppFixture=path.join(project,'allowed-app.exe');fs.writeFileSync(allowedAppFixture,'fixture only, never launched');
 dialog.showOpenDialog = async (_win,options) => ({ canceled:false,filePaths:[options?.title==='Разрешить Лоле запуск приложения'?allowedAppFixture:options?.title==='Выберите GGUF'?process.env.LCA_TEST_GGUF:options?.title==='Выберите установленный llama-server'?process.env.LCA_TEST_RUNTIME:project] });
 
@@ -99,17 +103,10 @@ const model = http.createServer((req, res) => {
     }
     const encode = delta => 'data: ' + JSON.stringify({id:'test',object:'chat.completion.chunk',created:0,model:'smoke-model',choices:[{index:0,delta,finish_reason:null}]}) + '\n\n';
     res.writeHead(200, { 'Content-Type':'text/event-stream' });
-    if(input.model.startsWith('workflow-')) {
-      const role=input.model.slice('workflow-'.length);
-      const lastUser=input.messages.map(m=>m.role).lastIndexOf('user');
-      const acted=input.messages.slice(lastUser+1).some(m=>m.role==='tool');
-      const delta=role==='conductor'?{content:'План: создать workflow.json и проверить JSON.'}:role==='coder'?{content:JSON.stringify({files:[{path:'workflow.json',content:'{"ok":true}'}]})}:role==='builder'?!acted?{tool_calls:[{index:0,id:'workflow-write',type:'function',function:{name:'write_file',arguments:JSON.stringify({path:'workflow.json',content:'{"ok":true}',overwrite:true})}}]}:{content:'workflow.json создан.'}:!acted?{tool_calls:[{index:0,id:'workflow-read',type:'function',function:{name:'read_file',arguments:'{"path":"workflow.json"}'}}]}:{content:'{"verdict":"pass","summary":"Проверено чтением и JSON","issues":[]}'};
-      res.end(encode(delta)+'data: [DONE]\n\n');return;
-    }
     if(modelMode==='desktop') {
       const delta=input.messages.some(message=>message.role==='tool')?{content:'Screenshot created'}:{tool_calls:[{index:0,id:'screen-fixture',type:'function',function:{name:'desktop_screenshot',arguments:'{}'}}]};
       res.end(encode(delta)+'data: [DONE]\n\n');
-    }else if (!input.tools || (input.tools.some(tool=>tool.function.name==='delegate_task')&&!input.tools.some(tool=>tool.function.name==='write_file'))) {
+    }else if (!input.tools?.some(tool=>tool.function.name==='write_file')) {
       if(!input.tools)assert.equal(input.tool_choice, undefined);
       if(input.messages[0].content.includes('Лола'))companionRequest=true;
       if(modelMode==='scroll') {
@@ -141,14 +138,23 @@ async function poll(win, expression, timeout=10000) {
 }
 const deadline = setTimeout(() => fail(new Error('Smoke timed out')), process.env.LCA_TEST_RUNTIME?180000:90000);
 app.on('browser-window-created', (_event, win) => {
+  const executeScript=win.webContents.executeJavaScript.bind(win.webContents);
+  win.webContents.executeJavaScript=async(...args)=>{
+    try{const result=await executeScript(...args);await new Promise(resolve=>setTimeout(resolve,25));return result;}
+    catch(error){throw new Error(`Renderer script failed: ${args[0]}\n${error}`);}
+  };
   win.webContents.setBackgroundThrottling(false);
   win.webContents.on('preload-error', (_event, preloadPath, error) => {
     fs.writeFileSync(path.join(testRoot, 'preload-error.txt'), preloadPath + '\n' + String(error.stack || error));
   });
   win.webContents.once('did-finish-load', async () => {
     try {
-      await poll(win, `document.body.textContent.includes('Python Core подключён')`);
+      await poll(win, `document.querySelector('.status')?.textContent.includes('Готов к работе')`);
       assert.equal(await win.webContents.executeJavaScript('typeof require'), 'undefined');
+      await win.webContents.executeJavaScript(`document.querySelector('.activity-bar [role=tab]:nth-child(2)').click()`);
+      await poll(win, `!!document.querySelector('.project-pill')`);
+      await win.webContents.executeJavaScript(`document.querySelector('.activity-bar [role=tab]:nth-child(2)').click()`);
+      await poll(win, `!!document.querySelector('.project-pill')`);
       await win.webContents.executeJavaScript(`document.querySelector('.project-pill').click()`);
       await poll(win, `document.querySelector('.project-pill').textContent.includes(${JSON.stringify(path.basename(project))})`);
       await poll(win, `Array.from(document.querySelectorAll('.sidebar .file-row')).some(button=>button.textContent.includes('editor-a.txt'))`);
@@ -169,6 +175,32 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript(`document.querySelector('.editor-approval .primary-button').click()`);
       await poll(win, `!document.querySelector('.editor-approval') && !document.querySelector('.editor-dirty')`);
       assert.equal(fs.readFileSync(path.join(project,'editor-a.txt'),'utf8'),'edited\nsecond\n');
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.sidebar .file-row')).find(button=>button.textContent==='nested').click()`);
+      await poll(win, `Array.from(document.querySelectorAll('.sidebar .file-row')).some(button=>button.textContent==='draft.txt')`);
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.sidebar .file-row')).find(button=>button.textContent==='draft.txt').click()`);
+      await poll(win, `document.querySelector('.editor-input').value==='nested source'`);
+      await win.webContents.executeJavaScript(`{const input=document.querySelector('.editor-input');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'unsaved nested draft');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
+      await poll(win, `!!document.querySelector('.editor-tabs [title="nested/draft.txt"] .editor-dirty')`);
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.sidebar .file-row')).find(button=>button.textContent==='draft.txt').click()`);
+      await win.webContents.executeJavaScript('window.lca.health()');
+      await win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.editor-input').value`),'unsaved nested draft');
+      assert.equal(fs.readFileSync(path.join(project,'nested/draft.txt'),'utf8'),'nested source');
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.sidebar .file-row')).find(button=>button.textContent==='..').click()`);
+      await poll(win, `Array.from(document.querySelectorAll('.sidebar .file-row')).some(button=>button.textContent==='alias-nested')`);
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.sidebar .file-row')).find(button=>button.textContent==='alias-nested').click()`);
+      await poll(win, `Array.from(document.querySelectorAll('.sidebar .file-row')).some(button=>button.textContent==='draft.txt')`);
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.sidebar .file-row')).find(button=>button.textContent==='draft.txt').click()`);
+      await win.webContents.executeJavaScript('window.lca.health()');
+      await win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.editor-input').value`),'unsaved nested draft');
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelectorAll('.editor-tabs [title="nested/draft.txt"]').length`),1);
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Закрыть nested/draft.txt"]').click()`);
+      await poll(win, `!document.querySelector('.editor-tabs [title="nested/draft.txt"]')`);
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Файлы проекта"]').click()`);
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.sidebar .file-row')).find(button=>button.textContent==='..').click()`);
+      await poll(win, `Array.from(document.querySelectorAll('.sidebar .file-row')).some(button=>button.textContent==='editor-a.txt')`);
+      await win.webContents.executeJavaScript(`document.querySelector('.editor-tabs [title="editor-a.txt"]').click()`);
       await win.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'f',ctrlKey:true,bubbles:true}))`);
       await poll(win, `!!document.querySelector('.editor-find')`);
       await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Поиск в файле"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'second'); input.dispatchEvent(new Event('input',{bubbles:true}));}`);
@@ -202,7 +234,7 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal((await win.webContents.executeJavaScript('window.lca.health()')).ok,true);
       fs.writeFileSync(path.join(project,'editor-a.txt'),'external change');
       await win.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'s',ctrlKey:true,bubbles:true}))`);
-      await poll(win, `document.querySelector('.editor-notice').textContent.includes('изменился на диске')`);
+      await poll(win, `!!document.querySelector('.editor-notice')?.textContent.includes('изменился на диске')`);
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.editor-input').value`),'my draft');
       discardChoice=0;
       await win.webContents.executeJavaScript(`document.querySelector('[title="Перечитать · Ctrl+Shift+R"]').click()`);
@@ -221,8 +253,8 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript(`document.querySelector('.memory-dialog .settings-actions .secondary-button').click()`);
       await poll(win, `!document.querySelector('.memory-dialog')`);
       await win.webContents.executeJavaScript(`document.querySelector('[title="Настройки модели"]').click()`);
-      await poll(win, `!!document.querySelector('.model-settings input')`);
-      await win.webContents.executeJavaScript(`document.querySelector('.settings-tabs button:last-child').click()`);
+      await poll(win, `!!document.querySelector('input[name="base_url"]')`);
+      await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.settings-tabs button')).find(b=>b.textContent==='Оформление').click()`);
       await poll(win, `!document.querySelector('.appearance-settings').parentElement.hidden`);
       await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Тема интерфейса"]');input.value='light';input.dispatchEvent(new Event('change',{bubbles:true}));}`);
       await poll(win, `document.querySelector('.app-shell').dataset.theme==='light'`);
@@ -262,7 +294,7 @@ app.on('browser-window-created', (_event, win) => {
       }
       const url = `http://127.0.0.1:${model.address().port}/v1`;
       await win.webContents.executeJavaScript(`{
-        const input = document.querySelector('.model-settings input');
+        const input = document.querySelector('input[name="base_url"]');
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input, ${JSON.stringify(url)});
         input.dispatchEvent(new Event('input', { bubbles:true }));
       }`);
@@ -275,23 +307,23 @@ app.on('browser-window-created', (_event, win) => {
       await poll(win, `document.querySelector('input[list="model-names"]').value === 'smoke-model' && !document.querySelector('.discover-models').disabled && document.querySelector('.settings-feedback').textContent.includes('Сервер доступен')`);
       for (const [name,value] of [['temperature','0.65'],['max_tokens','1024']]) {
         await win.webContents.executeJavaScript(`{
-          const input=document.querySelector('input[name="${name}"]');
+          const input=document.querySelector('.reset-generation').closest('.settings-section').querySelector('input[name="${name}"]');
           Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});
           input.dispatchEvent(new Event('input',{bubbles:true}));
         }`);
-        await poll(win, `document.querySelector('input[name="${name}"]').value === ${JSON.stringify(value)}`);
+        await poll(win, `document.querySelector('.reset-generation').closest('.settings-section').querySelector('input[name="${name}"]').value === ${JSON.stringify(value)}`);
       }
       await win.webContents.executeJavaScript(`document.querySelector('.probe-model').click()`);
       await poll(win, `document.querySelector('.settings-feedback').textContent.includes('Модель ответила')`);
       const beforeInvalid = await win.webContents.executeJavaScript('window.lca.getModelSettings()');
-      await win.webContents.executeJavaScript(`{ const input=document.querySelector('input[name="temperature"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'3'); input.dispatchEvent(new Event('input',{bubbles:true})); }`);
+      await win.webContents.executeJavaScript(`{ const input=document.querySelector('.reset-generation').closest('.settings-section').querySelector('input[name="temperature"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'3'); input.dispatchEvent(new Event('input',{bubbles:true})); }`);
       await win.webContents.executeJavaScript(`document.querySelector('.save-model-settings').click()`);
-      await poll(win, `document.querySelector('[role="alert"]').textContent.includes('Temperature')`);
+      await poll(win, `document.querySelector('[role="alert"]')?.textContent.includes('Temperature')`);
       const afterInvalid = await win.webContents.executeJavaScript('window.lca.getModelSettings()');
       assert.equal(afterInvalid.base_url, beforeInvalid.base_url);
       assert.equal(afterInvalid.model, beforeInvalid.model);
       assert.deepEqual(afterInvalid.settings, beforeInvalid.settings);
-      await win.webContents.executeJavaScript(`{ const input=document.querySelector('input[name="temperature"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0.65'); input.dispatchEvent(new Event('input',{bubbles:true})); }`);
+      await win.webContents.executeJavaScript(`{ const input=document.querySelector('.reset-generation').closest('.settings-section').querySelector('input[name="temperature"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0.65'); input.dispatchEvent(new Event('input',{bubbles:true})); }`);
 
       await win.webContents.executeJavaScript(`document.querySelector('.save-model-settings').click()`);
       await poll(win, `document.querySelector('.settings-feedback').textContent.includes('Настройки сохранены')`);
@@ -327,7 +359,7 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(fs.readFileSync(path.join(project, 'smoke.txt'), 'utf8'), 'verified');
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-tools [data-status="succeeded"]').textContent.includes('Файл записан')`), true);
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-stages [data-status="skipped"]').textContent.includes('Исследование')`), true);
-      await win.webContents.executeJavaScript(`document.querySelector('[title="History"]').click()`);
+      await win.webContents.executeJavaScript(`document.querySelector('[title="Разговоры"]').click()`);
       await poll(win, `Array.from(document.querySelectorAll('.sidebar .file-row')).some(b => b.textContent === 'hello')`);
       await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.sidebar .file-row')).find(b => b.textContent === 'hello').click()`);
       await poll(win, `!!document.querySelector('.task-tools [data-status="succeeded"]') && document.querySelector('.task-files').textContent.includes('smoke.txt')`);
@@ -354,20 +386,22 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(fs.readFileSync(path.join(project, 'conflict.txt'), 'utf8'), 'external edit');
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-tools [data-status="failed"]').textContent.includes('изменились')`), true);
       const saved = JSON.parse(fs.readFileSync(path.join(appData, 'LocalCodingAgent/model-preferences.json'), 'utf8'));
-      assert.deepEqual(saved, {tool_protocol:'native',base_url:url, model:'smoke-model', settings:{temperature:0.65,top_p:1,max_tokens:1024,max_context_chars:80000,request_timeout:180,max_agent_turns:200,max_runtime_minutes:180}});
+      assert.deepEqual(saved, {api_protocol:'chat',tool_protocol:'native',base_url:url, model:'smoke-model', settings:{temperature:0.65,top_p:1,max_tokens:1024,max_context_chars:80000,request_timeout:180,max_agent_turns:200,max_runtime_minutes:180}});
       assert.equal(JSON.stringify(saved).includes('test-secret'), false);
       const reloaded = new Promise(resolve => win.webContents.once('did-finish-load', resolve));
       win.webContents.reload();
       await reloaded;
       await poll(win, `document.querySelector('.agent-context').textContent.includes('smoke-model')`);
       await win.webContents.executeJavaScript(`document.querySelector('[title="Настройки модели"]').click()`);
-      await poll(win, `!!document.querySelector('.model-settings input')`);
-      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.model-settings input').value`), url);
+      await poll(win, `!!document.querySelector('input[name="base_url"]')`);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('input[name="base_url"]').value`), url);
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('input[type="password"]').value`), '');
-      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('input[name="temperature"]').value`), '0.65');
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.reset-generation').closest('.settings-section').querySelector('input[name="temperature"]').value`), '0.65');
       await win.webContents.executeJavaScript(`document.querySelector('[title="Закрыть настройки"]').click()`);
       await poll(win, `!document.querySelector('.settings-dialog')`);
 
+      await win.webContents.executeJavaScript(`document.querySelector('.activity-bar [role=tab]:nth-child(2)').click()`);
+      await poll(win, `!!document.querySelector('.project-pill')`);
       await win.webContents.executeJavaScript(`document.querySelector('.project-pill').click()`);
       await poll(win, `document.querySelector('.project-pill').textContent.includes(${JSON.stringify(path.basename(project))})`);
       modelMode = 'stall';
@@ -390,28 +424,7 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript(`document.querySelector('.progress-toggle').click()`);
       await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       fs.writeFileSync(path.join(testRoot, 'ide.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
-      assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.main-panel')).backgroundColor`), 'rgb(23, 25, 30)');
-      await win.webContents.executeJavaScript(`(async()=>{const result=await window.lca.getIDEWorkflow();await window.lca.configureIDEWorkflow({...result,enabled:true,mode:'pipeline',roles:Object.fromEntries(['conductor','coder','builder','reviewer'].map(role=>[role,{base_url:${JSON.stringify(url)},model:'workflow-'+role,provider:'external',tool_protocol:'native'}]))});window.dispatchEvent(new Event('ide-workflow-changed'));})()`);
-      await poll(win, `document.querySelector('[aria-label="Режим IDE"]').value==='pipeline'`);
-      await win.webContents.executeJavaScript(`document.querySelector('.ide-workflow-bar button').click()`);
-      await poll(win, `!!document.querySelector('.save-ide-workflow')&&!document.querySelector('.ide-workflow-settings').parentElement.hidden`);
-      await win.webContents.executeJavaScript(`document.querySelector('.save-ide-workflow').click()`);
-      await poll(win, `document.querySelector('.ide-workflow-settings').textContent.includes('Роли IDE сохранены')`);
-      await win.webContents.capturePage(undefined,{stayHidden:true});
-      fs.writeFileSync(path.join(testRoot,'ide-role-settings.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
-      await win.webContents.executeJavaScript(`document.querySelector('[title="Закрыть настройки"]').click()`);
-      await win.webContents.executeJavaScript(`{const input=document.querySelector('.composer textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Создай workflow.json через роли');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
-      await win.webContents.executeJavaScript(`document.querySelector('[title="Отправить"]').click()`);
-      await poll(win, `!!document.querySelector('.approval-dialog')`,20000);
-      assert.equal(fs.existsSync(path.join(project,'workflow.json')),false,'Role writer still requires user approval');
-      await win.webContents.executeJavaScript(`document.querySelector('.approval-actions .primary-button').click()`);
-      await poll(win, `!document.querySelector('[title="Остановить"]')&&document.querySelector('.chat-messages').textContent.includes('Проверено чтением')`,20000);
-      assert.deepEqual(JSON.parse(fs.readFileSync(path.join(project,'workflow.json'),'utf8')),{ok:true});
-      await win.webContents.executeJavaScript(`if(!document.querySelector('.workflow-progress'))document.querySelector('.progress-toggle').click()`);
-      await poll(win, `document.querySelectorAll('.workflow-progress li[data-status=done]').length===4`);
-      await win.webContents.capturePage(undefined,{stayHidden:true});
-      fs.writeFileSync(path.join(testRoot,'ide-workflow.png'),(await win.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
-      await win.webContents.executeJavaScript(`(async()=>{const result=await window.lca.getIDEWorkflow();await window.lca.configureIDEWorkflow({...result,enabled:false});window.dispatchEvent(new Event('ide-workflow-changed'));})()`);
+      assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.main-panel')).backgroundColor`), await win.webContents.executeJavaScript(`getComputedStyle(document.querySelector('.app-shell')).backgroundColor`));
       await win.webContents.executeJavaScript(`window.lca.configureCompanion({base_url:${JSON.stringify(url)},model:'smoke-model',tts_provider:'windows',persona:'Лола — дружелюбная помощница',auto_delegate:false,stt_url:'http://127.0.0.1:${transcriptionFixture.address().port}/inference'})`);
       await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:last-child').click()`);
       await poll(win, `!!document.querySelector('.voice-panel')`);

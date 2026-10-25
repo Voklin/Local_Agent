@@ -57,15 +57,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $release = Get-Content packaging/release.json | ConvertFrom-Json
-          $installer = "artifacts/windows/LocalAgent-$($release.version)-setup-x64.exe"
+          $installer = "artifacts/windows/Neutral-$($release.version)-setup-x64.exe"
           $checksum = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLower() + '  ' + (Split-Path $installer -Leaf)
           [IO.File]::WriteAllText((Join-Path $PWD 'artifacts/windows/SHA256SUMS.txt'), $checksum + "`n", [Text.UTF8Encoding]::new($false))
-          gh release create "v$($release.version)" $installer artifacts/windows/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title "LocalAgent $($release.version) — Windows x64" --notes-file packaging/RELEASE_NOTES.md
+          gh release create "v$($release.version)" $installer artifacts/windows/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title "Neutral $($release.version) — Windows x64" --notes-file packaging/RELEASE_NOTES.md
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: LocalAgent-release-${{ github.sha }}
+          name: Neutral-release-${{ github.sha }}
           path: |
             artifacts/windows/*-setup-x64.exe
             artifacts/windows/SHA256SUMS.txt

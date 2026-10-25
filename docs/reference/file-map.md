@@ -20,26 +20,30 @@
 | [VERSION](../../VERSION) | Исторический маркер 5.8.0; не является единственным источником версии нового Electron-приложения. |
 | [agent/__init__.py](../../agent/__init__.py) | Маркер Python-пакета agent; не запускает UI или модель. |
 | [agent/chat_store.py](../../agent/chat_store.py) | JSON-чаты и индекс истории вне папки проекта. |
+| [agent/companion_policy.py](../../agent/companion_policy.py) | Граница делегирования Лолы по исходному намерению человека и очистка ответов/озвучки от разметки. |
 | [agent/companion_preferences.py](../../agent/companion_preferences.py) | Независимый сохраняемый профиль Лолы: модель, endpoint, характер, STT и голос; секреты не сохраняются. |
+| [agent/connection_profiles.py](../../agent/connection_profiles.py) | Именованные публичные конфигурации моделей без API-ключей. |
 | [agent/context_manager.py](../../agent/context_manager.py) | Сборка временного рабочего контекста с метаданными задачи, умным сжатием и статистикой. |
 | [agent/conversation.py](../../agent/conversation.py) | Выбор недавних ходов и сокращение модельных сообщений с учётом tool-call групп. |
 | [agent/delegation.py](../../agent/delegation.py) | Единственное определение delegate_task для передачи сложной задачи от Лолы основной модели. |
 | [agent/editor_io.py](../../agent/editor_io.py) | Самостоятельные sandbox-функции текстового редактора; React preview их не использует для записи. |
 | [agent/engine.py](../../agent/engine.py) | Независимый от UI цикл модели, инструментов, подтверждений, памяти и checkpoint. |
-| [agent/ide_coordinator.py](../../agent/ide_coordinator.py) | Четыре роли IDE, локальные передачи кода, ограниченное исправление, существующие diff approvals и подтверждённая проверка файлов. |
-| [agent/ide_workflow.py](../../agent/ide_workflow.py) | Whitelist ролей IDE, отдельное сохранение без ключей и разрешение наследуемых моделей/endpoint без утечки основного токена. |
 | [agent/json_tools.py](../../agent/json_tools.py) | Текстовый JSON tool protocol: преобразование истории, строгий parser envelope и адаптация stream к обычному executor. |
 | [agent/mcp.py](../../agent/mcp.py) | Реестр MCP-конфигураций без транспорта и исполнения внешних tools. |
+| [agent/mcp_client.py](../../agent/mcp_client.py) | Настоящие соединения MCP stdio/Streamable HTTP с discovery, ограничениями, отменой и закрытием transport. |
 | [agent/model_client.py](../../agent/model_client.py) | Отменяемый async HTTP-клиент с синхронной поверхностью для движка. |
 | [agent/model_discovery.py](../../agent/model_discovery.py) | HTTPX-получение списка моделей с общим deadline, ограничением ответа и отменой сокета. |
 | [agent/model_gateway.py](../../agent/model_gateway.py) | Отдельное представление endpoint провайдера/локального runtime; не включено в TaskService. |
-| [agent/model_lifecycle.py](../../agent/model_lifecycle.py) | Последовательная отменяемая загрузка/выгрузка назначенных моделей LM Studio 0.4+/Ollama и read-only каталог. |
 | [agent/model_manager.py](../../agent/model_manager.py) | Сканирование GGUF, импорт и управление отдельным llama-server; без Electron UI-интеграции. |
 | [agent/model_preferences.py](../../agent/model_preferences.py) | Валидация endpoint и whitelist числовых настроек, миграция старого JSON и атомарное сохранение без API-ключа. |
 | [agent/model_probe.py](../../agent/model_probe.py) | Ограниченная отменяемая проверка draft-модели через Chat Completions без файлов, истории и сохранения настроек. |
 | [agent/planner.py](../../agent/planner.py) | Структура этапа и детерминированный план по словам запроса. |
 | [agent/process_job.py](../../agent/process_job.py) | Windows Job Object: kill-on-close только для собственного Popen и его потомков. |
+| [agent/progress_guard.py](../../agent/progress_guard.py) | Окно отпечатков вызовов и результатов для остановки чередующихся циклов без продвижения. |
+| [agent/project_command.py](../../agent/project_command.py) | Опциональный запуск тестов/сборок после отдельного подтверждения; ограниченный вывод, время и ProcessJob. |
 | [agent/project_memory.py](../../agent/project_memory.py) | Компактная структурированная память проекта, очистка и форматирование для модели. |
+| [agent/projects.py](../../agent/projects.py) | Атомарное хранение именованных пространств: папка, инструкции и метаданные. |
+| [agent/responses_adapter.py](../../agent/responses_adapter.py) | Преобразование канонической истории и потоковых событий OpenAI Responses в существующий цикл агента. |
 | [agent/runtime.py](../../agent/runtime.py) | Связь контекста, планировщика, навыков, verifier и MCP-реестра; часть границ ещё не подключена. |
 | [agent/security.py](../../agent/security.py) | Канонический корень и разрешение путей только внутри выбранного проекта. |
 | [agent/skills.py](../../agent/skills.py) | Обнаружение, краткие метаданные, чтение и выбор SKILL.md по словам. |
@@ -61,21 +65,26 @@
 | [apps/desktop/package.json](../../apps/desktop/package.json) | Зависимости Electron/React и dev/build/typecheck-скрипты workspace. |
 | [apps/desktop/src/App.tsx](../../apps/desktop/src/App.tsx) | React-состояние и представление проекта, настроек, чата, потока, checkpoint и diff. |
 | [apps/desktop/src/AppearanceSettings.tsx](../../apps/desktop/src/AppearanceSettings.tsx) | Проверенные локальные настройки темы, акцента, плотности и панелей, синхронизация React и форма оформления. |
+| [apps/desktop/src/BrandMark.tsx](../../apps/desktop/src/BrandMark.tsx) | Векторный знак Neutral: N и точка равновесия; цвет наследуется от темы. |
 | [apps/desktop/src/ChatText.tsx](../../apps/desktop/src/ChatText.tsx) | Безопасные текстовые/code блоки без HTML, memoized parser и явное копирование. |
 | [apps/desktop/src/CompanionSettings.tsx](../../apps/desktop/src/CompanionSettings.tsx) | Настройка характера, независимой модели, JSON/native protocol, автоматической передачи и STT Лолы. |
+| [apps/desktop/src/ConnectionProfiles.tsx](../../apps/desktop/src/ConnectionProfiles.tsx) | Сохранение, выбор и удаление публичных профилей подключения модели. |
 | [apps/desktop/src/ConnectionsSettings.tsx](../../apps/desktop/src/ConnectionsSettings.tsx) | Настройка PC-инструментов и Telegram; явное подключение владельца и защищённое сохранение токена. |
+| [apps/desktop/src/ConversationSidebar.tsx](../../apps/desktop/src/ConversationSidebar.tsx) | Проекты, поиск разговоров, закрепление, архив, копии, повтор, экспорт, перемещение и удаление. |
 | [apps/desktop/src/EditorPanel.tsx](../../apps/desktop/src/EditorPanel.tsx) | Рабочие вкладки/черновики редактора, виртуальный gutter, поиск/строка, hotkeys, reload и подтверждённое сохранение. |
+| [apps/desktop/src/ExtensionsSettings.tsx](../../apps/desktop/src/ExtensionsSettings.tsx) | Настройки наборов, отдельных tools, навыков, JSON-пакетов и MCP серверов. |
 | [apps/desktop/src/GenerationFields.tsx](../../apps/desktop/src/GenerationFields.tsx) | Единые типы, значения, диапазоны, подсказки и форма генерации для Chat/IDE и отдельной модели Лолы. |
-| [apps/desktop/src/IDEWorkflowSettings.tsx](../../apps/desktop/src/IDEWorkflowSettings.tsx) | Настройка четырёх ролей и компактный переключатель цикла/отдельного этапа в существующем оформлении IDE. |
 | [apps/desktop/src/LocalRuntimePanel.tsx](../../apps/desktop/src/LocalRuntimePanel.tsx) | Реальный GGUF picker, context/GPU, lifecycle status и явный перенос endpoint в настройки. |
 | [apps/desktop/src/LolaAvatar.tsx](../../apps/desktop/src/LolaAvatar.tsx) | Персонаж по референсу: выбор позы из атласа по состоянию Лолы, подпись, речевая волна и уменьшение движения. |
 | [apps/desktop/src/MemoryPanel.tsx](../../apps/desktop/src/MemoryPanel.tsx) | Редактор семи полей памяти выбранного проекта с сохранением draft при конфликте. |
-| [apps/desktop/src/ModelSettings.tsx](../../apps/desktop/src/ModelSettings.tsx) | Модальное окно draft-настроек: endpoint, ключ, список моделей, тест ответа, генерация, лимиты, сохранение и focus trap. |
+| [apps/desktop/src/ModelSettings.tsx](../../apps/desktop/src/ModelSettings.tsx) | Общее окно Neutral с боковыми разделами моделей, Лолы, расширений, ПК, оформления, контекста и runtime. |
 | [apps/desktop/src/NeuralAudio.tsx](../../apps/desktop/src/NeuralAudio.tsx) | Единый плеер нейроозвучки: PCM WAV из Core, громкость/темп, Stop и подтверждение завершения. |
 | [apps/desktop/src/ProjectSearch.tsx](../../apps/desktop/src/ProjectSearch.tsx) | Боковой поиск и Ctrl+P: один IPC-запрос за раз, отмена и защита от устаревших результатов. |
 | [apps/desktop/src/TaskProgress.tsx](../../apps/desktop/src/TaskProgress.tsx) | Типизированная панель этапов, инструментов, результатов и продолжения задачи. |
 | [apps/desktop/src/VoicePanel.tsx](../../apps/desktop/src/VoicePanel.tsx) | Рабочий разговор с Лолой без file tools, системная озвучка, голос/темп/громкость/Stop и честный отключённый STT. |
+| [apps/desktop/src/VoiceSettings.tsx](../../apps/desktop/src/VoiceSettings.tsx) | Общая страница голоса Лолы с громкостью, скоростью, автоматической озвучкой и расширенной конфигурацией. |
 | [apps/desktop/src/WakeListener.tsx](../../apps/desktop/src/WakeListener.tsx) | Явно включаемый микрофон во всех режимах: speech gate, STT, wake phrase, пауза при задаче/озвучке/ручной записи. |
+| [apps/desktop/src/Welcome.tsx](../../apps/desktop/src/Welcome.tsx) | Пустое состояние Neutral с короткими сценариями и переходом в IDE. |
 | [apps/desktop/src/assets/miya-states.png](../../apps/desktop/src/assets/miya-states.png) | Прозрачный 4×2 атлас поз светловолосой аниме-горничной по пользовательскому референсу. |
 | [apps/desktop/src/assets/miya-states.prompt.md](../../apps/desktop/src/assets/miya-states.prompt.md) | Сохранённые prompts встроенного image_gen и схема ячеек персонажа. |
 | [apps/desktop/src/main.tsx](../../apps/desktop/src/main.tsx) | Подключает CSS, создаёт React root и отображает App в StrictMode. |
@@ -84,16 +93,23 @@
 | [apps/desktop/src/styles/base.css](../../apps/desktop/src/styles/base.css) | Базовые панели, редактор, сообщения, подтверждения и карточки задачи; начало сохранённого CSS-каскада. |
 | [apps/desktop/src/styles/companion.css](../../apps/desktop/src/styles/companion.css) | Сетка ассистента, атлас состояний и модальное окно настроек голоса. |
 | [apps/desktop/src/styles/modern.css](../../apps/desktop/src/styles/modern.css) | Актуальные токены тёмной/светлой темы, акценты, плотность, скрытие панелей и розовое оформление Лолы. |
+| [apps/desktop/src/styles/neutral.css](../../apps/desktop/src/styles/neutral.css) | Общий дизайн Neutral: токены тем, боковая навигация, проекты, настройки, адаптация размера и reduced motion. |
 | [apps/desktop/src/styles/workspaces.css](../../apps/desktop/src/styles/workspaces.css) | Расположение Chat/IDE, общие окна и компоненты; сохранённый каскад без устаревших SVG-селекторов. |
 | [apps/desktop/src/vite-env.d.ts](../../apps/desktop/src/vite-env.d.ts) | Vite reference, CoreEvent и TypeScript-контракт Window.lca. |
+| [apps/desktop/src/voiceText.ts](../../apps/desktop/src/voiceText.ts) | Очистка презентационной разметки потокового ответа Лолы перед показом и озвучкой. |
 | [apps/desktop/src/wakePhrase.ts](../../apps/desktop/src/wakePhrase.ts) | Нормализация русской фразы и выделение команды только после совпадающего начала без потери пунктуации команды. |
 | [apps/desktop/tsconfig.electron.json](../../apps/desktop/tsconfig.electron.json) | Статическая проверка Node/Electron main и preload без emit. |
 | [apps/desktop/tsconfig.json](../../apps/desktop/tsconfig.json) | Статическая проверка React/DOM/JSX-кода renderer. |
 | [apps/desktop/vite.config.ts](../../apps/desktop/vite.config.ts) | React-плагин, относительные assets, фиксированный локальный dev-порт и outDir. |
+| [assets/neutral.ico](../../assets/neutral.ico) | Многоразмерная иконка установщика/Windows: PNG-кадры от 16 до 256 пикселей. |
+| [assets/neutral.png](../../assets/neutral.png) | Иконка окна Neutral, 512 пикселей, полученная из исходного SVG. |
+| [assets/neutral.svg](../../assets/neutral.svg) | Редактируемый векторный исходник знака приложения и его фона. |
 | [core/python/assistant_service.py](../../core/python/assistant_service.py) | Локальные часы, ограниченный AST-калькулятор, атомарные заметки и отменяемые таймеры Лолы. |
 | [core/python/bridge.py](../../core/python/bridge.py) | JSON-lines вход процесса, dispatch команд, UI-файловый API и синхронизированный stdout. |
+| [core/python/conversation_service.py](../../core/python/conversation_service.py) | Операции организации чатов с проверкой пространства, режима и корня файлов. |
 | [core/python/desktop_service.py](../../core/python/desktop_service.py) | Явно включаемые PC tools: human-prompt folder grants, read-only файлы, bounded web search и host screenshot broker. |
 | [core/python/editor_service.py](../../core/python/editor_service.py) | Ручной editor-протокол: strict UTF-8 чтение с revision, preview, одноразовый Apply через существующую атомарную snapshot-запись. |
+| [core/python/extension_service.py](../../core/python/extension_service.py) | Единый реестр разрешённых возможностей, progressive skills, импорт пакетов и снимки для одного запуска. |
 | [core/python/memory_service.py](../../core/python/memory_service.py) | Строгий read/edit API памяти проекта с byte revision и защитой повреждённых файлов. |
 | [core/python/neural_speech.py](../../core/python/neural_speech.py) | Отменяемый HTTP TTS: bounded PCM WAV, события звука и точное подтверждение плеера по sequence. |
 | [core/python/project_search.py](../../core/python/project_search.py) | Ограниченный read-only поиск текста и путей с отменяемым отдельным worker. |
@@ -139,10 +155,16 @@
 | [docs/33-lola-refactor-and-appearance.md](../../docs/33-lola-refactor-and-appearance.md) | Ручная учебная глава или исторический материал: Лола, оформление и рефакторинг, 6.6. |
 | [docs/34-ide-roles-and-model-lifecycle.md](../../docs/34-ide-roles-and-model-lifecycle.md) | Ручная учебная глава или исторический материал: IDE: дирижёр, код, сборка и проверка, 6.7. |
 | [docs/35-smart-context-and-lola-tools.md](../../docs/35-smart-context-and-lola-tools.md) | Ручная учебная глава или исторический материал: 35. Умный контекст и повседневные инструменты Лолы. |
+| [docs/36-neutral-guide.md](../../docs/36-neutral-guide.md) | Ручная учебная глава или исторический материал: Neutral 7: интерфейс, модели и Лола. |
+| [docs/37-neutral-core-and-extensions.md](../../docs/37-neutral-core-and-extensions.md) | Ручная учебная глава или исторический материал: Neutral: ядро, расширения и проверка действий. |
+| [docs/38-neutral-projects-and-conversations.md](../../docs/38-neutral-projects-and-conversations.md) | Ручная учебная глава или исторический материал: Neutral: проекты, разговоры и хранение. |
+| [docs/39-neutral-validation.md](../../docs/39-neutral-validation.md) | Ручная учебная глава или исторический материал: Neutral 7.0.0: проверка итоговой сборки. |
+| [docs/AUDIT_2026-10-24.md](../../docs/AUDIT_2026-10-24.md) | Ручная учебная глава или исторический материал: Проверка проекта от 24 октября 2026. |
 | [docs/AUTONOMOUS_PLAN_2026-10-23.md](../../docs/AUTONOMOUS_PLAN_2026-10-23.md) | Ручная учебная глава или исторический материал: Автономный план LocalAgent — 23 октября 2026. |
 | [docs/EXPANSION_PLAN.md](../../docs/EXPANSION_PLAN.md) | Ручная учебная глава или исторический материал: План расширения LocalAgent. |
 | [docs/NEURAL_VOICE_PLAN.md](../../docs/NEURAL_VOICE_PLAN.md) | Ручная учебная глава или исторический материал: План нейроозвучки и фразы активации. |
-| [docs/README.md](../../docs/README.md) | Ручная учебная глава или исторический материал: LocalAgent: подробное руководство по проекту. |
+| [docs/NEUTRAL_PLAN_2026-10-25.md](../../docs/NEUTRAL_PLAN_2026-10-25.md) | Ручная учебная глава или исторический материал: Neutral: план сеанса 25 октября 2026. |
+| [docs/README.md](../../docs/README.md) | Ручная учебная глава или исторический материал: Neutral: подробное руководство по проекту. |
 | [docs/SERENA_TRAINING_PLAN.md](../../docs/SERENA_TRAINING_PLAN.md) | Разрешение, этапы и критерии пробной Serena, Windows окружение, provenance датасета, ограничения и восстановление обучения. |
 | [docs/WORK_PLAN.md](../../docs/WORK_PLAN.md) | Ручная учебная глава или исторический материал: План дальнейшей разработки LocalAgent. |
 | [docs/history/legacy-readme.md](../../docs/history/legacy-readme.md) | Ручная учебная глава или исторический материал: Исторические README до учебной документации. |
@@ -163,7 +185,7 @@
 | [packaging/release.json](../../packaging/release.json) | Явное намерение выпустить указанную версию; изменение запускает Release workflow текущей ветки. |
 | [packaging/windows-dependencies.json](../../packaging/windows-dependencies.json) | Версии, официальные URL и SHA256 Windows runtime зависимостей. |
 | [requirements-build.txt](../../requirements-build.txt) | Точные Python-зависимости для Windows x64 freeze Core без Qt. |
-| [requirements-core.txt](../../requirements-core.txt) | Диапазоны OpenAI SDK и отдельного HTTPX model discovery для ядра без Qt. |
+| [requirements-core.txt](../../requirements-core.txt) | Диапазоны OpenAI/HTTPX и фиксированный официальный MCP SDK для ядра без Qt. |
 | [requirements.txt](../../requirements.txt) | Полное Python-окружение с PySide6 и сохранённой зависимостью python-dotenv. |
 | [run-desktop.bat](../../run-desktop.bat) | Запуск npm dev; выбирает .venv Python, если LCA_PYTHON не задан. |
 | [run.bat](../../run.bat) | Старый запуск Qt с установкой зависимостей; содержит оставшуюся ссылку на отсутствующий .env.example. |
@@ -174,12 +196,13 @@
 | [tests/electron/assistant-media.cjs](../../tests/electron/assistant-media.cjs) | Host-проверки музыкальных ссылок и путей аудио, включая junction, без воспроизведения и браузера. |
 | [tests/electron/desktop-apps.cjs](../../tests/electron/desktop-apps.cjs) | Node-проверка границы каталога приложений: ID, запрет путей/команд, EXE, повторное добавление, удаление и браузер без реальных окон. |
 | [tests/electron/microphone.cjs](../../tests/electron/microphone.cjs) | Проверка захвата и обрезки WAV с фиктивным AudioContext без записи реального микрофона. |
+| [tests/electron/neutral-smoke.cjs](../../tests/electron/neutral-smoke.cjs) | Изолированная GUI-проверка нового Neutral: проекты/навыки/MCP/Node, подтверждения, история, темы и удаление. |
 | [tests/electron/packaged-smoke.mjs](../../tests/electron/packaged-smoke.mjs) | CDP-проверка настоящего packaged exe с урезанным PATH, discovery и повторным запуском. |
 | [tests/electron/smoke.cjs](../../tests/electron/smoke.cjs) | Скрытое настоящее Electron-окно: все слои, запись, поток, reload и Stop. |
+| [tests/fixtures/mcp_echo.py](../../tests/fixtures/mcp_echo.py) | Настоящий локальный MCP сервер арифметики и ожидания для stdio/HTTP проверок. |
 | [tests/migration/test_bridge.py](../../tests/migration/test_bridge.py) | Вызовы bridge.handle: health, файлы, traversal и запрет прямой записи. |
 | [tests/migration/test_bridge_process.py](../../tests/migration/test_bridge_process.py) | Реальный Python subprocess, malformed JSON, responsiveness и cancel при approval. |
 | [tests/migration/test_delegation.py](../../tests/migration/test_delegation.py) | Реальные HTTP-запросы к двум разным ID моделей: Лола ставит передачу, основная модель отвечает, итог сохраняется в voice истории. |
-| [tests/migration/test_ide_workflow.py](../../tests/migration/test_ide_workflow.py) | Реальный loopback HTTP/SSE проверяет роли, память моделей, согласование записи, исправления, чтение проверяющим и resume. |
 | [tests/migration/test_json_protocol.py](../../tests/migration/test_json_protocol.py) | Реальный HTTP-сервер без native tools: JSON read/write через тот же diff и approval executor. |
 | [tests/migration/test_model_discovery.py](../../tests/migration/test_model_discovery.py) | HTTP-фикстура discovery: валидация ответа, медленный поток, общий deadline и отмена сокета. |
 | [tests/migration/test_model_probe.py](../../tests/migration/test_model_probe.py) | Реальный HTTP-стенд проверки ответа, пустого/некорректного/слишком большого результата, deadline и отмены. |
@@ -191,6 +214,7 @@
 | [tests/test_approval_flow.py](../../tests/test_approval_flow.py) | Проверяет явные решения Qt-адаптера; пропускается при отсутствии PySide6. |
 | [tests/test_assistant_service.py](../../tests/test_assistant_service.py) | Проверки утилит Лолы, сохранения заметок, таймеров, музыки и папок из исходного prompt. |
 | [tests/test_chat_store.py](../../tests/test_chat_store.py) | Создание, изменение, переименование и удаление чата в изолированном store. |
+| [tests/test_companion_policy.py](../../tests/test_companion_policy.py) | Границы coding intent Лолы, очистка Markdown, математики и внутренних тегов. |
 | [tests/test_conversation_history.py](../../tests/test_conversation_history.py) | Выбор истории и сокращение tool outputs/пар в conversation.py. |
 | [tests/test_editor_io.py](../../tests/test_editor_io.py) | Чтение/сохранение существующих файлов, размер и отказ вне корня. |
 | [tests/test_editor_service.py](../../tests/test_editor_service.py) | Контракты editor revisions, CRLF, отсутствия записи до Apply, stale/replay, бинарных/больших/внешних файлов и project scope. |
@@ -201,8 +225,12 @@
 | [tests/test_model_gateway.py](../../tests/test_model_gateway.py) | Параметры endpoint удалённого/совместимого провайдера. |
 | [tests/test_model_manager.py](../../tests/test_model_manager.py) | Сканирование GGUF, quantization, свободный порт и остановленный runtime. |
 | [tests/test_model_preferences.py](../../tests/test_model_preferences.py) | Whitelist настроек, defaults и отказ URL с credentials/неверным портом. |
+| [tests/test_neutral_conversations.py](../../tests/test_neutral_conversations.py) | Изоляция проектов/режимов, архив, удаление, копия/повтор, экспорт и профили без ключей. |
+| [tests/test_neutral_extensions.py](../../tests/test_neutral_extensions.py) | Переключатели, неизменяемый снимок, навыки-черновики, пакеты и реальные MCP transports. |
+| [tests/test_project_command.py](../../tests/test_project_command.py) | Подтверждение и отказ запуска, корень cwd, код возврата, лимит вывода и отмена процесса. |
 | [tests/test_project_memory.py](../../tests/test_project_memory.py) | Изоляция, лимиты, merge, формат контекста и очистка памяти. |
 | [tests/test_project_search.py](../../tests/test_project_search.py) | Поиск: Unicode, фильтры, лимиты, пропуски бинарных файлов, отмена и single-flight. |
+| [tests/test_responses_adapter.py](../../tests/test_responses_adapter.py) | Локальная HTTP/SSE фикстура OpenAI Responses: текст, функции, reasoning items, probe и retry. |
 | [tests/test_runtime_architecture.py](../../tests/test_runtime_architecture.py) | Структура плана, skills, размер контекста и verifier. |
 | [tests/test_runtime_service.py](../../tests/test_runtime_service.py) | Проверки lifecycle, bounded output, отмены, ошибок и Windows crash cleanup. |
 | [tests/test_sandbox.py](../../tests/test_sandbox.py) | Обёртка запуска внутренней security self-test suite. |
@@ -216,6 +244,7 @@
 | [tools/check_live_model.py](../../tools/check_live_model.py) | Opt-in smoke реальной модели: disposable AppData/проект, Chat/IDE/Лола, без approvals записи, JSON отчёт. |
 | [tools/doc_notes.py](../../tools/doc_notes.py) | Ручные назначения файлов и символов для справочников; не является runtime-модулем агента. |
 | [tools/extract_ts_symbols.cjs](../../tools/extract_ts_symbols.cjs) | TypeScript Compiler API: структурные объявления TS/JS без исполнения приложения. |
+| [tools/generate_brand_icons.py](../../tools/generate_brand_icons.py) | Разработка: рендер SVG через Qt и запись PNG/многоразмерного ICO без Pillow. |
 | [tools/generate_code_reference.py](../../tools/generate_code_reference.py) | Извлекает объявления из Python/TypeScript AST и создаёт Markdown-каталоги. |
 | [tools/prepare_windows_dependencies.py](../../tools/prepare_windows_dependencies.py) | Загрузка официальных зависимостей по SHA256, выбор server/DLL и подготовка офлайн-пакета без запуска установщиков. |
 | [tools/tts/README.md](../../tools/tts/README.md) | Установка TTS, выбор аниме-профиля, ограничения ресурсов и настройка голосовой активации. |

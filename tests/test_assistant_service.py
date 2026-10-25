@@ -31,6 +31,29 @@ class AssistantTests(unittest.TestCase):
         second=service.execute('set_timer',{'seconds':60})['timer'];service.execute('cancel_timer',{'id':second['id']});service.fire(second['id'])
         self.assertEqual(len(events),1);service.shutdown();self.assertEqual(service.timers,{})
 
+    def test_full_unicode_notes_capacity_stays_readable_after_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service=AssistantService(lambda e:None);service.notes_file=Path(directory)/'notes.json'
+            text='я'*4000
+            values=[{'id':str(index),'title':'Заметка','text':text} for index in range(199)]
+            service.notes_file.write_text(json.dumps(values,ensure_ascii=False,indent=2),encoding='utf-8')
+            self.assertTrue(service.execute('save_note',{'text':text})['ok'])
+            again=AssistantService(lambda e:None);again.notes_file=service.notes_file
+            self.assertEqual(again.execute('list_notes',{})['total'],200)
+            previous=service.notes_file.read_bytes()
+            with self.assertRaises(ValueError):service.execute('save_note',{'text':'201'})
+            self.assertEqual(service.notes_file.read_bytes(),previous)
+            service.shutdown();again.shutdown()
+
+    def test_note_limit_counts_whitespace_without_corrupting_store(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service=AssistantService(lambda e:None);service.notes_file=Path(directory)/'notes.json'
+            service.execute('save_note',{'text':'Исходная заметка'})
+            previous=service.notes_file.read_bytes()
+            with self.assertRaises(ValueError):service.execute('save_note',{'text':'x'+' '*4000})
+            self.assertEqual(service.notes_file.read_bytes(),previous)
+            service.shutdown()
+
     def test_music_links_reject_executables_private_hosts_and_spoofing(self):
         self.assertEqual(music_url('https://www.youtube.com/watch?v=abc'),'https://www.youtube.com/watch?v=abc')
         for value in ('file:///C:/x.exe','https://localhost/a','https://youtube.com.evil/a','https://user:pass@youtube.com/a','https://youtube.com:444/a'):

@@ -21,15 +21,16 @@ export function CompanionSettings({profile,busy,onSaved}:{profile:any;busy:boole
     catch(error){setNotice(String(error));}finally{setWorking(false);}
   }
   return <details className="settings-section companion-settings"><summary>Характер, отдельная модель и распознавание</summary>
-    <details><summary>Что умеет Лола</summary><p className="settings-help">«Посчитай 125 × 8», «Запомни заметку…», «Поставь таймер на 5 минут», «Покажи таймеры», «Который час?». Таймеры работают, пока LocalAgent открыт. Для «Найди музыку…», открытия трека и локального аудио включите инструменты ПК в общих настройках. Папку музыки указывайте полным путём в кавычках. Браузер может потребовать нажать Play.</p></details>
+    <details><summary>Что умеет Лола</summary><p className="settings-help">«Посчитай 125 × 8», «Запомни заметку…», «Поставь таймер на 5 минут», «Покажи таймеры», «Который час?». Таймеры работают, пока Neutral открыт. Для «Найди музыку…», открытия трека и локального аудио включите инструменты ПК в общих настройках. Папку музыки указывайте полным путём в кавычках. Браузер может потребовать нажать Play.</p></details>
     <label>Характер Лолы<textarea maxLength={6000} value={draft.persona||''} disabled={busy||working} onChange={e=>setDraft({...draft,persona:e.target.value})}/></label>
-    <label>API отдельной модели<input value={draft.base_url||''} disabled={busy||working} onChange={e=>setDraft({...draft,base_url:e.target.value})}/></label>
+    <label>Тип API Лолы<select aria-label="Тип API Лолы" value={draft.api_protocol||'chat'} disabled={busy||working} onChange={e=>setDraft({...draft,api_protocol:e.target.value,...(e.target.value==='responses'&&draft.base_url!=='https://api.openai.com/v1'?{base_url:'https://api.openai.com/v1',api_key:''}:{})})}><option value="chat">Совместимый сервер · LM Studio / Ollama</option><option value="responses">OpenAI · Responses API</option></select></label>
+    <label>API отдельной модели<input value={draft.base_url||''} disabled={busy||working} onChange={e=>setDraft({...draft,base_url:e.target.value,api_key:''})}/></label>
     <label>Модель Лолы<input list="companion-models" value={draft.model||''} disabled={busy||working} onChange={e=>setDraft({...draft,model:e.target.value})}/><datalist id="companion-models">{models.map(model=><option key={model}>{model}</option>)}</datalist></label>
     <button className="secondary-button" disabled={busy||working} onClick={()=>void discover()}>Загрузить модели Лолы</button>
     <label>API-ключ модели<input type="password" autoComplete="off" value={draft.api_key||''} onChange={e=>setDraft({...draft,api_key:e.target.value})}/></label>
     <details><summary>Генерация модели Лолы</summary><GenerationFields value={{...defaultGeneration,...draft.settings}} locked={busy||working} onChange={settings=>setDraft({...draft,settings})}/></details>
     <label>Tool calling<select value={draft.tool_protocol||'native'} onChange={e=>setDraft({...draft,tool_protocol:e.target.value})}><option value="native">Native</option><option value="json">JSON</option></select></label>
-    <label className="auto-speak"><input type="checkbox" checked={draft.auto_delegate!==false} onChange={e=>setDraft({...draft,auto_delegate:e.target.checked})}/>Автоматически передавать сложные задачи основной модели</label>
+    <label className="auto-speak"><input type="checkbox" checked={draft.auto_delegate!==false} onChange={e=>setDraft({...draft,auto_delegate:e.target.checked})}/>Автоматически передавать задачи программирования основной модели</label>
     <details><summary>Дополнительные параметры озвучки</summary>
     {draft.tts_provider!=='windows'&&<label>Адрес сервера озвучки<input value={draft.tts_url||''} onChange={e=>setDraft({...draft,tts_url:e.target.value})}/></label>}
     {draft.tts_provider==='qwen3'&&<>

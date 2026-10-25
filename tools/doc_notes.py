@@ -851,7 +851,7 @@ register('core/python/editor_service.py', '''
 EditorService | Хранит одно ручное предложение в памяти и использует общий sandbox/atomic write без автоматического подтверждения.
 EditorService.clear | Забывает pending proposal при новой подготовке, решении или смене проекта.
 EditorService.read | Читает ограниченные UTF-8 байты, отвергает NUL, возвращает LF-представление, newline-стиль и хеш исходных байтов.
-EditorService.preview | Сверяет editor revision с диском, готовит конкретный diff и сохраняет одноразовый proposal без записи.
+EditorService.preview | Сверяет editor revision с диском и снимком diff, готовит предложение до 1 МБ и сохраняет одноразовый proposal без записи.
 EditorService.resolve | Проверяет ID/root/решение, потребляет proposal и выполняет Apply с повторной проверкой snapshot; Reject/Cancel не пишут.
 ''')
 TS_NOTES.update({
@@ -1493,3 +1493,222 @@ TEST_PURPOSES.update({
  'music_search_encodes_query_and_does_not_claim_playback':'Музыкальный поиск кодирует запрос и не подтверждает звучание после открытия страницы.',
  'local_audio_requires_original_prompt_folder_and_extension':'Локальный плеер принимает только аудио из явно указанной исходной папки.'
 })
+TEST_PURPOSES.update({
+ 'editor_can_save_files_up_to_one_mb_and_recheck_conflicts':'Редактор применяет файл ровно 1 МБ и отказывает при внешнем изменении; лимит агентского preview остаётся 120 КБ.',
+ 'change_between_revision_check_and_diff_does_not_authorize_stale_draft':'Изменение файла между проверкой revision и снимком diff не создаёт разрешения на устаревший черновик.',
+ 'full_unicode_notes_capacity_stays_readable_after_restart':'200 заметок по 4000 кириллических символов сохраняются и читаются новым сервисом; 201-я не меняет файл.',
+ 'note_limit_counts_whitespace_without_corrupting_store':'Пробелы учитываются в лимите 4000 символов; отказ сохраняет прежнее хранилище.',
+ 'nested_explorer_paths_match_editor_paths':'Вложенный путь проводника совпадает с каноническим POSIX-путём вкладки на Windows.',
+})
+TEST_HELPERS['external_change']='Детерминированно меняет файл между проверкой editor revision и построением снимка diff.'
+TS_NOTES['tests/electron/smoke.cjs:win.webContents.executeJavaScript']='Добавляет текст неудавшегося renderer-шага к ошибке скрытого Electron smoke для диагностики.'
+
+# Neutral 7 removes the four-role coordinator, retaining historical narrative docs.
+_removed_role_modules=('agent/ide_coordinator.py','agent/ide_workflow.py','agent/model_lifecycle.py','apps/desktop/src/IDEWorkflowSettings.tsx','tests/migration/test_ide_workflow.py')
+for _module in _removed_role_modules:
+    FILE_NOTES.pop(_module,None)
+    for _key in list(SYMBOL_NOTES):
+        if _key.startswith(_module+':'):SYMBOL_NOTES.pop(_key)
+    for _key in list(TS_NOTES):
+        if _key.startswith(_module+':'):TS_NOTES.pop(_key)
+for _name in ('configure_workflow','start_workflow_discovery','start_workflow_discovery.discover','workflow_preferences'):
+    SYMBOL_NOTES.pop('core/python/task_service.py:TaskService.'+_name,None)
+for _name in ('IDEWorkflowBar','IDEWorkflowSettings','apps/desktop/src/App.tsx:App.moveChat','configureIDEWorkflow','getIDEWorkflow','listIDEModels'):
+    TS_NOTES.pop(_name,None)
+
+FILE_NOTES.update({
+ 'agent/companion_policy.py':'Граница делегирования Лолы по исходному намерению человека и очистка ответов/озвучки от разметки.',
+ 'agent/connection_profiles.py':'Именованные публичные конфигурации моделей без API-ключей.',
+ 'agent/mcp_client.py':'Настоящие соединения MCP stdio/Streamable HTTP с discovery, ограничениями, отменой и закрытием transport.',
+ 'agent/progress_guard.py':'Окно отпечатков вызовов и результатов для остановки чередующихся циклов без продвижения.',
+ 'agent/project_command.py':'Опциональный запуск тестов/сборок после отдельного подтверждения; ограниченный вывод, время и ProcessJob.',
+ 'agent/projects.py':'Атомарное хранение именованных пространств: папка, инструкции и метаданные.',
+ 'agent/responses_adapter.py':'Преобразование канонической истории и потоковых событий OpenAI Responses в существующий цикл агента.',
+ 'apps/desktop/src/BrandMark.tsx':'Векторный знак Neutral: N и точка равновесия; цвет наследуется от темы.',
+ 'apps/desktop/src/ConnectionProfiles.tsx':'Сохранение, выбор и удаление публичных профилей подключения модели.',
+ 'apps/desktop/src/ConversationSidebar.tsx':'Проекты, поиск разговоров, закрепление, архив, копии, повтор, экспорт, перемещение и удаление.',
+ 'apps/desktop/src/ExtensionsSettings.tsx':'Настройки наборов, отдельных tools, навыков, JSON-пакетов и MCP серверов.',
+ 'apps/desktop/src/VoiceSettings.tsx':'Общая страница голоса Лолы с громкостью, скоростью, автоматической озвучкой и расширенной конфигурацией.',
+ 'apps/desktop/src/Welcome.tsx':'Пустое состояние Neutral с короткими сценариями и переходом в IDE.',
+ 'apps/desktop/src/styles/neutral.css':'Общий дизайн Neutral: токены тем, боковая навигация, проекты, настройки, адаптация размера и reduced motion.',
+ 'apps/desktop/src/voiceText.ts':'Очистка презентационной разметки потокового ответа Лолы перед показом и озвучкой.',
+ 'assets/neutral.ico':'Многоразмерная иконка установщика/Windows: PNG-кадры от 16 до 256 пикселей.',
+ 'assets/neutral.png':'Иконка окна Neutral, 512 пикселей, полученная из исходного SVG.',
+ 'assets/neutral.svg':'Редактируемый векторный исходник знака приложения и его фона.',
+ 'core/python/conversation_service.py':'Операции организации чатов с проверкой пространства, режима и корня файлов.',
+ 'core/python/extension_service.py':'Единый реестр разрешённых возможностей, progressive skills, импорт пакетов и снимки для одного запуска.',
+ 'tests/electron/neutral-smoke.cjs':'Изолированная GUI-проверка нового Neutral: проекты/навыки/MCP/Node, подтверждения, история, темы и удаление.',
+ 'tests/fixtures/mcp_echo.py':'Настоящий локальный MCP сервер арифметики и ожидания для stdio/HTTP проверок.',
+ 'tests/test_companion_policy.py':'Границы coding intent Лолы, очистка Markdown, математики и внутренних тегов.',
+ 'tests/test_neutral_conversations.py':'Изоляция проектов/режимов, архив, удаление, копия/повтор, экспорт и профили без ключей.',
+ 'tests/test_neutral_extensions.py':'Переключатели, неизменяемый снимок, навыки-черновики, пакеты и реальные MCP transports.',
+ 'tests/test_project_command.py':'Подтверждение и отказ запуска, корень cwd, код возврата, лимит вывода и отмена процесса.',
+ 'tests/test_responses_adapter.py':'Локальная HTTP/SSE фикстура OpenAI Responses: текст, функции, reasoning items, probe и retry.',
+ 'tools/generate_brand_icons.py':'Разработка: рендер SVG через Qt и запись PNG/многоразмерного ICO без Pillow.',
+ 'requirements-core.txt':'Диапазоны OpenAI/HTTPX и фиксированный официальный MCP SDK для ядра без Qt.',
+ 'apps/desktop/src/ModelSettings.tsx':'Общее окно Neutral с боковыми разделами моделей, Лолы, расширений, ПК, оформления, контекста и runtime.',
+})
+register('agent/companion_policy.py','''
+is_coding_request | Определяет разрешённое делегирование по исходному запросу; исключает бытовые значения слова «код» и программы мероприятий.
+clean_speech_text | Удаляет Markdown/HTML/reasoning и блоки кода, сохраняет читаемые слова и переводит числовое умножение в речь.
+''')
+register('agent/connection_profiles.py','''
+ConnectionProfiles | Каталог именованных публичных параметров API-моделей; секретные поля не принимаются в сохранённый профиль.
+ConnectionProfiles.list | Читает ограниченный по размеру список профилей из пользовательского каталога.
+ConnectionProfiles.save | Проверяет имя/ID/параметры и атомарно добавляет или заменяет один из максимум 30 профилей.
+ConnectionProfiles.remove | Удаляет выбранную запись, сохраняя другие профили и активную конфигурацию модели.
+''')
+register('agent/mcp_client.py','''
+validate_server | Проверяет ID, transport, URL или command/args и возвращает только разрешённые публичные поля.
+MCPClient | Исполнитель короткоживущих MCP соединений; токен передаётся отдельно от публичных настроек.
+MCPClient.operation | Запускает coroutine из синхронного диспетчера и превращает ошибки соединения в ограниченный результат.
+MCPClient._operate | Ограничивает общее время и отслеживает отмену, закрывая transport и его внутреннюю задачу.
+MCPClient._operate.exchange | Открывает stdio/HTTP клиент, получает страницы схем или выполняет один tool, ограничивая результаты.
+''')
+register('agent/model_client.py','''
+ModelClient.create.complete | Выбирает нестриминговый Chat Completions или Responses и приводит результат к ожидаемому интерфейсу choices.
+ModelClient.request | Повторяет временные сетевые/429/5xx ошибки до начала ответа максимум два раза; не повторяет частичный поток.
+''')
+register('agent/progress_guard.py','''
+ProgressGuard | Ограниченное окно SHA256 отпечатков имени, аргументов и результата вызова.
+ProgressGuard.observe | Добавляет результат и обнаруживает четыре одинаковых исхода в последних шестнадцати действиях, включая A/B цикл.
+''')
+register('agent/project_command.py','''
+run_project_command | Проверяет cwd/аргументы, требует отдельное подтверждение и запускает программу без shell с deadline и ограниченным выводом.
+run_project_command.read | Непрерывно освобождает stdout/stderr pipe, сохраняя не больше 64 КБ и считая объём для признака усечения.
+''')
+register('agent/projects.py','''
+ProjectStore | Каталог пространств, объединяющих разговоры общими инструкциями и необязательной папкой IDE.
+ProjectStore.list | Читает до 1 МБ каталога и явно сообщает повреждение вместо молчаливой потери данных.
+ProjectStore.get | Возвращает выбранный проект либо совместимое личное пространство с пустым ID.
+ProjectStore.save | Проверяет имя, инструкции и существование папки; атомарно сохраняет проект с временными метками.
+ProjectStore.remove | Удаляет только метаданные группы; перенос разговоров организует bridge, файлы проекта не затрагиваются.
+''')
+register('agent/responses_adapter.py','''
+response_request | Преобразует сообщения/tool results в Responses input, добавляет инструкции и store=false, сохраняет reasoning continuity внутри запуска.
+chat_chunk | Создаёт минимальный совместимый объект choices/delta для существующего потокового AgentEngine.
+ResponseEvents | Состояние преобразования одного Responses stream: индексы функций и уже полученные аргументы.
+ResponseEvents.translate | Переводит текст и аргументы функций, обрабатывает завершение/ошибку и сохраняет output items для следующего tool turn.
+response_completion | Приводит нестриминговый output_text к интерфейсу Chat Completion, используемому проверкой завершения и памятью.
+''')
+register('core/python/conversation_service.py','''
+ConversationService | Сервис организации канонической истории без доступа к произвольным файлам проекта.
+ConversationService.scoped | Проверяет одновременно ID, режим, корень файлов и пространство; чужой чат не допускается к операции.
+ConversationService.update | Меняет pin/archive/project_id только в idle-состоянии и сбрасывает активный выбор при перемещении или архиве.
+ConversationService.delete | Требует подтверждение, удаляет выбранный чат и checkpoint, сбрасывает активный выбор.
+ConversationService.fork | Копирует завершённую историю без активного checkpoint или готовит повтор последнего запроса в независимой ветке.
+ConversationService.export | Формирует ограниченный Markdown/JSON для системного окна сохранения; не пишет путь из model arguments.
+ConversationService.search | Ищет название и user/assistant текст внутри режима/пространства, разделяет архив и сортирует закреплённые выше.
+''')
+register('core/python/extension_service.py','''
+function | Собирает единообразное определение function tool с JSON Schema и запретом лишних аргументов.
+ExtensionService | Владелец публичного реестра tools/пакетов/навыков/MCP и отдельного хранилища токенов в памяти.
+ExtensionService.save | Атомарно пишет публичное состояние без токенов и API-ключей.
+ExtensionService.skills | Объединяет метаданные встроенных SKILL.md и ограниченные пользовательские JSON-инструкции с переключателями.
+ExtensionService.catalog | Возвращает GUI наборы, инструменты, навыки, пакеты и MCP; секрет не возвращается, доступен только has_token.
+ExtensionService.configure | Проверяет и применяет конкретное действие переключения/редактирования, не предоставляя модели универсальное изменение настроек.
+ExtensionService._save_skill | Проверяет длины и ID; создаёт пользовательскую инструкцию или новый выключенный черновик опыта модели.
+ExtensionService.import_plugin | Валидирует ограниченный декларативный пакет до записи; импортирует выключенные навыки/серверы без произвольного кода.
+ExtensionService.discover_server | Подключается к MCP, получает схемы, назначает уникальные псевдонимы и отвергает устаревший результат при смене настроек.
+ExtensionService.snapshot | Фиксирует разрешения одного запуска и каталог метаданных навыков; тела инструкций в prompt не подставляются заранее.
+ExtensionService.execute | Повторно проверяет разрешение, обслуживает skills и MCP, валидирует схему и запрашивает отдельное подтверждение внешнего действия.
+''')
+register('core/python/task_service.py','''
+TaskService._approve_external | Ждёт отдельное решение MCP/команды, проверяет актуальный запуск и поддерживает отмену независимо от файлового apply_all.
+''')
+register('core/python/bridge.py','''
+main.discover | Выполняет MCP discovery отдельным потоком, чтобы основной stdin-loop продолжал принимать запросы и отмену.
+''')
+register('tests/fixtures/mcp_echo.py','''
+add | MCP fixture складывает два целых числа, чтобы проверка транспорта не затрагивала файлы и внешние сервисы.
+wait_seconds | Отложенный MCP ответ для проверки отмены и закрытия соединения.
+''')
+SYMBOL_NOTES['tools/generate_brand_icons.py:main']='Рендерит SVG в 512px PNG и записывает ICO directory/PNG-кадры семи разрешений для Windows.'
+for _file,_name,_description in [
+ ('tests/test_companion_policy.py','CompanionPolicyTests','Проверки coding-only намерения и чистого текста Лолы.'),
+ ('tests/test_neutral_conversations.py','NeutralConversationTests','Изолированное временное хранилище проектов и чатов для мутаций/экспорта.'),
+ ('tests/test_neutral_extensions.py','NeutralExtensionsTests','Проверки реестра и настоящих локальных MCP соединений.'),
+ ('tests/test_project_command.py','ProjectCommandTests','Проверки подтверждения и жизненного цикла собственного тестового процесса.'),
+ ('tests/test_responses_adapter.py','ResponsesHandler','HTTP/SSE фикстура Responses без платных API вызовов.'),
+ ('tests/test_responses_adapter.py','ResponsesAdapterTests','Проверки канонической истории, потоковых functions, reasoning, probe и retry.'),
+]:SYMBOL_NOTES[_file+':'+_name]=_description
+SYMBOL_NOTES['tests/test_project_command.py:ProjectCommandTests.test_success_and_nonzero_exit_are_observable.approve']='Сохраняет предложение команды и подтверждает только тестовый запуск для проверки формы approval.'
+TEST_PURPOSES.update({
+ 'chat_without_project_has_only_extension_tools_and_separate_history':'Chat получает только разрешённые нефайловые расширения, сохраняет отдельную историю и не пишет проект.',
+ 'only_coding_requests_can_delegate':'Кодирование допускается к делегированию, обычные вопросы, музыка, бытовые коды и функции устройств исключаются.',
+ 'speech_removes_markdown_preserving_words_and_math':'Разметка/код не озвучиваются, читаемые слова и числовое умножение сохраняются.',
+ 'internal_reasoning_is_not_spoken':'Закрытые think-теги удаляются из голоса и видимого итогового текста.',
+ 'project_instructions_and_chat_move_preserve_canonical_messages':'Перемещение меняет пространство без потери сообщений; поиск и доступ проверяют группу/режим.',
+ 'pin_archive_delete_and_explicit_confirmation':'Закрепление и архив видны в индексе; удаление требует подтверждения и убирает только выбранный чат.',
+ 'fork_and_retry_never_reuse_checkpoint_or_change_original':'Новая ветка имеет новый ID и не наследует checkpoint; исходная история сохраняется.',
+ 'exports_and_search_keep_modes_isolated':'Экспорт сохраняет нужные сообщения, поиск Chat не раскрывает отдельную историю Лолы.',
+ 'profiles_strip_secrets_and_validate_protocol':'Профили сохраняют Responses-настройки без ключа и отклоняют credentials в URL.',
+ 'disabled_tools_and_groups_are_enforced_and_snapshot_is_frozen':'Отключённые tools недоступны следующему запуску; прежний снимок не изменяется задним числом.',
+ 'generated_skill_is_reviewable_draft_and_lazy_loaded_after_enable':'Опыт создаётся выключенным, после включения читается по запросу, body не включается в каталог prompt.',
+ 'learning_toggle_and_plugin_validation':'Выключение обучения убирает create_skill, пакет не ссылается на неизвестный tool и включается явно.',
+ 'mcp_stdio_discovery_call_confirmation_and_cancellation':'Настоящий stdio SDK проходит discovery, отказ, проверку JSON Schema, вызов и отмену ожидания.',
+ 'server_url_does_not_store_credentials_and_change_invalidates_tools':'MCP URL с паролем отклоняется, токен не записывается и сбрасывается при смене адреса.',
+ 'mcp_streamable_http_discovers_and_calls_real_server':'Официальный локальный Streamable HTTP сервер отдаёт схемы и выполняет подтверждённый tool.',
+ 'progress_guard_detects_alternation_but_allows_changing_results':'Чередующийся A/B цикл останавливается по повтору результата; новый результат считается продвижением.',
+ 'rejected_command_never_executes_and_scope_cannot_escape':'Отказ не создаёт файл и cwd вне корня не допускается.',
+ 'success_and_nonzero_exit_are_observable':'Запуск показывает точное предложение, возвращает Unicode-вывод и различает exit 0/7.',
+ 'output_is_bounded_and_cancellation_stops_child':'Объём stdout ограничен 64 КБ, отмена быстро завершает собственный процесс.',
+ 'streaming_tools_and_reasoning_are_carried_between_calls':'Responses functions собираются из delta, output и зашифрованный reasoning передаются в следующий turn.',
+ 'nonstream_probe_uses_responses_and_retry_is_before_stream':'Временный 503 повторяется до потока, probe и нестриминговое завершение используют Responses.',
+ 'transcript_conversion_does_not_send_unknown_chat_metadata':'В API уходят только поля протокола, неизвестные локальные метаданные не передаются.',
+})
+TS_NOTES.update({
+ 'listWorkspaces':'Получает список пространств через ограниченный preload IPC.',
+ 'saveWorkspace':'Передаёт создание/изменение имени, папки и инструкций проекта.',
+ 'selectWorkspace':'Переключает пространство и его папку после проверок текущего состояния.',
+ 'deleteWorkspace':'Удаляет подтверждённую группу с сохранением разговоров и файлов.',
+ 'searchChats':'Запрашивает поиск названий/сообщений внутри режима, проекта и архива.',
+ 'updateChat':'Меняет закрепление, архив или проект выбранного разговора.',
+ 'deleteChat':'Передаёт подтверждённое удаление конкретного чата.',
+ 'forkChat':'Создаёт независимую копию или подготавливает повтор в новой ветке.',
+ 'exportChat':'Получает Markdown/JSON и открывает системное окно сохранения в main.',
+ 'listExtensions':'Получает публичный каталог возможностей без секретов.',
+ 'configureExtensions':'Передаёт конкретное действие настройки реестра в Core.',
+ 'discoverMcp':'Запускает асинхронное подключение MCP и получение схем tools.',
+ 'listConnections':'Читает именованные публичные профили модели.',
+ 'saveConnection':'Сохраняет профиль API без секретного ключа.',
+ 'deleteConnection':'Удаляет один выбранный публичный профиль.',
+ 'importPlugin':'Открывает системный выбор ограниченного JSON манифеста.',
+ 'pickWorkspaceFolder':'Выбирает папку для проекта без немедленного переключения текущего корня.',
+ 'apps/desktop/src/App.tsx:App.resetConversation':'Сбрасывает UI-ссылки на чат/запуск, сообщения, checkpoint, approval и ввод.',
+ 'apps/desktop/src/App.tsx:App.switchWorkspace':'Проверяет активность/черновики, переключает группу в Core и обновляет редактор, папку и историю.',
+ 'apps/desktop/src/App.tsx:App.openFork':'Открывает возвращённую копию, очищает checkpoint и подставляет запрос повтора во ввод.',
+ 'BrandMark':'Рисует согласованный с темой знак Neutral с точкой равновесия.',
+ 'ConnectionProfiles':'Показывает сохранённые подключения, имя профиля и действия сохранения/удаления.',
+ 'apps/desktop/src/ConnectionProfiles.tsx:ConnectionProfiles.remove':'Удаляет подтверждённый профиль и обновляет список без смены активной модели.',
+ 'apps/desktop/src/ConversationSidebar.tsx:Project':'Публичные поля пространства: ID, имя, папка и инструкции.',
+ 'apps/desktop/src/ConversationSidebar.tsx:Conversation':'Метаданные строки истории, фрагмент поиска и флаги pin/archive.',
+ 'apps/desktop/src/ConversationSidebar.tsx:Props':'Контракт sidebar с App: выбранный режим/проект, callbacks открытия, сброса, копии и ошибок.',
+ 'ConversationSidebar':'Управляет проектами и scoped-историей через конкретные preload методы.',
+ 'apps/desktop/src/ConversationSidebar.tsx:ConversationSidebar.run':'Сериализует GUI-действие, выводит ошибку и обновляет каталог после успеха.',
+ 'apps/desktop/src/ConversationSidebar.tsx:ConversationSidebar.update':'Применяет флаги/перемещение и сбрасывает активный чат при выходе из текущего списка.',
+ 'apps/desktop/src/ConversationSidebar.tsx:ConversationSidebar.saveProject':'Сохраняет форму проекта и переключает приложение на созданное/изменённое пространство.',
+ 'apps/desktop/src/ConversationSidebar.tsx:ConversationSidebar.remove':'Выполняет явно подтверждённое удаление чата/группы и обновляет активный выбор.',
+ 'apps/desktop/src/ExtensionsSettings.tsx:Skill':'Публичная инструкция навыка, происхождение и состояние включения.',
+ 'ExtensionsSettings':'Интерфейс пакетов, групп, tools, навыков, MCP подключения/проверки и подтверждения удаления.',
+ 'apps/desktop/src/ExtensionsSettings.tsx:ExtensionsSettings.run':'Ограничивает одновременные операции и перечитывает публичный реестр после успеха.',
+ 'apps/desktop/src/ExtensionsSettings.tsx:ExtensionsSettings.toggle':'Отправляет переключение конкретной возможности через валидируемый Core метод.',
+ 'apps/desktop/src/ExtensionsSettings.tsx:ExtensionsSettings.includes':'Локально фильтрует название/описание по строке поиска расширений.',
+ 'apps/desktop/src/ExtensionsSettings.tsx:ExtensionsSettings.saveSkill':'Сохраняет пользовательскую инструкцию, оставляя явное включение отдельным действием.',
+ 'apps/desktop/src/ExtensionsSettings.tsx:ExtensionsSettings.saveServer':'Преобразует строки аргументов в массив и сохраняет MCP публично, токен передаётся отдельно.',
+ 'VoiceSettings':'Общая настройка голоса/громкости/скорости Лолы и её расширенного профиля.',
+ 'Welcome':'Пустое состояние с брендом, примерами ввода и переходом в IDE.',
+ 'plainVoiceText':'Удаляет разметку из потокового отображения и текста для TTS без исполнения HTML.',
+ 'tests/electron/neutral-smoke.cjs:BrowserWindow.prototype.loadURL':'Открывает собранный renderer вместо пользовательского Vite, изолируя GUI-проверку.',
+ 'tests/electron/neutral-smoke.cjs:dialog.showSaveDialog':'Выбирает только тестовый путь экспорта без системного диалога пользователю.',
+ 'tests/electron/neutral-smoke.cjs:js':'Выполняет renderer-шаг, даёт React завершить обновление и добавляет код к ошибке.',
+ 'tests/electron/neutral-smoke.cjs:click':'Нажимает выбранный DOM-контрол через реальный renderer.',
+ 'tests/electron/neutral-smoke.cjs:textButton':'Находит кнопку в заданной области по точному видимому тексту.',
+ 'tests/electron/neutral-smoke.cjs:input':'Изменяет native input/textarea и посылает React input event.',
+ 'tests/electron/neutral-smoke.cjs:capture':'Сохраняет screenshot и геометрию основных панелей для визуальной проверки.',
+ 'tests/electron/neutral-smoke.cjs:finish':'Пишет итог и диагностику ошибки, закрывает только тестовое приложение и HTTP fixture.',
+})
+
+TS_NOTES['tests/electron/smoke.cjs:BrowserWindow.prototype.loadURL']='Открывает готовый renderer из dist, чтобы полная проверка редактора и голоса не зависела от пользовательского Vite.'
+
+TEST_PURPOSES['lola_uses_her_own_responses_protocol_and_tools']='Лола использует собственный Responses endpoint, вызывает калькулятор и сохраняет чистый ответ независимо от основной конфигурации.'

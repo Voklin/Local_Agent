@@ -19,7 +19,7 @@ class ModelPreferencesTests(unittest.TestCase):
 
     def test_roundtrip_whitelists_nonsecret_fields(self):
         saved = preferences.save_preferences({'base_url':'http://localhost:1234/v1/', 'model':' Qwen ', 'api_key':'secret', 'other':'private'})
-        self.assertEqual(saved, {'tool_protocol':'native','base_url':'http://localhost:1234/v1','model':'Qwen','settings':preferences.DEFAULTS['settings']})
+        self.assertEqual(saved, {'api_protocol':'chat','tool_protocol':'native','base_url':'http://localhost:1234/v1','model':'Qwen','settings':preferences.DEFAULTS['settings']})
         self.assertEqual(preferences.load_preferences(), saved)
         self.assertEqual(json.loads(self.path.read_text()), saved)
         self.assertNotIn('secret', self.path.read_text())

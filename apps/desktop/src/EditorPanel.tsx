@@ -79,7 +79,10 @@ export const EditorPanel = forwardRef<EditorHandle,EditorProps>(function EditorP
       const document=await read(path);
       if (document) {
         if (line) targetLine.current={path:document.path,line};
-        selectDocument(document); setNotice(''); return document.path;
+        // The canonical path may already have a draft (aliases or concurrent opens).
+        if (tabsRef.current.some(tab=>tab.path===document.path)) setActivePath(document.path);
+        else selectDocument(document);
+        setNotice(''); return document.path;
       }
     } catch(error) { setNotice(String(error)); props.onLog(String(error)); }
   }
@@ -185,7 +188,7 @@ export const EditorPanel = forwardRef<EditorHandle,EditorProps>(function EditorP
           <textarea ref={input} className="editor-input" aria-label={`Редактор ${current.path}`} disabled={saving||!!proposal} spellCheck={false} autoCapitalize="off" autoCorrect="off" wrap={wrap?'soft':'off'} value={current.content} onChange={event=>{const content=event.target.value;setTabs(items=>items.map(tab=>tab.path===activePath?{...tab,content}:tab));}} onClick={updatePosition} onKeyUp={updatePosition} onSelect={updatePosition} onScroll={event=>setScrollTop(event.currentTarget.scrollTop)}/>
         </div>
         <div className="editor-status"><span>Ln {position.line}, Col {position.column}</span><span>UTF-8 · {current.newline.toUpperCase()}</span><span>{current.content!==current.original?'Несохранённые изменения · агент видит версию на диске':'Изменений нет'}</span></div>
-      </div>:<div className="welcome"><div className="welcome-logo"><Code2 size={28}/></div><h1>Agent Studio</h1><p>Рабочее пространство LocalAgent</p><div className="welcome-actions"><button onClick={props.onProject} disabled={props.busy}><FolderOpen size={16}/>Открыть проект</button><button onClick={props.onModels}><Settings2 size={16}/>Настроить модель</button></div><div className="migration-note"><ShieldCheck size={17}/><span><b>Изменения под вашим контролем</b><br/>Редактируйте файлы во вкладках. Сохранение проходит через diff и повторную проверку файла.</span></div></div>}
+      </div>:<div className="welcome"><div className="welcome-logo"><Code2 size={28}/></div><h1>Neutral IDE</h1><p>Рабочее пространство Neutral</p><div className="welcome-actions"><button onClick={props.onProject} disabled={props.busy}><FolderOpen size={16}/>Открыть проект</button><button onClick={props.onModels}><Settings2 size={16}/>Настроить модель</button></div><div className="migration-note"><ShieldCheck size={17}/><span><b>Изменения под вашим контролем</b><br/>Редактируйте файлы во вкладках. Сохранение проходит через diff и повторную проверку файла.</span></div></div>}
       {notice&&<div className="editor-notice" role="status">{notice}<button title="Скрыть уведомление" onClick={()=>setNotice('')}><X size={12}/></button></div>}
     </div>
     {proposal&&<div className="modal-backdrop editor-approval"><section className="approval-dialog" role="dialog" aria-modal="true" aria-labelledby="editor-approval-title"><h2 id="editor-approval-title">Сохранение: {proposal.path}</h2><p>Подтверждение относится только к этому diff. Черновик не записан до применения.</p><pre>{proposal.diff}</pre><div className="approval-actions"><button disabled={saving} onClick={()=>void decide('cancel')}>Отмена</button><button disabled={saving} onClick={()=>void decide('reject')}>Отклонить</button><button className="primary-button" disabled={saving||props.busy} onClick={()=>void decide('apply')}>Применить и сохранить</button></div></section></div>}

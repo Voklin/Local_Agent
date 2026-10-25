@@ -38,7 +38,7 @@ class DelegationTests(unittest.TestCase):
                         url=f'http://127.0.0.1:{server.server_port}/v1'
                         service.configure({'base_url':url,'model':'main-fixture'})
                         service.companion_config={**service.companion_config,'base_url':url,'model':'miya-fixture'}
-                        service.start('',{'mode':'voice','prompt':'Передай сложный вопрос основной модели'})
+                        service.start('',{'mode':'voice','prompt':'Объясни код Python и исправь ошибку'})
                         source=service.chat['id'];pending=None
                         while True:
                             event=events.get(timeout=15);self.assertNotEqual(event['event'],'failed',event)
@@ -51,7 +51,7 @@ class DelegationTests(unittest.TestCase):
                             event=events.get(timeout=15);self.assertNotEqual(event['event'],'failed',event)
                             if event['event']=='task_end':break
                         original=chat_store.load_chat(source)
-                        self.assertEqual(original['mode'],'voice');self.assertIn('MAIN_MODEL_RESULT',original['messages'][-1]['content'])
+                        self.assertEqual(original['mode'],'voice');self.assertIn('MAIN MODEL RESULT',original['messages'][-1]['content'])
                         self.assertEqual(server.models,['miya-fixture','miya-fixture','main-fixture'])
                         self.assertNotEqual(service.chat['id'],source)
                     finally:service.shutdown()

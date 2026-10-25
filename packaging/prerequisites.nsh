@@ -24,7 +24,7 @@
     ${If} $0 == 3010
       SetRebootFlag true
     ${ElseIf} $0 != 0
-      MessageBox MB_OK|MB_ICONSTOP "Microsoft Visual C++ Runtime installation failed (code $0). LocalAgent installation stopped."
+      MessageBox MB_OK|MB_ICONSTOP "Microsoft Visual C++ Runtime installation failed (code $0). Neutral installation stopped."
       SetErrorLevel $0
       Quit
     ${EndIf}

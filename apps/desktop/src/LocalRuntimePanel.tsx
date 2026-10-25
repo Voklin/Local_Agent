@@ -36,7 +36,7 @@ export function LocalRuntimePanel({locked,onUse}:{locked:boolean;onUse:(url:stri
   }
   const active=['starting','running','stopping'].includes(status.state);
   const unavailable=locked||working;
-  return <section className="settings-section local-runtime"><h3>GGUF внутри LocalAgent</h3>
+  return <section className="settings-section local-runtime"><h3>GGUF внутри Neutral</h3>
     <p className="settings-help">CPU-сервер llama.cpp включён в установщик. Выберите файл GGUF. Приложение запустит отдельный сервер на localhost. Файлы не копируются; загрузки из сети нет. По умолчанию CPU, GPU-слои требуют подходящей сборки сервера.</p>
     <button type="button" className="secondary-button pick-runtime" disabled={unavailable||active} onClick={()=>void pick('runtime')}>Другой llama-server</button><small className="runtime-path">{runtime||status.bundled_runtime||'Сервер не выбран'}</small>
     <button type="button" className="secondary-button pick-gguf" disabled={unavailable||active} onClick={()=>void pick('model')}>Выбрать GGUF</button><small className="runtime-path">{model||status.model?.path||'Модель не выбрана'}</small>

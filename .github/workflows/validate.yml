@@ -1,4 +1,4 @@
-name: Validate LocalAgent
+name: Validate Neutral
 on:
   push:
   pull_request:
@@ -22,6 +22,13 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: npm run build
+      - name: Check Neutral renderer, projects and extensions
+        shell: pwsh
+        run: |
+          node node_modules/electron/install.js
+          $env:LCA_TEST_PYTHON = (Get-Command python).Source
+          Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+          node_modules/.bin/electron.cmd tests/electron/neutral-smoke.cjs
       - run: node tests/electron/desktop-apps.cjs
       - run: node tests/electron/microphone.cjs
       - run: node tests/electron/assistant-media.cjs
@@ -55,7 +62,7 @@ jobs:
       - run: node tests/electron/packaged-smoke.mjs
       - uses: actions/upload-artifact@v4
         with:
-          name: LocalAgent-windows-x64-${{ github.sha }}
+          name: Neutral-windows-x64-${{ github.sha }}
           path: artifacts/windows/*-setup-x64.exe
           if-no-files-found: error
           retention-days: 7

@@ -50,7 +50,7 @@ class ModelHandler(BaseHTTPRequestHandler):
             delta = {'reasoning_content': 'private reasoning'}
             if empty in ('recover', 'after-tool-recover') and payload.get('tool_choice') == 'none':
                 delta = {'content': 'Восстановленный ответ'}
-        elif not payload.get('tools') and not getattr(self.server, 'unexpected_tool', False):
+        elif not any(t['function']['name']=='write_file' for t in payload.get('tools',[])) and not getattr(self.server, 'unexpected_tool', False):
             delta = {'content': 'Ответ без папки'}
         chunk = {'id':'test', 'object':'chat.completion.chunk', 'created':0, 'model':'test-model',
                  'choices':[{'index':0,'delta':delta,'finish_reason':None}]}
@@ -107,7 +107,7 @@ class TaskServiceTests(unittest.TestCase):
         self.service.start('',{'prompt':'Привет','mode':'voice'})
         self.event('task_end')
         request=self.server.requests[-1]
-        self.assertEqual({tool['function']['name'] for tool in request['tools']},{'delegate_task','get_local_time','calculate','save_note','list_notes','set_timer','list_timers','cancel_timer'})
+        self.assertEqual({tool['function']['name'] for tool in request['tools']},{'get_local_time','calculate','save_note','list_notes','set_timer','list_timers','cancel_timer','skills_list','skill_view','create_skill'})
         self.assertEqual(self.service.chat['mode'],'voice')
         self.assertIn('Лола',request['messages'][0]['content'])
         self.assertEqual(self.service.chat['project_root'],'')
@@ -154,7 +154,7 @@ class TaskServiceTests(unittest.TestCase):
         self.assertEqual(request['temperature'], 0.7)
         self.assertEqual(request['top_p'], 0.9)
         self.assertEqual(request['max_tokens'], 2048)
-        self.assertNotIn('tools', request)
+        self.assertNotIn('tools',request)
         self.assertEqual(len(request['messages']), 2)
 
     def test_saved_generation_is_used_by_engine(self):
@@ -206,7 +206,7 @@ class TaskServiceTests(unittest.TestCase):
         self.assertEqual(len([r for r in self.server.requests[before:] if r.get('stream')]), 4)
         self.assertEqual((self.root / 'new.txt').read_text(), 'approved content')
 
-    def test_chat_without_project_has_no_tools_and_separate_history(self):
+    def test_chat_without_project_has_only_extension_tools_and_separate_history(self):
         project_chat = self.service.select_chat(self.root)['chat']
         self.service.select_chat('')
         before = len(self.server.requests)
@@ -214,7 +214,7 @@ class TaskServiceTests(unittest.TestCase):
         self.event('task_end')
         self.service.thread.join(2)
         request = self.server.requests[before]
-        self.assertNotIn('tools', request)
+        self.assertEqual({t['function']['name'] for t in request.get('tools',[])},{'skills_list','skill_view','create_skill'})
         saved = chat_store.load_chat(self.service.chat['id'])
         self.assertEqual(saved['project_root'], '')
         self.assertEqual(saved['messages'][-1]['content'], 'Ответ без папки')
@@ -253,9 +253,11 @@ class TaskServiceTests(unittest.TestCase):
                 if event['event'] == 'task_end':
                     break
             self.service.thread.join(2)
-        self.assertTrue(any(e['event'] == 'failed' and 'режиме Chat' in e['text'] for e in seen))
+        results=[json.loads(m['content']) for m in self.service.chat['messages'] if m.get('role')=='tool']
+        self.assertTrue(results);self.assertTrue(all(not r['ok'] for r in results))
+        self.assertFalse((self.root/'new.txt').exists())
         self.assertFalse(any(e['event'] == 'approval' for e in seen))
-        self.assertEqual(self.service.chat['task_checkpoint']['status'], 'paused')
+        self.assertEqual(self.service.chat['task_checkpoint']['status'], 'completed')
 
     def test_apply_only_after_matching_approval_and_persist_history(self):
         approval = self.start()

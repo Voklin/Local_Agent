@@ -9,6 +9,9 @@ import time
 import uuid
 from agent.chat_store import APP_DIR,_atomic_write
 
+# 200 notes of 4000 characters, including JSON escapes and Unicode text.
+MAX_NOTES_BYTES = 6_000_000
+
 ASSISTANT_TOOLS=[
  {'type':'function','function':{'name':'get_local_time','description':'Текущие местные дата, время и день недели этого ПК.','parameters':{'type':'object','properties':{},'additionalProperties':False}}},
  {'type':'function','function':{'name':'calculate','description':'Вычислить арифметическое выражение: + - * / // % ** и скобки. Без Python-кода и функций.','parameters':{'type':'object','properties':{'expression':{'type':'string'}},'required':['expression'],'additionalProperties':False}}},
@@ -44,8 +47,10 @@ class AssistantService:
 
     def notes(self):
         if not self.notes_file.exists():return []
-        if self.notes_file.stat().st_size>1_000_000:raise ValueError('Хранилище заметок слишком велико')
-        value=json.loads(self.notes_file.read_text('utf8'))
+        if self.notes_file.stat().st_size>MAX_NOTES_BYTES:raise ValueError('Хранилище заметок слишком велико')
+        with self.notes_file.open('rb') as source:raw=source.read(MAX_NOTES_BYTES+1)
+        if len(raw)>MAX_NOTES_BYTES:raise ValueError('Хранилище заметок слишком велико')
+        value=json.loads(raw.decode('utf8'))
         if not isinstance(value,list) or any(not isinstance(item,dict) for item in value):raise ValueError('Файл заметок повреждён; исходник сохранён')
         return value
 
@@ -56,11 +61,14 @@ class AssistantService:
             if name=='calculate':return {'ok':True,'result':calculate(args.get('expression'))}
             if name=='save_note':
                 text=args.get('text');title=args.get('title','Заметка')
-                if not isinstance(text,str) or not 1<=len(text.strip())<=4000 or not isinstance(title,str) or len(title)>120:raise ValueError('Заметка: текст до 4000 и заголовок до 120 символов')
+                if not isinstance(text,str) or not text.strip() or len(text)>4000 or not isinstance(title,str) or len(title)>120:raise ValueError('Заметка: текст до 4000 и заголовок до 120 символов')
                 values=self.notes()
                 if len(values)>=200:raise ValueError('Достигнут предел 200 заметок')
                 item={'id':uuid.uuid4().hex,'title':title,'text':text,'created_at':datetime.now().astimezone().isoformat()}
-                values.append(item);_atomic_write(self.notes_file,values);return {'ok':True,'note':item}
+                values.append(item)
+                serialized=json.dumps(values,ensure_ascii=False,indent=2).replace('\n','\r\n')
+                if len(serialized.encode('utf8'))>MAX_NOTES_BYTES:raise ValueError('Хранилище заметок слишком велико; прежние заметки сохранены')
+                _atomic_write(self.notes_file,values);return {'ok':True,'note':item}
             if name=='list_notes':
                 query=args.get('query','')
                 if not isinstance(query,str) or len(query)>300:raise ValueError('Запрос заметок: до 300 символов')

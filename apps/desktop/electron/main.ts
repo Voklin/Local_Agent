@@ -8,6 +8,8 @@ import { DesktopApplications } from './desktopApps';
 import { SpeechRuntime } from './speechRuntime';
 import { validateMusicURL, validateAudioPath } from './assistantMedia';
 
+// Keep the existing Chromium profile and encrypted Telegram credentials after rebranding.
+if(app.isPackaged&&!app.commandLine.hasSwitch('user-data-dir'))app.setPath('userData',path.join(app.getPath('appData'),'localagent'));
 let managedSpeech:SpeechRuntime|null=null;
 function speechRuntime() {
   if(!managedSpeech)managedSpeech=new SpeechRuntime(
@@ -81,7 +83,7 @@ function startBackend() {
   if (backend) return;
   const root = app.isPackaged ? path.join(process.resourcesPath, 'core') : path.resolve(__dirname, '../../../core/python');
   const python = app.isPackaged ? path.join(root, 'lca-core.exe') : process.env.LCA_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-  const env: NodeJS.ProcessEnv = { ...process.env, PYTHONIOENCODING: 'utf-8' };
+  const env: NodeJS.ProcessEnv = { ...process.env, NEUTRAL_NODE_PATH:process.execPath, PYTHONIOENCODING: 'utf-8' };
   if (app.isPackaged) { delete env.PYTHONHOME; delete env.PYTHONPATH; }
   diagnostic(`core:start packaged=${app.isPackaged}`);
   const child = spawn(python, app.isPackaged ? [] : ['-u', path.join(root, 'bridge.py')], { cwd: root, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env });
@@ -122,7 +124,7 @@ function callBackend(method: string, params: Record<string, unknown> = {}) {
   });
 }
 function createWindow() {
-  win = new BrowserWindow({ show: false, width: 1500, height: 940, minWidth: 1050, minHeight: 680, backgroundColor: '#15171c', title: 'Local Coding Agent', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  win = new BrowserWindow({ show: false, width: 1500, height: 940, minWidth: 1050, minHeight: 680, backgroundColor: '#15171c', title: 'Neutral', icon:app.isPackaged?path.join(process.resourcesPath,'brand/neutral.png'):path.resolve(__dirname,'../../../assets/neutral.png'), webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   win.on('close', (event) => {
     if (!editorDirty) return;
     event.preventDefault();
@@ -165,10 +167,40 @@ function handle(channel: string, handler: (...args: any[]) => any) {
     return handler(...args);
   });
 }
+handle('workspace:list',()=>callBackend('workspace_list'));
+handle('workspace:save',(params)=>callBackend('workspace_save',params));
+handle('workspace:select',(params)=>callBackend('workspace_select',params));
+handle('workspace:delete',(params)=>callBackend('workspace_delete',params));
+handle('chat:search',(params)=>callBackend('chat_search',params));
+handle('chat:update',(params)=>callBackend('chat_update',params));
+handle('chat:delete',(params)=>callBackend('chat_delete',params));
+handle('chat:fork',(params)=>callBackend('chat_fork',params));
+handle('extensions:list',()=>callBackend('extensions_list'));
+handle('extensions:configure',(params)=>callBackend('extensions_configure',params));
+handle('extensions:discover',(params)=>callBackend('mcp_discover',params));
+handle('connections:list',()=>callBackend('connections_list'));
+handle('connections:save',(params)=>callBackend('connections_save',params));
+handle('connections:delete',(params)=>callBackend('connections_delete',params));
+handle('workspace:pick-folder',async()=>{
+  const result=await dialog.showOpenDialog(win!,{title:'Папка проекта · необязательно',properties:['openDirectory']});
+  return result.canceled?{canceled:true}:{ok:true,path:result.filePaths[0]};
+});
+handle('chat:export',async(params)=>{
+  const result=await callBackend('chat_export',params);
+  if(!result.ok)return result;
+  const selected=await dialog.showSaveDialog(win!,{title:'Экспорт разговора',defaultPath:'Neutral-chat.'+result.extension,filters:[{name:result.extension==='json'?'JSON':'Markdown',extensions:[result.extension]}]});
+  if(selected.canceled||!selected.filePath)return {ok:true,canceled:true};
+  try{await fs.promises.writeFile(selected.filePath,result.content,'utf8');return {ok:true,path:selected.filePath};}
+  catch{return {ok:false,error:'Не удалось сохранить файл. Проверьте доступ к выбранной папке.'};}
+});
+handle('extensions:import',async()=>{
+  const selected=await dialog.showOpenDialog(win!,{title:'Добавить плагин Neutral',properties:['openFile'],filters:[{name:'Манифест Neutral',extensions:['json']}]});
+  if(selected.canceled||!selected.filePaths[0])return {canceled:true};
+  try{const file=selected.filePaths[0];if((await fs.promises.stat(file)).size>200000)return {ok:false,error:'Манифест превышает 200 КБ'};
+    return await callBackend('extensions_import',{manifest:JSON.parse(await fs.promises.readFile(file,'utf8'))});
+  }catch{return {ok:false,error:'Не удалось прочитать JSON манифест плагина'};}
+});
 handle('core:health', () => callBackend('health'));
-handle('ide:workflow',()=>callBackend('get_ide_workflow'));
-handle('ide:configure-workflow',params=>callBackend('configure_ide_workflow',params));
-handle('ide:models',params=>callBackend('list_ide_models',params));
 handle('project:choose', async () => {
   const result = await dialog.showOpenDialog(win!, { title: 'Выбрать папку проекта', properties: ['openDirectory'] });
   if (result.canceled || !result.filePaths[0]) return { canceled: true };
@@ -177,7 +209,7 @@ handle('project:choose', async () => {
 handle('project:list', (rel = '.') => callBackend('list_files', { path: String(rel).slice(0, 1000) }));
 handle('project:read', (rel) => callBackend('read_file', { path: String(rel).slice(0, 1000) }));
 function modelConfig(config: any) {
-  return { tool_protocol: config?.tool_protocol || 'native', base_url: String(config?.base_url || '').slice(0, 2000), model: String(config?.model || '').slice(0, 300), api_key: String(config?.api_key || '').slice(0, 4000), settings: config?.settings ?? {} };
+  return { api_protocol:config?.api_protocol||'chat', tool_protocol: config?.tool_protocol || 'native', base_url: String(config?.base_url || '').slice(0, 2000), model: String(config?.model || '').slice(0, 300), api_key: String(config?.api_key || '').slice(0, 4000), settings: config?.settings ?? {} };
 }
 async function confirmEditorDiscard() {
   if (!win) return {discard:false};

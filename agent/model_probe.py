@@ -16,8 +16,12 @@ async def _request_probe(config, max_bytes):
         {'role': 'user', 'content': 'Сколько будет 17 + 25? Ответь только числом.'}],
         'temperature': settings['temperature'], 'top_p': settings['top_p'],
         'max_tokens': settings['max_tokens'], 'stream': False}
+    responses=config.get('api_protocol')=='responses'
+    if responses:
+        from .responses_adapter import response_request
+        payload=response_request(payload)
     async with httpx.AsyncClient(timeout=min(settings['request_timeout'], 30), follow_redirects=False) as client:
-        async with client.stream('POST', config['base_url'] + '/chat/completions',
+        async with client.stream('POST', config['base_url'] + ('/responses' if responses else '/chat/completions'),
                 headers={'Authorization': 'Bearer ' + (config.get('api_key') or 'no-key')}, json=payload) as response:
             response.raise_for_status()
             raw = bytearray()
@@ -27,7 +31,7 @@ async def _request_probe(config, max_bytes):
                     raise ValueError('Слишком большой ответ проверки модели')
     try:
         data = json.loads(raw)
-        text = data['choices'][0]['message']['content']
+        text = ''.join(part.get('text','') for item in data.get('output',[]) if item.get('type')=='message' for part in item.get('content',[]) if part.get('type')=='output_text') if responses else data['choices'][0]['message']['content']
     except (ValueError, KeyError, IndexError, TypeError) as exc:
         raise ValueError('Сервер не вернул корректный ответ Chat Completions') from exc
     if not isinstance(text, str) or not text.strip():

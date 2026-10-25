@@ -120,7 +120,7 @@ def search_text(root, query, path=".", case_sensitive=False, max_depth=5):
     return {"ok": True, "matches": matches, "truncated": False}
 
 
-def preview_file_change(root, path, content):
+def preview_file_change(root, path, content, *, max_existing_bytes=MAX_READ_BYTES):
     """Validate a proposed text edit and return a unified diff without writing anything."""
     if not isinstance(content, str):
         return {"ok": False, "error": "content must be a string"}
@@ -141,11 +141,12 @@ def preview_file_change(root, path, content):
     old = ""
     original_bytes = b''
     if exists:
-        if target.stat().st_size > MAX_READ_BYTES:
-            return {"ok": False, "error": f"Existing file is too large to safely preview (limit {MAX_READ_BYTES} bytes)"}
+        if target.stat().st_size > max_existing_bytes:
+            return {"ok": False, "error": f"Existing file is too large to safely preview (limit {max_existing_bytes} bytes)"}
         try:
-            original_bytes = target.read_bytes()
-            if len(original_bytes) > MAX_READ_BYTES:
+            with target.open('rb') as source:
+                original_bytes = source.read(max_existing_bytes + 1)
+            if len(original_bytes) > max_existing_bytes:
                 return {"ok": False, "error": "Existing file grew beyond the preview limit"}
             old = original_bytes.decode('utf-8')
         except UnicodeDecodeError:
@@ -163,13 +164,13 @@ def preview_file_change(root, path, content):
             'snapshot': snapshot}
 
 
-def write_file(root, path, content, overwrite=False, *, approved=False, expected_snapshot=None):
+def write_file(root, path, content, overwrite=False, *, approved=False, expected_snapshot=None, max_existing_bytes=MAX_READ_BYTES):
     """Write UTF-8 text atomically; deny by default unless the GUI explicitly approved."""
     if not approved:
         return {"ok": False, "error": "User approval is required before writing a file", "code": "APPROVAL_REQUIRED"}
     if not isinstance(expected_snapshot, dict):
         return {"ok": False, "error": "A matching preview snapshot is required", "code": "APPROVAL_SNAPSHOT_REQUIRED"}
-    preview = preview_file_change(root, path, content)
+    preview = preview_file_change(root, path, content, max_existing_bytes=max_existing_bytes)
     if not preview.get("ok"):
         return preview
     if preview['snapshot'] != expected_snapshot:
@@ -193,7 +194,7 @@ def write_file(root, path, content, overwrite=False, *, approved=False, expected
             temp.flush()
             os.fsync(temp.fileno())
         # Resolve once more immediately before replace, guarding against path redirection.
-        current = preview_file_change(root, path, content)
+        current = preview_file_change(root, path, content, max_existing_bytes=max_existing_bytes)
         if not current.get('ok') or current.get('snapshot') != expected_snapshot or resolve_allowed_path(root, path, must_exist=False) != target:
             return {'ok': False, 'code': 'FILE_CHANGED',
                     'error': 'Файл изменился перед записью. Обновите diff и подтвердите изменение заново.'}

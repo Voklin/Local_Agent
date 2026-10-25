@@ -1,10 +1,17 @@
-# LocalAgent
+# Neutral
 
-В локальной сборке 6.7: последовательные роли IDE с загрузкой/выгрузкой моделей, Лола с озвучкой Serena на CPU, мягкий интерфейс ассистента,
-настраиваемые Chat/IDE и обновлённые настройки моделей.
+Neutral 7 — разговоры, проекты, IDE и голосовая Лола в едином настраиваемом интерфейсе.
+Добавлены проекты/архив/поиск/экспорт чатов, профили API и OpenAI Responses,
+переключаемые инструменты/плагины/навыки, настоящий MCP и предложения навыков агентом.
+Основная модель работает одним циклом; прежняя система четырёх ролей удалена.
+[Руководство Neutral 7](docs/36-neutral-guide.md) ·
+[Ядро и расширения](docs/37-neutral-core-and-extensions.md) ·
+[Проекты и разговоры](docs/38-neutral-projects-and-conversations.md) ·
+[Проверки сборки 7.0.0](docs/39-neutral-validation.md).
 [Оформление, рефакторинг, миграция и проверки](docs/33-lola-refactor-and-appearance.md).
-[Роли IDE, настройка и проверки](docs/34-ide-roles-and-model-lifecycle.md).
+[Историческая система ролей 6.7](docs/34-ide-roles-and-model-lifecycle.md).
 [Умный контекст, музыка, заметки и таймеры Лолы](docs/35-smart-context-and-lola-tools.md).
+[Проверка проекта и исправления от 24 октября](docs/AUDIT_2026-10-24.md).
 Публикация релиза выполняется только вручную; PR содержит актуальные исходники.
 
 Настольный агент для работы с кодом: Electron + React + TypeScript и Python-ядро с подключением OpenAI-совместимой модели.
@@ -48,7 +55,7 @@ npm run docs:generate
 npm run docs:check
 ```
 
-Для всех Python-тестов нужен полный `requirements.txt`. Текущий Windows workflow проверяет Python, сборку и документацию; скрытый Electron UI smoke запускается отдельно.
+Для всех Python-тестов нужен полный `requirements.txt`. Текущий Windows workflow проверяет Python, сборку, Neutral GUI и документацию; полный редактор/голосовой smoke дополнительно выполняется локально.
 
 [Краткая памятка v6](README_V6_MIGRATION.md) · [План развития](MIGRATION_PLAN.md) · [Исторические README](docs/history/legacy-readme.md).
 
