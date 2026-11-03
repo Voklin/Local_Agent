@@ -1,0 +1,40 @@
+/* LESHY: ornament on chrome; the scene exists only in the native empty editor. */
+.monaco-workbench{--leshy-ink:var(--vscode-button-background);--leshy-scene:url('../../media/leshy-forest.webp')}
+.monaco-workbench.neutral-neutral-agent-leshy-parchment-json{--leshy-scene:url('../../media/leshy-parchment.webp')}
+.monaco-workbench.neutral-neutral-agent-leshy-twilight-json{--leshy-scene:url('../../media/leshy-twilight.webp')}
+.monaco-workbench .part.editor>.content .editor-group-container>.editor-group-watermark-wrapper{position:relative;isolation:isolate;overflow:hidden}
+.monaco-workbench .editor-group-watermark-wrapper::before{content:'';position:absolute;inset:12px;z-index:-2;pointer-events:none;background-image:var(--leshy-scene);background-position:center;background-size:cover;border-radius:8px}
+.monaco-workbench .editor-group-watermark-wrapper::after{content:'';position:absolute;inset:12px;z-index:-1;pointer-events:none;background:color-mix(in srgb,var(--vscode-editor-background) 62%,transparent);border:1px solid color-mix(in srgb,var(--leshy-ink) 40%,transparent);border-radius:8px}
+.monaco-workbench .editor-group-watermark .letterpress{position:relative;max-width:130px!important;opacity:1;background-image:none!important}
+.monaco-workbench .editor-group-watermark .letterpress::before{content:'';position:absolute;inset:0;background:var(--leshy-ink);mask:url('../../media/leshy-mark.svg') center/contain no-repeat;pointer-events:none}
+.monaco-workbench .editor-group-watermark .letterpress::after{content:'ЛЕШИЙ';position:absolute;left:50%;top:100%;transform:translateX(-50%);font:28px Georgia,serif;letter-spacing:6px;color:var(--vscode-foreground);white-space:nowrap}
+.monaco-workbench .editor-group-watermark .watermark-container{gap:68px!important}
+.monaco-workbench .part.sidebar>.composite.title,.monaco-workbench .part.auxiliarybar>.composite.title,.monaco-workbench .part.panel>.composite.title{position:relative;border-bottom:1px solid color-mix(in srgb,var(--leshy-ink) 35%,transparent)}
+.monaco-workbench .part.sidebar>.composite.title::after,.monaco-workbench .part.auxiliarybar>.composite.title::after,.monaco-workbench .part.panel>.composite.title::after{content:'';position:absolute;bottom:0;left:calc(50% - 24px);width:48px;height:4px;pointer-events:none;background:var(--leshy-ink);mask:url('../../media/leshy-border.svg') repeat-x center/32px 8px;opacity:.75}
+.monaco-workbench .part.editor .tab{border-radius:7px 7px 0 0}
+.monaco-workbench .part.editor .tabs-container::after{content:none}
+.monaco-workbench .part.statusbar{border-top:1px solid color-mix(in srgb,var(--leshy-ink) 40%,transparent)}
+.monaco-workbench .monaco-inputbox,.monaco-workbench .monaco-select-box,.monaco-workbench .monaco-button{border-radius:6px}
+.monaco-workbench .quick-input-widget,.monaco-workbench .monaco-menu .monaco-action-bar.vertical,.monaco-workbench .monaco-hover{border-radius:8px}
+.monaco-workbench .monaco-list-row{border-radius:3px}
+.monaco-workbench .part.titlebar .command-center-center{border-radius:6px}
+@media(max-height:650px){.monaco-workbench .editor-group-watermark .letterpress{max-width:80px!important}.monaco-workbench .editor-group-watermark .letterpress::after{font-size:20px}.monaco-workbench .editor-group-watermark .watermark-container{gap:48px!important}}
+@media(prefers-reduced-motion:reduce){.monaco-workbench .editor-group-watermark-wrapper{animation:none;transition:none}}
+
+/* Woven rails reach every native chrome family; editor and terminal data stay clear. */
+.monaco-workbench .part.titlebar::after,.monaco-workbench .part.statusbar::before{content:'';position:absolute;left:0;right:0;height:3px;background:var(--leshy-ink);mask:url('../../media/leshy-border.svg') center/32px 8px repeat-x;opacity:.55;pointer-events:none;z-index:2}
+.monaco-workbench .part.titlebar::after{bottom:0}
+.monaco-workbench .part.statusbar::before{top:0}
+.monaco-workbench .pane>.pane-header{position:relative;border-bottom:1px solid color-mix(in srgb,var(--leshy-ink) 30%,transparent)}
+.monaco-workbench .pane>.pane-header::after{content:'';position:absolute;left:calc(50% - 12px);bottom:0;width:24px;height:3px;background:var(--leshy-ink);mask:url('../../media/leshy-border.svg') center/24px 6px no-repeat;opacity:.55;pointer-events:none}
+.monaco-workbench :is(.quick-input-widget,.monaco-hover,.notifications-toasts .notification-toast,.find-widget,.suggest-widget){border-color:color-mix(in srgb,var(--leshy-ink) 65%,transparent);border-radius:6px}
+.monaco-workbench :is(.quick-input-widget,.monaco-hover,.notifications-toasts .notification-toast,.find-widget)::before{content:'';position:absolute;top:1px;left:8px;right:8px;height:3px;background:var(--leshy-ink);mask:url('../../media/leshy-border.svg') center/32px 8px repeat-x;opacity:.65;pointer-events:none;z-index:1}
+.monaco-workbench .monaco-menu .monaco-action-bar.vertical{position:relative;border:1px solid color-mix(in srgb,var(--leshy-ink) 65%,transparent);border-radius:6px}
+.monaco-workbench .monaco-menu .monaco-action-bar.vertical::before{content:'';position:absolute;top:1px;left:8px;right:8px;height:3px;background:var(--leshy-ink);mask:url('../../media/leshy-border.svg') center/32px 8px repeat-x;opacity:.6;pointer-events:none}
+.monaco-workbench .monaco-inputbox{position:relative;border-radius:4px}
+.monaco-workbench .monaco-inputbox::after{content:'';position:absolute;left:8px;bottom:0;width:24px;height:3px;background:var(--leshy-ink);mask:url('../../media/leshy-border.svg') center/24px 6px no-repeat;opacity:.45;pointer-events:none}
+.monaco-workbench .monaco-button:not(.monaco-icon-button){position:relative;border-radius:4px}
+.monaco-workbench .monaco-button:not(.monaco-icon-button)::after{content:'';position:absolute;left:calc(50% - 14px);bottom:1px;width:28px;height:3px;background:currentColor;mask:url('../../media/leshy-border.svg') center/28px 7px no-repeat;opacity:.45;pointer-events:none}
+.monaco-workbench .editor-group-container>.title{position:relative;border-color:color-mix(in srgb,var(--leshy-ink) 50%,transparent)}
+.monaco-workbench .editor-group-container>.title::before{content:'';position:absolute;left:0;right:0;top:0;height:2px;background:var(--leshy-ink);mask:url('../../media/leshy-border.svg') center/24px 6px repeat-x;opacity:.45;pointer-events:none;z-index:2}
+.monaco-workbench :is(.monaco-list-row.selected,.monaco-list-row.focused){box-shadow:inset 2px 0 0 color-mix(in srgb,var(--leshy-ink) 80%,transparent)}

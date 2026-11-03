@@ -1,10 +1,11 @@
-"""Persistent chat history for Local Coding Agent.
+"""Transactional chat history for Neutral.
 
 Chats are stored outside projects under the user's application data directory.
 Only conversation metadata and model messages are stored; project files are not copied.
 """
 from __future__ import annotations
 import json, os, tempfile
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,11 @@ from typing import Any
 APP_DIR = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "LocalCodingAgent"
 CHAT_DIR = APP_DIR / "chats"
 INDEX_FILE = CHAT_DIR / "index.json"
+STORE_LOCK = threading.RLock()
+
+
+def _valid_id(chat_id):
+    return isinstance(chat_id, str) and len(chat_id) == 32 and all(c in '0123456789abcdef' for c in chat_id)
 
 
 def _now() -> str:
@@ -24,27 +30,35 @@ def _atomic_write(path: Path, data: Any) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
         os.replace(tmp, path)
     finally:
         if os.path.exists(tmp):
             os.unlink(tmp)
 
 
-def _load_index() -> list[dict[str, Any]]:
-    if not INDEX_FILE.exists():
-        return []
-    try:
-        data = json.loads(INDEX_FILE.read_text(encoding="utf-8"))
-        return data if isinstance(data, list) else []
-    except (OSError, json.JSONDecodeError):
-        return []
+def _database():
+    """Use the current chat-directory profile, including isolated test profiles."""
+    from .storage import Storage
+    return Storage(CHAT_DIR.parent).ready()
 
 
-def list_chats() -> list[dict[str, Any]]:
-    return sorted(_load_index(), key=lambda x: x.get("updated_at", ""), reverse=True)
+def list_chats():
+    return read_chat_catalog()['chats']
 
 
-def create_chat(project_root: str = "", model: str = "", title: str = "Новый чат") -> dict[str, Any]:
+def read_chat_catalog(**scope):
+    """Read indexed metadata; legacy files are visited only by the first migration."""
+    return _database().catalog(**scope)
+
+
+def search_chats(query, **scope):
+    """Search persisted title/user/assistant text without loading transcripts."""
+    return _database().search(query, **scope)
+
+
+def create_chat(project_root: str = "", model: str = "", title: str = "Новый чат", mode=None) -> dict[str, Any]:
     import uuid
     chat_id = uuid.uuid4().hex
     now = _now()
@@ -56,39 +70,54 @@ def create_chat(project_root: str = "", model: str = "", title: str = "Новы�
         "project_root": str(project_root),
         "model": str(model),
         "messages": [],
+        "mode": mode or ("ide" if project_root else "chat"),
     }
-    _atomic_write(CHAT_DIR / f"{chat_id}.json", record)
-    index = _load_index()
-    index.append({k: record[k] for k in ("id", "title", "created_at", "updated_at", "project_root", "model")})
-    _atomic_write(INDEX_FILE, index)
+    with STORE_LOCK:
+        database = _database()
+        with database.transaction() as connection:
+            database.write_chat(connection, record)
     return record
 
 
 def load_chat(chat_id: str) -> dict[str, Any] | None:
-    path = CHAT_DIR / f"{chat_id}.json"
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else None
-    except (OSError, json.JSONDecodeError):
+    if not _valid_id(chat_id):
         return None
+    return _database().load_chat(chat_id)
 
 
-def save_chat(chat: dict[str, Any]) -> None:
+def save_chat(chat: dict[str, Any], *, checkpoint=True) -> str | None:
+    """Atomically save history/index and an explicitly updated checkpoint."""
     chat = dict(chat)
-    chat["updated_at"] = _now()
-    _atomic_write(CHAT_DIR / f"{chat['id']}.json", chat)
-    index = [x for x in _load_index() if x.get("id") != chat["id"]]
-    index.append({k: chat.get(k, "") for k in ("id", "title", "created_at", "updated_at", "project_root", "model")})
-    _atomic_write(INDEX_FILE, index)
+    if not _valid_id(chat.get('id')):
+        raise ValueError('Некорректный идентификатор чата')
+    chat['updated_at'] = _now()
+    with STORE_LOCK:
+        database = _database()
+        with database.transaction() as connection:
+            database.write_chat(connection, chat, checkpoint=checkpoint)
+    return None
 
 
 def delete_chat(chat_id: str) -> bool:
-    path = CHAT_DIR / f"{chat_id}.json"
-    try:
-        path.unlink(missing_ok=True)
-    except OSError:
+    """Delete canonical history, checkpoints and receipts in a single transaction.
+
+    Legacy migration sources are retained as backups and are never reimported.
+    Immutable artifact bytes are retained for backups; no automatic garbage collection.
+    """
+    if not _valid_id(chat_id):
         return False
-    _atomic_write(INDEX_FILE, [x for x in _load_index() if x.get("id") != chat_id])
+    with STORE_LOCK:
+        database = _database()
+        with database.transaction() as connection:
+            connection.execute('DELETE FROM chats WHERE id=?', (chat_id,))
+            connection.execute('DELETE FROM tasks WHERE chat_id=?', (chat_id,))
+            connection.execute('DELETE FROM tasks WHERE chat_id IN (SELECT id FROM runs WHERE chat_id=? AND parent_id IS NOT NULL)',(chat_id,))
+            connection.execute('DELETE FROM journal_events WHERE chat_id IN (SELECT id FROM runs WHERE chat_id=? AND parent_id IS NOT NULL)',(chat_id,))
+            connection.execute('DELETE FROM inference_attempts WHERE run_id IN (SELECT id FROM runs WHERE chat_id=?)',(chat_id,))
+            connection.execute('DELETE FROM runs WHERE chat_id=?',(chat_id,))
+            connection.execute('DELETE FROM workspace_snapshots WHERE chat_id=?', (chat_id,))
+            connection.execute('DELETE FROM journal_events WHERE chat_id=?', (chat_id,))
+            connection.execute('INSERT OR IGNORE INTO chat_tombstones VALUES(?)', (chat_id,))
     return True
 
 

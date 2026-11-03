@@ -2,3 +2,18 @@
 __pycache__/
 *.py[cod]
 .env
+node_modules/
+dist/
+dist-electron/
+*.tsbuildinfo
+.test-tmp/
+.test-data/
+.npm-cache/
+.venv-test/
+.venv-build/
+build/
+artifacts/
+# Generated documentation archive; editable sources live in docs/.
+/docs.zip
+# Private training corpus stays local alongside generated WAV/checkpoints.
+tools/tts/training/serena_texts.txt

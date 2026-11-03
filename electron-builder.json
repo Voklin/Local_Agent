@@ -1,0 +1,73 @@
+{
+  "appId": "io.localagent.desktop",
+  "productName": "LESHY",
+  "directories": {
+    "app": "apps/desktop",
+    "output": "artifacts/windows"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "tools/tts",
+      "to": "tts",
+      "filter": [
+        "*.py",
+        "*.ps1",
+        "*.txt",
+        "*.md"
+      ]
+    },
+    {
+      "from": "build/core/lca-core",
+      "to": "core",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "build/windows-deps/llama",
+      "to": "runtime/llama",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "assets/leshy.png",
+      "to": "brand/leshy.png"
+    },
+    {
+      "from": "artifacts/neutral-ide/runtime",
+      "to": "neutral-ide",
+      "filter": [
+        "**/*",
+        "!resources/app/node-compile-cache/**/*",
+        "!.neutral-extracted"
+      ]
+    }
+  ],
+  "asar": true,
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "signExecutable": false,
+    "icon": "assets/leshy.ico"
+  },
+  "artifactName": "LESHY-${version}-setup-${arch}.${ext}",
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false,
+    "include": "packaging/prerequisites.nsh"
+  }
+}

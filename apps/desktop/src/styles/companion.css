@@ -1,0 +1,52 @@
+/* Keep the companion and voice controls alongside a readable conversation. */
+.voice-panel {display:grid;grid-template-columns:300px minmax(0,1fr);grid-template-rows:auto 250px auto minmax(250px,1fr) auto;gap:12px 24px;align-items:stretch;text-align:left;padding:24px;overflow:auto}
+.voice-intro {grid-column:1/-1}.voice-intro h1 {font-size:24px;margin:6px 0}.voice-intro p {font-size:12px;margin:6px 0}
+.voice-panel .companion-stage {grid-column:1;grid-row:2;margin:0;min-height:250px}.voice-panel .voice-state {grid-column:1;grid-row:3;justify-content:center;margin:0}
+.voice-controls {grid-column:1;grid-row:4;width:100%;padding:12px}.voice-controls>label {flex-wrap:wrap}.voice-controls select {width:100%;font-size:11px}.voice-controls .voice-buttons button {font-size:11px;padding:7px}.voice-controls .auto-speak {font-size:11px;flex-wrap:nowrap}
+.voice-conversation {grid-column:2;grid-row:2/5;width:100%;max-height:none;min-height:250px;margin:0;padding-right:8px}
+.voice-composer {grid-column:2;grid-row:5;width:100%;margin:0;align-self:end}.voice-panel>button:last-child {grid-column:1;grid-row:5;align-self:end;justify-self:start}
+@media(max-width:900px){.voice-panel{display:flex;flex-direction:column;align-items:stretch;padding:18px}.voice-panel>*{flex-shrink:0}.voice-panel .companion-stage{min-height:200px}.voice-conversation{min-height:220px;max-height:400px}.voice-composer{flex-wrap:wrap}.voice-controls select{width:auto}}
+
+.voice-panel {grid-template-rows:auto 210px auto auto auto}.voice-panel .companion-stage {min-height:210px}.voice-controls {align-self:start;min-height:max-content}.voice-controls input {accent-color:var(--accent)}
+
+.companion-settings{width:100%;text-align:left}.companion-settings label,.connections-settings label{display:flex;flex-direction:column;gap:5px;margin:9px 0}.companion-settings input,.companion-settings select,.companion-settings textarea,.connections-settings input:not([type=checkbox]){width:100%;padding:9px;color:var(--text,#ddd);background:#1c1e26;border:1px solid #41404f;border-radius:6px}.companion-settings textarea{min-height:95px}.connections-settings .auto-speak{flex-direction:row;align-items:center}.connections-settings p{line-height:1.6}.handoff-card,.desktop-artifact{position:fixed;z-index:80;right:24px;bottom:34px;max-width:min(660px,80vw);max-height:75vh;overflow:auto;padding:16px;background:#22242d;border:1px solid #a18ac4;border-radius:12px;box-shadow:0 10px 35px #0008}.desktop-artifact{right:auto;left:20px}.desktop-artifact img{display:block;max-width:100%;max-height:60vh}.handoff-card button,.desktop-artifact button{margin:5px;padding:7px 12px;color:#e3d9ef;background:#373246;border:1px solid #665279;border-radius:6px}.handoff-card p{white-space:pre-wrap}.voice-controls details{max-height:440px;overflow:auto}.microphone-record:not(:disabled){border-color:#a18ac4}
+
+.handoff-return{position:fixed;z-index:85;bottom:40px;right:24px;padding:12px 18px;background:#483952;color:#f1eafa;border:1px solid #a18ac4;border-radius:9px}
+
+.mode-voice .sidebar{display:flex}.mode-voice .sidebar .side-heading{color:var(--accent)}
+
+/* Miya's atlas keeps one identity while the pose follows actual agent activity. */
+.voice-panel{grid-template-columns:340px minmax(0,1fr);grid-template-rows:auto 280px auto auto auto;gap:16px 28px}
+.voice-panel .companion-stage{min-height:280px;justify-content:center;overflow:hidden;border-radius:22px;background:radial-gradient(ellipse at 50% 75%,#b59ac51c,transparent 68%)}
+.miya-scene{position:relative;width:100%;height:260px;display:flex;align-items:center;justify-content:center;isolation:isolate}
+.miya-halo{position:absolute;width:250px;height:250px;top:40px;border:1px solid #c6a9d32e;border-radius:50%;box-shadow:0 0 65px #bda5cc18;z-index:-1}
+.miya-character{width:260px;height:260px;background-repeat:no-repeat;background-size:400% 200%;filter:drop-shadow(0 14px 16px #0003);transform-origin:50% 90%;animation:miya-breathe 4s ease-in-out infinite;mask-image:linear-gradient(to bottom,transparent,#000 8px,#000 calc(100% - 12px),transparent)}
+.miya-caption{position:absolute;bottom:-10px;left:0;right:0;text-align:center;color:var(--muted);font-size:12px;text-shadow:0 1px 4px var(--surface)}
+.miya-motion-toggle{position:absolute;right:10px;top:9px;z-index:3;font:inherit;font-size:10px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:5px 9px;cursor:pointer}
+.miya-listening .miya-halo{animation:miya-listen 1.4s ease-in-out infinite}
+.miya-thinking .miya-character{animation:miya-ponder 3s ease-in-out infinite}
+.miya-working .miya-character{animation:miya-work 1.9s ease-in-out infinite}
+.miya-success .miya-character{animation:miya-bow 1.6s ease-in-out both}
+.miya-error .miya-halo{border-color:#ddac8b66;box-shadow:0 0 45px #ddac8b18}
+.miya-speaking .miya-character{animation:miya-mouth .32s steps(1,end) infinite,miya-breathe 4s ease-in-out infinite}
+.miya-wave{position:absolute;right:18px;bottom:24px;display:flex;align-items:center;gap:3px;height:20px;padding:0 7px;border-radius:8px;background:var(--surface)}
+.miya-wave i{width:3px;height:5px;border-radius:3px;background:var(--accent);animation:miya-wave .75s ease-in-out infinite alternate}
+.voice-preset-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}
+.voice-preset-heading h2{font-size:17px;font-weight:500;margin:5px 0}.voice-connection{font-size:10px;padding:5px 8px;border-radius:20px;background:var(--surface-inset);color:var(--muted);white-space:nowrap}.voice-connection.connected{color:#9fd1bd;background:#559e7f20}
+.serena-preset{border:1px solid var(--line);border-radius:10px;background:var(--surface-inset);padding:10px;margin:10px 0}.serena-preset p{font-size:11px;color:var(--muted);margin:0;line-height:1.6}.voice-controls input[type=range]{width:100%}.voice-controls .companion-settings input[type=checkbox]{width:auto}
+@keyframes miya-breathe{50%{transform:translateY(-3px) rotate(.35deg)}}
+@keyframes miya-ponder{50%{transform:rotate(-1.4deg) translateY(-2px)}}
+@keyframes miya-work{50%{transform:translateY(2px) rotate(.65deg)}}
+@keyframes miya-bow{40%{transform:translateY(7px) scale(.985)}}
+@keyframes miya-listen{50%{transform:scale(1.05);border-color:#c5a8da88;box-shadow:0 0 60px #bfa8d233}}
+@keyframes miya-mouth{0%,100%{background-position:0% 100%}50%{background-position:33.333333% 100%}}
+@keyframes miya-wave{to{height:18px}}
+.miya-still .miya-character,.miya-still .miya-halo,.miya-still .miya-wave i{animation:none}
+@media(prefers-reduced-motion:reduce){.miya-character,.miya-halo,.miya-wave i{animation:none!important}}
+@media(max-width:1000px){.voice-panel{grid-template-columns:300px minmax(0,1fr);padding:18px;gap:12px 18px}}
+@media(max-width:900px){.voice-panel{display:flex}.voice-panel .companion-stage{min-height:300px}.miya-scene{height:300px}.voice-preset-heading{justify-content:space-between}}
+
+/* Miya keeps configuration in a native modal with keyboard/focus handling. */
+.miya-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.miya-settings-open{display:flex;align-items:center;gap:8px}.voice-actions .voice-buttons{margin-top:0}.voice-actions{align-self:start}.miya-settings-dialog{position:fixed;inset:0;margin:auto;width:min(680px,92vw);max-height:86vh;padding:0;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--text);box-shadow:0 24px 80px #0009;z-index:110}.miya-settings-dialog:not([open]){display:none}.miya-settings-dialog[open]{display:flex;flex-direction:column}.miya-settings-dialog::backdrop{background:#0009;backdrop-filter:blur(3px)}.miya-settings-dialog>header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--line);flex-shrink:0}.miya-settings-dialog h2{font-size:17px;margin:0}.miya-settings-dialog header button{display:flex;padding:7px;border:1px solid var(--line);border-radius:6px}.miya-settings-dialog .miya-settings-body{overflow:auto;min-height:0;width:100%;padding:18px 20px;border:0;border-radius:0}.miya-settings-dialog .companion-settings{margin-top:16px}.miya-settings-dialog .miya-motion-toggle{position:static;margin:12px 0}.miya-settings-dialog .voice-preset-heading{margin-bottom:16px}.voice-input-settings{border:1px solid var(--line);border-radius:8px;padding:10px;margin:16px 0}.voice-input-settings legend{padding:0 5px;font-size:12px}.voice-input-settings label{display:flex;align-items:center;gap:8px;font-size:12px;margin:8px 0}.voice-input-settings input[type=checkbox]{width:auto}
+
+.wake-control{display:flex;align-items:center;gap:8px;min-width:0;max-width:380px}.wake-control button{white-space:nowrap;padding:5px 9px;font-size:11px}.wake-control span{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--muted,#a6a3b2)}@media(max-width:1250px){.wake-control span,.topbar>.status{display:none}}

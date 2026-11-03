@@ -1,0 +1,90 @@
+/// <reference types="vite/client" />
+type CoreEvent = { event: string; chat_id?: string; run_id?: string; [key: string]: any };
+interface Window { neutralIdeHost?:boolean;neutralIdeDraft?:string;neutralIdeCheckDraft?:import('./idePanel/acceptanceChecks').AcceptanceDraft; lca: {
+  copyTaskDiagnostics:(report:string)=>Promise<import('../shared/protocol').RpcResult>;
+  getAppearanceTheme:(fallback?:string)=>Promise<{ok:boolean;theme?:string;error?:string}>;
+  setAppearanceTheme:(theme:string)=>Promise<{ok:boolean;theme?:string;error?:string}>;
+  ideEditDraft:()=>Promise<any>;
+  ideEditorContext:()=>Promise<{ok:boolean;error?:string;path?:string;start?:number;end?:number}>;
+  ideShell:()=>Promise<any>;
+  idePreviewDiff:(path:string)=>Promise<any>;
+  ideOpenFile:(path:string,line?:number)=>Promise<any>;
+  openNeutralIde:()=>Promise<import('../shared/protocol').RpcResult<{pid:number;prototype:boolean}>>;
+  workspaceAccess:()=>Promise<import('../shared/protocol').RpcResult<{root:string;exceptions:string[];ignore_patterns:string[]}>>;
+  configureWorkspaceAccess:(paths:string[],confirmed:boolean)=>ReturnType<Window['lca']['workspaceAccess']>;
+  cancelStorageBackup:()=>Promise<import('../shared/protocol').RpcResult>;
+  getDesktopLola:()=>Promise<import('../shared/protocol').RpcResult<{settings:import('../shared/lolaDesktop').LolaDesktopSettings;frame:import('../shared/lolaDesktop').LolaDesktopFrame;visible:boolean}>>;
+  openLola:(chatId?:string,action?:import('../shared/lolaDesktop').LolaDesktopAction)=>ReturnType<Window['lca']['getDesktopLola']>;
+  lolaMicrophone:(active:boolean)=>Promise<import('../shared/protocol').RpcResult>;
+  configureDesktopLola:(settings:import('../shared/lolaDesktop').LolaDesktopSettings)=>ReturnType<Window['lca']['getDesktopLola']>;
+  presentDesktopLola:(frame:import('../shared/lolaDesktop').LolaDesktopFrame)=>Promise<import('../shared/protocol').RpcResult>;
+
+  optionalSettings:()=>Promise<import('../shared/optionalTypes').OptionalCatalog>;
+  configureOptionalIde:(settings:import('../shared/optionalTypes').OptionalSettings)=>Promise<import('../shared/optionalTypes').OptionalCatalog>;
+  runOptionalIde:(params:import('../shared/optionalTypes').OptionalRequest)=>Promise<import('../shared/optionalTypes').OptionalResult>;
+  cancelOptionalIde:()=>Promise<import('../shared/protocol').RpcResult>;
+  openManagedWorktree:(id:string)=>Promise<import('../shared/protocol').RpcResult<{root:string;name:string}>>;
+  listWorkspaces:()=>Promise<any>;
+  saveWorkspace:(params:unknown)=>Promise<any>;
+  selectWorkspace:(params:unknown)=>Promise<any>;
+  deleteWorkspace:(params:unknown)=>Promise<any>;
+  searchChats:(params:unknown)=>Promise<any>;
+  updateChat:(params:unknown)=>Promise<any>;
+  deleteChat:(params:unknown)=>Promise<any>;
+  forkChat:(params:unknown)=>Promise<any>;
+  storageStatus:()=>Promise<any>;
+  backupStorage:()=>Promise<any>;
+  exportChat:(params:unknown)=>Promise<any>;
+  listExtensions:()=>Promise<any>;
+  configureExtensions:(params:unknown)=>Promise<any>;
+  discoverMcp:(params:unknown)=>Promise<any>;
+  cancelMcpDiscovery:(params:unknown)=>Promise<any>;
+  listConnections:()=>Promise<any>;
+  saveConnection:(params:unknown)=>Promise<any>;
+  deleteConnection:(params:unknown)=>Promise<any>;
+  importPlugin:()=>Promise<any>;
+  pickWorkspaceFolder:()=>Promise<any>;
+
+  health: () => Promise<any>; chooseProject: () => Promise<any>;
+  listFiles: (path?: string) => Promise<any>; readFile: (path: string) => Promise<any>; systemInfo: () => Promise<any>;
+  pickRuntimeFile: (kind:string) => Promise<any>; startRuntime: (params:unknown) => Promise<any>; runtimeStatus: () => Promise<any>; stopRuntime: () => Promise<any>;
+  getProjectMemory: () => Promise<any>; saveProjectMemory: (memory:unknown,revision:string,root?:string) => Promise<any>; projectMemoryAction: (params:unknown) => Promise<any>; renameChat: (id:string,title:string,mode:string) => Promise<any>;
+  telegramStatus:()=>Promise<any>;connectTelegram:(params:unknown)=>Promise<any>;disconnectTelegram:()=>Promise<any>;forgetTelegram:()=>Promise<any>;
+  desktopSettings:()=>Promise<any>;configureDesktop:(enabled:boolean)=>Promise<any>;
+  desktopApplications:()=>Promise<any>;addDesktopApplication:()=>Promise<any>;removeDesktopApplication:(id:string)=>Promise<any>;
+  moveChat:(id:string,mode:string,target:string)=>Promise<any>;
+  cancelHandoff:(id:string)=>Promise<any>;
+  prepareHandoff:(id:string)=>Promise<any>;
+  getCompanionSettings:()=>Promise<any>;configureCompanion:(params:unknown)=>Promise<any>;
+  transcribe:(audio:string)=>Promise<any>;cancelTranscription:()=>Promise<any>;
+  voicePlayback:(params:unknown)=>Promise<any>;openTtsFolder:()=>Promise<any>;
+  speechRuntime:(operation:'status'|'start'|'stop'|'install')=>Promise<any>;
+  activateAssistant:()=>Promise<any>;wakeListening:(enabled:boolean)=>Promise<any>;
+  voiceStatus: () => Promise<any>; refreshVoices: () => Promise<any>; speak: (params:unknown) => Promise<any>; stopVoice: () => Promise<any>;
+  searchProject: (params: unknown) => Promise<any>; cancelProjectSearch: () => Promise<any>;
+  projectIndex: (params: unknown) => Promise<any>;
+  editorRead: (path: string) => Promise<any>; editorPreview: (path: string, content: string, revision: unknown) => Promise<any>;
+  editorResolve: (proposalId: string, decision: string) => Promise<any>; setEditorDirty: (dirty: boolean) => Promise<any>;
+  confirmEditorDiscard: () => Promise<{discard: boolean}>;
+  configureModel: (config: {base_url: string; model: string; api_key?: string; api_protocol?:string; tool_protocol?: string; settings?: import('./GenerationFields').GenerationSettings}) => Promise<any>;
+  listModels: (config?: unknown) => Promise<any>; listChats: (mode?: string) => Promise<any>; newChat: (mode?: string) => Promise<any>; loadChat: (id: string, mode?: string) => Promise<any>;
+  testModel: (config: unknown) => Promise<any>; cancelModelSetup: () => Promise<any>;
+  getModelSettings: () => Promise<any>;
+  createGitCheckpoint:(params:unknown)=>Promise<any>; cancelGitCheckpoint:()=>Promise<any>;
+  listSnapshots:(params:import('../shared/protocol').SnapshotScope)=>Promise<import('../shared/protocol').SnapshotListResult>;previewRollback:(params:import('../shared/protocol').SnapshotScope&{group_id:string})=>Promise<import('../shared/protocol').RpcResult<{proposal:import('../shared/protocol').SnapshotPreview}>>;applyRollback:(params:import('../shared/protocol').SnapshotScope&{proposal_id:string;confirmed:true})=>Promise<import('../shared/protocol').SnapshotApplyResult>;reviewRollback:(params:import('../shared/protocol').SnapshotScope&{group_id:string;confirmed:true})=>Promise<import('../shared/protocol').SnapshotListResult>;
+  startTask: (prompt: string, resume?: boolean, mode?: import('../shared/protocol').AgentMode,options?:import('../shared/protocol').StartTaskOptions,runId?:string) => Promise<import('../shared/protocol').StartTaskResult>; cancelTask: (runId?:string) => Promise<any>;
+  updateTaskPlan:(params:unknown)=>Promise<any>;
+  activeRuns:()=>Promise<any>;
+  resolveApproval: (run: string, approval: string, decision: import('../shared/protocol').ApprovalDecision) => Promise<import('../shared/protocol').RpcResult>;
+  runHistory:(chatId:string)=>Promise<import('../shared/protocol').RpcResult<{runs:import('../shared/contextTypes').RunSnapshot[]}>>;
+  resolveToolRecovery: (params: {chat_id:string; journal_id:string; message_index:number; call_id:string; resolution:'completed'|'not_executed'}) => Promise<any>;
+  onEvent: (callback: (event: CoreEvent) => void) => () => void;
+} }
+
+interface Window {lola:{
+ status:()=>ReturnType<Window['lca']['getDesktopLola']>;
+ ready:()=>Promise<import('../shared/protocol').RpcResult>;
+ action:(action:import('../shared/lolaDesktop').LolaDesktopAction)=>Promise<import('../shared/protocol').RpcResult>;
+ showMain:()=>Promise<import('../shared/protocol').RpcResult>;menu:()=>Promise<import('../shared/protocol').RpcResult>;hover:(value:boolean)=>Promise<import('../shared/protocol').RpcResult>;move:(x:number,y:number)=>Promise<import('../shared/protocol').RpcResult>;
+ onState:(callback:(value:{settings:import('../shared/lolaDesktop').LolaDesktopSettings;frame:import('../shared/lolaDesktop').LolaDesktopFrame})=>void)=>()=>void;
+}}

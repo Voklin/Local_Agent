@@ -1,0 +1,42 @@
+{
+  "reference": "forest.webp and undergrowth-cutout.webp",
+  "method": "Built-in imagegen; transparent ink-and-gouache illustrations; WebP resize preserves alpha",
+  "assets": {
+    "mushrooms": {
+      "file": "spot-mushrooms-painted.webp",
+      "source": "exec-e7b1c66b-7bfa-463a-8089-5cdaec303099.png",
+      "size": [
+        960,
+        480
+      ],
+      "sha256": "11b5c9866a66b3c5828bc77ba1a3ebb6cb2f435480f074bb79721c8cd7c7042d"
+    },
+    "birch": {
+      "file": "spot-birch-painted.webp",
+      "source": "exec-aa7ddecb-c3d0-4268-b6b1-ebfe2b265aa4.png",
+      "size": [
+        960,
+        480
+      ],
+      "sha256": "592e92e6e75939e954bf184ec1fab678f0f4889de1bea79854ec7488e668095e"
+    },
+    "fern": {
+      "file": "spot-fern-painted.webp",
+      "source": "exec-321527ef-aac4-4235-9c3c-2d9271500761.png",
+      "size": [
+        960,
+        480
+      ],
+      "sha256": "674185599aadf08ccd49cb190f70f586a8ff48617d8bfcfce672e54bc189d161"
+    },
+    "archive": {
+      "file": "spot-archive-painted.webp",
+      "source": "exec-9e940818-f601-4f79-9e3e-d5e0d675e35d.png",
+      "size": [
+        960,
+        480
+      ],
+      "sha256": "9e9fc1ecd8d7d84450a7e21bcc053b11d8a280fbc005bfc42874c2d0e81c1843"
+    }
+  }
+}

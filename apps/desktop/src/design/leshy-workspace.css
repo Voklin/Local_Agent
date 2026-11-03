@@ -1,0 +1,78 @@
+/* Reference-led desktop composition. Art is confined to the empty conversation. */
+.studio-shell[data-leshy-theme]{--radius-control:8px;--frame-ink:color-mix(in srgb,var(--ornament-ink) 55%,var(--bg-panel))}
+.studio-shell .topbar{background:var(--bg-panel);border-bottom:1px solid var(--frame-ink);gap:12px}
+.studio-shell .brand{min-width:220px}
+.studio-shell .brand strong{white-space:nowrap}
+.studio-shell .brand small{border:0;background:none;padding:0}
+.studio-shell .mode-tabs{align-self:stretch;align-items:end;border:0;background:none;gap:8px}
+.studio-shell .mode-tabs button{height:42px;padding:0 20px;border-radius:10px 10px 0 0;background:none}
+.studio-shell .mode-tabs button.selected{background:var(--bg-elevated);border:1px solid var(--frame-ink);border-bottom-color:var(--bg-elevated);color:var(--fg-primary)}
+.studio-shell .icon-button{min-width:28px;min-height:28px}
+.studio-shell .agent-heading{border-color:var(--frame-ink)}
+.studio-shell .agent-heading h1{flex:0 1 auto;background:var(--bg-elevated);border:1px solid var(--frame-ink);border-bottom:0;border-radius:9px 9px 0 0;padding:8px 16px;align-self:end;max-width:65%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.studio-shell .chat-messages:has(>.leshy-welcome){padding:0 12px 12px;container-type:inline-size}
+.studio-shell .leshy-welcome{border:1px solid var(--frame-ink);border-radius:8px;min-height:100%;padding:32px 20px 24px;background:var(--bg-app)}
+.studio-shell .leshy-welcome .leshy-edge.left{display:block;inset:0;width:100%;max-width:none;opacity:1;filter:none;transform:none;background-image:var(--theme-welcome-image);background-size:cover;background-position:center;border-radius:inherit}
+.studio-shell[data-leshy-theme=parchment] .leshy-welcome .leshy-edge.left{filter:saturate(.55)}
+.studio-shell .leshy-welcome .leshy-edge.right{display:none}
+.studio-shell .leshy-welcome h1{font-size:40px!important;letter-spacing:6px!important;margin:12px 0 6px}
+.studio-shell .leshy-welcome p{max-width:76%;margin:20px auto;line-height:1.7;text-wrap:balance}
+.studio-shell .leshy-welcome .studio-welcome-actions{max-width:90%;gap:12px}
+.studio-shell .leshy-welcome .studio-welcome-actions button{border-radius:var(--radius-control);background:color-mix(in srgb,var(--bg-elevated) 88%,transparent);padding:11px 16px;font-size:13px}
+.studio-shell .leshy-welcome .studio-welcome-actions button:first-child{background:var(--accent);color:var(--on-accent)}
+.studio-shell .leshy-theme-picker{gap:14px}
+.studio-shell .leshy-theme-picker button{width:124px;background:var(--bg-panel);border-radius:9px;font-size:12px}
+.studio-shell .leshy-preview{height:52px}
+.studio-shell .leshy-divider{margin:24px auto 12px}
+.studio-shell .composer-area{padding-top:12px}
+.studio-shell .composer{background:var(--bg-elevated);border-radius:10px}
+.studio-shell .composer:focus-within{outline:none;border-color:var(--focus-ring)}
+.studio-shell .composer textarea:focus-visible{outline:none}
+.studio-shell .leshy-theme-picker button[aria-pressed=true]{outline:none;border-color:var(--accent)}
+.studio-shell .leshy-theme-picker button:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
+.studio-shell .new-conversation{min-height:36px;border-color:var(--frame-ink);border-radius:var(--radius-control);font-size:13px;background:var(--bg-elevated)}
+.studio-shell .conversation-filter{font-size:10px}
+.studio-shell .conversation-row{border-radius:6px}
+.studio-shell .conversation-row .conversation-open{min-height:36px;font-size:12px}
+.studio-shell .leshy-project-tree{flex:0 1 auto;max-height:35%;overflow:auto;padding:8px 12px;border-top:1px solid var(--frame-ink)}
+.leshy-project-tree summary{display:flex;gap:8px;align-items:center;padding:8px;cursor:pointer;font-size:12px}
+.studio-shell .studio-context>header{height:64px;padding:16px}
+.studio-shell .studio-context>section{padding:20px 0;margin:0 16px}
+.studio-shell .studio-context>section>p{background:var(--bg-app);margin-top:14px}
+.leshy-agent-identity{display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px;border:1px solid var(--frame-ink);border-radius:var(--radius-control);background:var(--bg-app)}
+.leshy-agent-identity>svg{color:var(--accent);flex-shrink:0}
+.leshy-agent-identity>div{flex:1;min-width:0}
+.leshy-agent-identity strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.leshy-agent-identity small{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:11px}
+.leshy-agent-identity i{width:7px;height:7px;border-radius:50%;background:var(--fg-muted);flex:none}
+.leshy-agent-identity i.working{background:var(--status-warning)}
+.leshy-tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.leshy-tool-grid button{display:flex;gap:9px;align-items:center;justify-content:center;min-height:38px;padding:8px;border:1px solid var(--frame-ink);border-radius:var(--radius-control);font-size:12px;background:var(--bg-elevated);color:var(--fg-primary)}
+.studio-shell .context-woodland{flex:1 0 90px;min-height:90px;max-height:150px}
+html[data-background-art=false] .studio-shell .leshy-welcome .leshy-edge{display:none}
+@container(max-width:650px){
+ .studio-shell .leshy-welcome p{max-width:96%}
+ .studio-shell .leshy-welcome .leshy-edge.left{--art-overlay:color-mix(in srgb,var(--bg-app) 65%,transparent)}
+ .studio-shell .leshy-welcome .studio-welcome-actions{max-width:100%;gap:8px}
+ .studio-shell .leshy-welcome .studio-welcome-actions button{padding:9px 10px;font-size:12px}
+ .studio-shell .leshy-theme-picker{gap:8px}
+ .studio-shell .leshy-theme-picker button{width:96px}
+}
+@media(max-height:800px){
+ .studio-shell .leshy-welcome{padding:16px 12px}
+ .studio-shell .leshy-welcome h1{font-size:28px!important;margin:8px 0 4px}
+ .studio-shell .leshy-welcome p{margin:8px auto;line-height:1.5}
+ .studio-shell .leshy-welcome .leshy-divider{margin:10px auto 6px}
+ .studio-shell .leshy-preview{height:38px}
+ .studio-shell .leshy-theme-caption{margin:4px 0 6px}
+ .studio-shell .context-woodland{display:none}
+}
+@media(max-width:1100px){.studio-shell .brand{min-width:0}.studio-shell .mode-tabs button{padding:0 12px}.studio-shell .topbar{gap:8px}}
+
+.studio-shell .leshy-welcome .leshy-edge.left::after{content:"";position:absolute;inset:0;background:var(--art-overlay);border-radius:inherit;pointer-events:none}
+
+.leshy-context-tasks ul{list-style:none;margin:12px 0;padding:0;display:grid;gap:10px}.leshy-context-tasks li{display:flex;align-items:start;gap:9px;font-size:12px}.leshy-context-tasks li>svg{flex-shrink:0;margin-top:2px}.leshy-context-tasks li[data-status=done]>svg{color:var(--status-success)}.leshy-context-tasks li small{display:block;margin-top:3px}.studio-shell .leshy-context-tasks .leshy-no-task{border:0;background:none;padding:0;font-size:12px;color:var(--fg-muted);line-height:1.6}
+
+/* Panel ornaments stay outside labels and scrolling controls. */
+.studio-shell :is(.sidebar,.studio-context)>.ornament-frame>svg{width:24px;height:24px}
+.studio-shell :is(.sidebar,.studio-context)>.ornament-frame :is(.bl,.br){display:none}

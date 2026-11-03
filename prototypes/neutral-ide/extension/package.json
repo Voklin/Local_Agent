@@ -1,0 +1,127 @@
+{
+  "name": "neutral-agent",
+  "displayName": "ЛЕШИЙ / LESHY",
+  "publisher": "neutral",
+  "version": "0.2.0",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "main": "./extension.cjs",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "neutral.status",
+        "title": "Леший: Проверить ядро"
+      },
+      {
+        "command": "neutral.openPanel",
+        "title": "Леший: Агент"
+      },
+      {
+        "command": "neutral.previewEdit",
+        "title": "Леший: Предпросмотр правки (прототип)"
+      },
+      {
+        "command": "neutral.openMain",
+        "title": "Леший: Главное окно",
+        "icon": "$(home)"
+      },
+      {
+        "command": "neutral.reconnect",
+        "title": "Леший: Переподключить панель",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "neutral.editSelection",
+        "title": "Леший: Изменить выделенный код"
+      }
+    ],
+    "configuration": {
+      "title": "Леший",
+      "properties": {
+        "neutral.completion.automatic": {
+          "type": "boolean",
+          "default": false,
+          "description": "Автоматические дополнения локальной моделью. По умолчанию запрос только по Alt+\\; принять Tab, отклонить Esc."
+        }
+      }
+    },
+    "themes": [
+      {
+        "label": "Neutral Studio",
+        "uiTheme": "vs-dark",
+        "path": "./theme.json"
+      },
+      {
+        "label": "LESHY Лесная",
+        "uiTheme": "vs-dark",
+        "path": "./leshy-forest.json"
+      },
+      {
+        "label": "LESHY Парчовая",
+        "uiTheme": "vs",
+        "path": "./leshy-parchment.json"
+      },
+      {
+        "label": "LESHY Сумеречная",
+        "uiTheme": "vs-dark",
+        "path": "./leshy-twilight.json"
+      }
+    ],
+    "viewsContainers": {
+      "secondarySidebar": [
+        {
+          "id": "neutral",
+          "title": "Леший",
+          "icon": "icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "neutral": [
+        {
+          "type": "webview",
+          "id": "neutral.agentView",
+          "name": "Леший"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "neutral.openMain",
+          "when": "view == neutral.agentView",
+          "group": "navigation"
+        },
+        {
+          "command": "neutral.reconnect",
+          "when": "view == neutral.agentView",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "neutral.editSelection",
+          "when": "editorTextFocus",
+          "group": "neutral"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "neutral.editSelection",
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k",
+        "when": "editorTextFocus && !editorReadonly"
+      },
+      {
+        "command": "editor.action.inlineSuggest.trigger",
+        "key": "alt+\\",
+        "when": "editorTextFocus"
+      }
+    ]
+  }
+}

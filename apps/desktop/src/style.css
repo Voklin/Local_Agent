@@ -1,0 +1,15 @@
+@import "./styles/base.css";
+@import "./styles/workspaces.css";
+@import "./styles/companion.css";
+@import "./styles/modern.css";
+@import "./styles/neutral.css";
+
+@import "./styles/lola-sprites.css";
+
+@import "./styles/studio.css";
+@import "./design/leshy.css";
+@import "./design/leshy-workspace.css";
+@import "./design/leshy-dialogs.css";
+@import "./design/leshy-motifs.css";
+
+.progress-tabs{display:flex;gap:8px;padding:12px;flex-wrap:wrap}.progress-tabs button{padding:8px;border:1px solid var(--border);border-radius:6px;background:transparent;color:inherit}.progress-tabs button[aria-pressed=true]{background:var(--accent);color:#142328}

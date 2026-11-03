@@ -1,0 +1,67 @@
+import {SubagentSettings} from './SubagentSettings';
+import { useEffect, useState } from 'react';
+import { BookOpen, Check, ChevronRight, Plus, Plug, Puzzle, Search, Trash2, Upload, Wrench, X } from 'lucide-react';
+
+type Skill={id:string;title:string;summary:string;content?:string;enabled:boolean;source:string};
+const emptyServer={id:'',name:'',transport:'stdio',command:'npx',args:'',url:'http://127.0.0.1:8000/mcp',enabled:false,confirm:true,timeout:30};
+
+export function ExtensionsSettings({busy}:{busy:boolean}) {
+  const [data,setData]=useState<any>(null),[tab,setTab]=useState('plugins'),[notice,setNotice]=useState(''),[working,setWorking]=useState(false),[query,setQuery]=useState('');
+  const [skill,setSkill]=useState<Partial<Skill>|null>(null),[server,setServer]=useState<any>(null),[token,setToken]=useState(''),[removing,setRemoving]=useState('');
+  const [discovering,setDiscovering]=useState('');
+  useEffect(()=>{void window.lca.listExtensions().then(result=>result.ok?setData(result):setNotice(result.error));},[]);
+  const locked=busy||working;
+  async function run(action:()=>Promise<any>,message='Настройки применены к следующим запросам.') {
+    if(locked)return;setWorking(true);setNotice('');
+    try {const result=await action();if(result.canceled){setNotice('Операция отменена.');return;}if(!result.ok)throw Error(result.error);const fresh=await window.lca.listExtensions();if(fresh.ok)setData(fresh);setNotice(message);return result;}
+    catch(error){setNotice(String(error instanceof Error?error.message:error));}
+    finally{setWorking(false);}
+  }
+  const toggle=(kind:string,id:string,enabled:boolean)=>void run(()=>window.lca.configureExtensions({kind,id,enabled}));
+  const includes=(...values:string[])=>values.join(' ').toLocaleLowerCase().includes(query.toLocaleLowerCase());
+  async function saveSkill() {
+    if(!skill)return;
+    const result=await run(()=>window.lca.configureExtensions({kind:'skill_save',...skill}),'Навык сохранён. Включите его переключателем, когда будете готовы.');
+    if(result)setSkill(null);
+  }
+  async function saveServer() {
+    if(!server)return;
+    const result=await run(()=>window.lca.configureExtensions({kind:'server_save',server:{...server,args:server.args.split('\n').filter((s:string)=>s.trim())},...(token?{token}:{})}),'Сервер сохранён. Нажмите «Проверить», чтобы получить инструменты.');
+    if(result){setServer(null);setToken('');}
+  }
+  async function discoverServer(id:string) {
+    if(locked)return;
+    setDiscovering(id);
+    try{await run(()=>window.lca.discoverMcp({id}),'Сервер ответил. Список инструментов обновлён.');}
+    finally{setDiscovering('');}
+  }
+  async function cancelDiscovery() {
+    const result=await window.lca.cancelMcpDiscovery({id:discovering});
+    setNotice(result.ok?'Отменяем проверку сервера…':result.error);
+  }
+  return <section className="extension-settings settings-section">
+    <div className="section-intro"><span className="eyebrow">ВОЗМОЖНОСТИ ЛЕШЕГО</span><h3>Ровно столько инструментов, сколько нужно.</h3><p>Выбирайте, чем агент может пользоваться. Изменения применяются со следующего запроса.</p></div>
+    {tab==='servers'&&<p className="settings-help">MCP-сессии: {data?.mcp_sessions?.active||0} / {data?.mcp_sessions?.limit||4}. Закрываются после простоя или отмены. <button type="button" disabled={locked} onClick={()=>void run(()=>window.lca.configureExtensions({kind:'close_sessions'}),'Соединения закрываются.')}>Закрыть соединения</button></p>}
+    <nav className="extension-tabs" aria-label="Типы расширений">{[{id:'plugins',name:'Плагины',icon:Puzzle},{id:'tools',name:'Инструменты',icon:Wrench},{id:'skills',name:'Навыки',icon:BookOpen},{id:'servers',name:'MCP',icon:Plug},{id:'subagents',name:'Субагенты',icon:Puzzle}].map(item=><button type="button" key={item.id} aria-pressed={tab===item.id} onClick={()=>{setTab(item.id);setQuery('');setSkill(null);setServer(null);}}><item.icon size={16}/>{item.name}</button>)}</nav>
+    <div className="settings-search"><Search size={16}/><input aria-label="Поиск расширений" placeholder="Найти возможность…" value={query} onChange={e=>setQuery(e.target.value)}/></div>
+    {notice&&<div className="settings-notice" role="status">{notice}</div>}
+    {discovering&&<div className="settings-notice" role="status">Проверяем MCP-сервер. Ожидание — до 120 секунд.<button type="button" onClick={()=>void cancelDiscovery()}>Отменить проверку</button></div>}
+    {!data?<p>Загружаем возможности…</p>:<>
+      {tab==='subagents'&&<SubagentSettings catalog={data.subagents} query={query} busy={locked} save={params=>run(()=>window.lca.configureExtensions(params))}/>}
+      {tab==='plugins'&&<><div className="section-actions"><button type="button" disabled={locked} onClick={()=>void run(()=>window.lca.importPlugin(),'Плагин добавлен. Просмотрите состав и включите его.')}><Upload size={15}/>Добавить плагин</button></div><p className="settings-help">Плагин объединяет навыки, встроенные инструменты и MCP-серверы. Импортируйте JSON-пакет Neutral; сначала он будет выключен.</p>
+        {data.groups.filter((g:any)=>includes(g.name,g.description)).map((g:any)=><div className="capability-card" key={g.id}><div className="capability-icon"><Puzzle size={19}/></div><div><b>{g.name}</b><p>{g.description}</p><small>Встроенный набор</small></div><label className="toggle-label"><input type="checkbox" role="switch" aria-label={g.name} disabled={locked} checked={g.enabled} onChange={e=>toggle('groups',g.id,e.target.checked)}/><span>{g.enabled?'Включён':'Выключен'}</span></label></div>)}
+        {data.plugins.filter((g:any)=>includes(g.name,g.description)).map((g:any)=><div className="capability-card" key={g.id}><Puzzle size={19}/><div><b>{g.name}</b><p>{g.description}</p><small>Навыков: {g.skills.length} · MCP: {g.servers.length} · инструментов: {g.tools.length}</small></div><label className="toggle-label"><input type="checkbox" role="switch" aria-label={g.name} disabled={locked} checked={g.enabled} onChange={e=>toggle('plugin_toggle',g.id,e.target.checked)}/><span>{g.enabled?'Включён':'Выключен'}</span></label></div>)}</>}
+      {tab==='tools'&&<><p className="settings-help">Права папок и подтверждения изменений продолжают действовать. Для действий на компьютере также включите доступ в разделе «Компьютер и Telegram».</p>{data.tools.filter((t:any)=>includes(t.name,t.description)).map((t:any)=><div className="capability-card compact" key={t.id}><Wrench size={16}/><div><b>{t.name}</b><p>{t.description}</p><small>{t.group}</small></div><input type="checkbox" role="switch" aria-label={'Инструмент '+t.name} disabled={locked} checked={t.enabled} onChange={e=>toggle('tools',t.id,e.target.checked)}/></div>)}</>}
+      {tab==='skills'&&<><div className="capability-card"><BookOpen size={20}/><div><b>Сохранять полезный опыт</b><p>После сложной работы агент может предложить новый навык. Черновики включаете вы после просмотра.</p></div><input type="checkbox" role="switch" aria-label="Сохранять полезный опыт" disabled={locked} checked={data.learn} onChange={e=>toggle('learn','',e.target.checked)}/></div>
+        <button type="button" disabled={locked} onClick={()=>setSkill({title:'',summary:'',content:''})}><Plus size={15}/>Создать навык</button>
+        {data.skills.filter((s:Skill)=>includes(s.title,s.summary)).map((s:Skill)=><div className="capability-card" key={s.id}><BookOpen size={18}/><div><button className="text-button" type="button" onClick={()=>setSkill({...s})}>{s.title}<ChevronRight size={14}/></button><p>{s.summary}</p><small>{s.source==='bundled'?'Встроенный':s.source==='agent'&&!s.enabled?'Предложен агентом · ожидает просмотра':s.source==='agent'?'Опыт агента':'Ваш навык'}</small></div><input type="checkbox" role="switch" aria-label={'Навык '+s.title} disabled={locked} checked={s.enabled} onChange={e=>toggle('skills',s.id,e.target.checked)}/></div>)}</>}
+      {tab==='servers'&&<><button type="button" disabled={locked} onClick={()=>{setServer({...emptyServer});setToken('');}}><Plus size={15}/>Подключить MCP сервер</button><p className="settings-help">Локальный сервер запускается вашей командой. Удалённый подключается по HTTP. Сначала сохраните настройки и проверьте список инструментов, затем включите сервер.</p>
+        {!data.servers.length&&<div className="empty-state small"><Plug size={24}/><b>Подключите свои возможности</b><p>Например, сервер документации или интеграцию с рабочим сервисом.</p></div>}
+        {data.servers.filter((s:any)=>includes(s.name,s.id)).map((s:any)=><div className="mcp-server-card" key={s.id}><div className="capability-card"><Plug size={20}/><div><b>{s.name}</b><p>{s.transport==='http'?s.url:s.command}</p><small>{s.tools?.length||0} инструментов · {s.confirm?'с подтверждением каждого вызова':'вызовы разрешены без подтверждения'}</small></div><input type="checkbox" role="switch" aria-label={'MCP '+s.name} checked={s.enabled} disabled={locked||!s.tools?.length} onChange={e=>void run(()=>window.lca.configureExtensions({kind:'server_save',server:{...s,enabled:e.target.checked}}))}/></div><div className="section-actions"><button type="button" disabled={locked} onClick={()=>void discoverServer(s.id)}>Проверить</button><button type="button" disabled={locked} onClick={()=>{setServer({...s,args:(s.args||[]).join('\n')});setToken('');}}>Настроить</button><button type="button" disabled={locked} onClick={()=>setRemoving('server:'+s.id)}><Trash2 size={14}/>Удалить</button></div></div>)}</>}
+    </>}
+    {skill&&<div className="inline-editor skill-editor"><div className="settings-section-heading"><h3>{skill.source==='bundled'?'Встроенный навык':'Инструкция навыка'}</h3><button type="button" className="icon-button" title="Закрыть навык" onClick={()=>setSkill(null)}><X size={18}/></button></div><label>Название<input value={skill.title||''} maxLength={100} onChange={e=>setSkill({...skill,title:e.target.value})}/></label><label>Когда применять<input value={skill.summary||''} maxLength={300} onChange={e=>setSkill({...skill,summary:e.target.value})}/></label><label>Шаги<textarea rows={10} maxLength={16000} value={skill.content||''} placeholder={skill.source==='bundled'?'Полная инструкция загрузится по кнопке ниже':'Опишите повторяемый порядок действий…'} onChange={e=>setSkill({...skill,content:e.target.value})}/></label>{skill.source==='bundled'&&!skill.content&&<button type="button" disabled={locked} onClick={()=>void run(async()=>{const r=await window.lca.configureExtensions({kind:'skill_read',id:skill.id});if(r.ok)setSkill({...skill,content:r.content});return r;},'Инструкция загружена.')}>Прочитать инструкцию</button>}<div className="section-actions"><button type="button" disabled={locked||!skill.content} onClick={()=>{if(skill.source==='bundled'){setSkill({...skill,id:undefined,source:'user',title:skill.title+' · копия'});}else void saveSkill();}}><Check size={15}/>{skill.source==='bundled'?'Создать свою копию':'Сохранить навык'}</button>{skill.id&&skill.source!=='bundled'&&<button type="button" disabled={locked} onClick={()=>setRemoving('skill:'+skill.id)}><Trash2 size={14}/>Удалить навык</button>}</div></div>}
+    {server&&<div className="inline-editor mcp-editor"><div className="settings-section-heading"><h3>Подключение MCP</h3><button type="button" className="icon-button" title="Закрыть MCP" onClick={()=>setServer(null)}><X size={18}/></button></div><div className="field-grid"><label>Название<input value={server.name} maxLength={100} onChange={e=>setServer({...server,name:e.target.value})}/></label><label>Короткий ID<input value={server.id} maxLength={40} onChange={e=>setServer({...server,id:e.target.value.toLowerCase()})} placeholder="my-server"/></label></div><label>Способ подключения<select value={server.transport} onChange={e=>setServer({...server,transport:e.target.value})}><option value="stdio">Локальная команда · stdio</option><option value="http">Адрес сервера · HTTP</option></select></label>{server.transport==='stdio'?<><label>Программа<input value={server.command} onChange={e=>setServer({...server,command:e.target.value})} placeholder="npx, uvx или полный путь"/></label><label>Аргументы · каждый с новой строки<textarea rows={4} value={server.args} onChange={e=>setServer({...server,args:e.target.value})} placeholder={'-y\nимя-пакета-сервера'}/></label></>:<><label>Адрес MCP<input value={server.url} onChange={e=>setServer({...server,url:e.target.value})}/></label><label>Токен доступа · необязательно<input type="password" autoComplete="off" value={token} onChange={e=>setToken(e.target.value)} placeholder="Хранится в памяти до закрытия приложения"/></label></>}
+      <label className="check-row"><input type="checkbox" checked={server.confirm} onChange={e=>setServer({...server,confirm:e.target.checked})}/>Запрашивать подтверждение каждого действия</label><button type="button" disabled={locked} onClick={()=>void saveServer()}>Сохранить сервер</button></div>}
+    {removing&&<div className="inline-confirm" role="alert"><p>Удалить {removing.startsWith('skill:')?'этот пользовательский навык':'это подключение'} из Лешего?</p><button type="button" disabled={locked} onClick={()=>{const [kind,id]=removing.split(':');void run(()=>window.lca.configureExtensions({kind:kind==='skill'?'skill_delete':'server_delete',id}),'Удалено.').then(r=>{if(r){setRemoving('');setSkill(null);}});}}>Да, удалить</button><button type="button" onClick={()=>setRemoving('')}>Отмена</button></div>}
+  </section>;
+}

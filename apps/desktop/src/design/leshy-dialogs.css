@@ -1,0 +1,64 @@
+/* Every application-owned floating surface shares the LESHY control contract. */
+.studio-shell .modal-backdrop,.studio-shell .modal-backdrop:not(.settings-backdrop),.studio-shell .search-overlay{background:color-mix(in srgb,var(--bg-app) 70%,transparent);backdrop-filter:none}
+.studio-shell :is(.settings-dialog,.workspace-dialog,.rename-dialog,.confirmation-dialog,.approval-dialog,.optional-ide-dialog,.quick-open){background:var(--bg-panel);color:var(--fg-primary);border:1px solid var(--ornament-ink);border-radius:10px;box-shadow:var(--shadow);font-size:13px}
+.studio-shell .optional-ide-dialog::backdrop{background:color-mix(in srgb,var(--bg-app) 70%,transparent);backdrop-filter:none}
+.studio-shell :is(.workspace-dialog,.rename-dialog,.confirmation-dialog,.approval-dialog){padding:24px;max-height:calc(100vh - 48px)}
+.studio-shell :is(.settings-header,.optional-ide-dialog>header,.workspace-dialog>header){background:var(--bg-panel);border-bottom:1px solid var(--border-subtle);padding:20px 24px;position:relative}
+.studio-shell .workspace-dialog>header{padding:0 0 16px;margin-bottom:16px}
+.studio-shell :is(.settings-header,.optional-ide-dialog>header)::after{content:'';position:absolute;bottom:-9px;left:calc(50% - 12px);width:24px;height:18px;background:var(--ornament-ink);mask:url('../assets/leshy/diamond.svg') center/contain no-repeat;pointer-events:none}
+.studio-shell :is(.settings-header h2,.workspace-dialog h2,.confirmation-dialog h2,.approval-dialog h2,.rename-dialog h2,.optional-ide-dialog h2){font-size:20px;font-weight:600;line-height:1.35;letter-spacing:0;margin:0;overflow-wrap:anywhere}
+.studio-shell .settings-header p{font-size:12px;color:var(--fg-muted);margin-top:6px}
+.studio-shell .settings-tabs{padding:20px 12px;gap:6px;background:var(--bg-panel)}
+.studio-shell .settings-tabs button{font-size:13px;padding:10px 12px;min-height:36px;border:1px solid transparent;border-radius:6px}
+.studio-shell .settings-tabs button[aria-pressed=true]{background:var(--bg-elevated);color:var(--fg-primary);border-color:var(--ornament-ink)}
+.studio-shell .settings-scroll{background:var(--bg-app);padding:24px 32px}
+.studio-shell .settings-section h3,.studio-shell .section-intro h3{font-size:20px!important;letter-spacing:0!important;line-height:1.4;margin:16px 0}
+.studio-shell :is(.model-settings label,.workspace-dialog label,.optional-ide-content label){font-size:13px;line-height:1.5;color:var(--fg-primary)}
+.studio-shell :is(.settings-help,.model-settings small,.settings-feedback,.capability-card p,.optional-ide-dialog p,.workspace-dialog>p,.confirmation-dialog>p,.approval-dialog p){font-size:12px;line-height:1.65;color:var(--fg-muted)}
+.studio-shell :is(.settings-dialog,.workspace-dialog,.rename-dialog,.confirmation-dialog,.approval-dialog,.optional-ide-dialog,.quick-open) :is(input:not([type=checkbox]):not([type=range]),select,textarea){background:var(--bg-elevated);color:var(--fg-primary);border:1px solid var(--border-subtle);border-radius:6px;font:13px/1.5 'Segoe UI',sans-serif;padding:9px 12px;min-width:0;max-width:100%}
+.studio-shell :is(.settings-dialog,.workspace-dialog,.rename-dialog,.confirmation-dialog,.approval-dialog,.optional-ide-dialog,.quick-open) :is(input,textarea)::placeholder{color:var(--fg-muted);opacity:1}
+.studio-shell :is(.settings-dialog,.workspace-dialog,.rename-dialog,.confirmation-dialog,.approval-dialog,.optional-ide-dialog,.quick-open) button:not(.icon-button):not(.text-button){font-size:12px;min-height:32px;border-radius:6px;border:1px solid var(--border-subtle);padding:8px 12px;color:var(--fg-primary)}
+.studio-shell .model-settings .primary-button,.studio-shell .model-settings .save-model-settings,.studio-shell :is(.workspace-dialog,.approval-dialog,.optional-ide-dialog,.rename-dialog,.confirmation-dialog) .primary-button{background:var(--accent)!important;color:var(--accent-contrast)!important;border-color:var(--accent)!important}
+.studio-shell :is(.danger-button,.danger-action){color:var(--status-error)!important;border-color:var(--status-error)!important}
+.studio-shell :is(.settings-dialog,.workspace-dialog,.rename-dialog,.confirmation-dialog,.approval-dialog,.optional-ide-dialog,.quick-open) :is(button,input,select,textarea,summary):focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
+.studio-shell :is(.settings-dialog,.workspace-dialog,.rename-dialog,.confirmation-dialog,.approval-dialog,.optional-ide-dialog,.quick-open) button:hover:not(:disabled){background:var(--bg-elevated);border-color:var(--ornament-ink)}
+.studio-shell :is(.connection-profiles,.settings-card,.capability-card,.mcp-server-card,.inline-editor,.inline-confirm,.snapshot-card,.rollback-preview,.run-history,.context-usage,.context-sources){background:var(--bg-panel);border:1px solid var(--border-subtle);border-radius:8px;color:var(--fg-primary);padding:16px}
+.studio-shell .capability-card b{font-size:13px}
+.studio-shell :is(.settings-dialog,.workspace-dialog,.optional-ide-dialog) fieldset{border:1px solid var(--border-subtle);border-radius:8px;padding:16px;min-width:0}
+.studio-shell :is(.settings-dialog,.workspace-dialog,.optional-ide-dialog) legend{padding:0 6px;color:var(--fg-muted);font-size:12px}
+.studio-shell :is(.extension-tabs,.progress-tabs){gap:8px}
+.studio-shell :is(.extension-tabs,.progress-tabs) button[aria-pressed=true]{background:var(--bg-elevated)!important;color:var(--fg-primary)!important;border-color:var(--ornament-ink)}
+.studio-shell :is(.settings-footer,.workspace-dialog>footer,.confirmation-dialog>footer,.optional-ide-dialog>footer){background:var(--bg-panel);border-color:var(--border-subtle);gap:10px;flex-wrap:wrap;padding:16px 24px}
+.studio-shell .settings-actions{flex-wrap:wrap;gap:8px}
+.studio-shell .settings-dialog .settings-tabs button:not(.icon-button):not(.text-button){border-color:transparent;text-align:left}
+.studio-shell .settings-dialog .settings-tabs button[aria-pressed=true]:not(.icon-button):not(.text-button){border-color:var(--ornament-ink)}
+.studio-shell .model-settings .voice-input-settings{display:grid;gap:8px;text-align:left;background:var(--bg-panel);border:1px solid var(--border-subtle);padding:16px;border-radius:8px}
+.studio-shell .model-settings .voice-input-settings label:not(.auto-speak){display:flex;flex-direction:column;align-items:stretch;gap:8px}
+.studio-shell .model-settings label:is(.auto-speak,.check-row){display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:10px;text-align:left}
+.studio-shell .model-settings input[type=checkbox]{flex:0 0 auto;width:16px;height:16px;margin:0;accent-color:var(--accent)}
+.studio-shell .model-settings input[type=range]{width:100%;accent-color:var(--accent)}
+.studio-shell .optional-ide-dialog>.extension-tabs{margin-top:12px}
+.studio-shell .graph-editor label{flex-direction:column;align-items:stretch;text-align:left;gap:8px}
+.studio-shell .graph-editor label:has(input[type=checkbox]){flex-direction:row;align-items:center}
+.studio-shell .graph-editor :is(input:not([type=checkbox]),select){flex:none;width:100%}
+.studio-shell .graph-editor fieldset{background:var(--bg-app);padding:16px;border-color:var(--border-subtle)}
+.studio-shell .graph-editor fieldset label{margin:8px 0 16px}
+.studio-shell .rename-dialog form{display:grid;gap:16px;margin-top:16px}
+.studio-shell .rename-dialog form>p:empty{display:none}
+.studio-shell .rename-dialog .settings-actions{justify-content:flex-end}
+.studio-shell :is(.voice-error,.editor-notice,.task-graph [data-step-status=stale] strong){color:var(--status-warning)}
+.studio-shell .editor-notice{background:var(--bg-elevated);border-color:var(--border-subtle)}
+.studio-shell .editor-gutter{color:var(--fg-muted)}
+.studio-shell .settings-notice,.studio-shell .inline-confirm{background:var(--bg-elevated);border-color:var(--ornament-ink);color:var(--fg-primary);font-size:12px;line-height:1.6}
+.studio-shell .settings-feedback.error,.studio-shell .error-text{color:var(--status-error)}
+.studio-shell .settings-feedback.success{color:var(--status-success)}
+.studio-shell .quick-open{padding:16px}
+.studio-shell .quick-open .search-heading{padding:4px 0 12px;border-bottom:1px solid var(--border-subtle);margin-bottom:12px}
+.studio-shell .quick-open .search-results button{background:transparent;border-radius:6px}
+.studio-shell .quick-open .search-results button.selected{background:var(--bg-elevated);border-color:var(--ornament-ink)}
+.studio-shell .conversation-actions{background:var(--bg-panel);color:var(--fg-primary);border:1px solid var(--ornament-ink);border-radius:8px;box-shadow:var(--shadow)}
+.studio-shell .conversation-actions button{font-size:12px;min-height:30px}
+.studio-shell .handoff-card,.studio-shell .assistant-notice,.studio-shell .desktop-artifact{background:var(--bg-panel);color:var(--fg-primary);border:1px solid var(--ornament-ink);border-radius:10px;box-shadow:var(--shadow)}
+.studio-shell .assistant-notice p,.studio-shell .handoff-card p{color:var(--fg-muted);font-size:13px}
+@media(max-width:1100px){.studio-shell .settings-scroll{padding:20px}.studio-shell :is(.workspace-dialog,.rename-dialog,.confirmation-dialog,.approval-dialog){padding:20px}}
+@media(max-height:650px){.studio-shell .settings-header{padding:12px 20px}.studio-shell .settings-scroll{padding:16px 20px}.studio-shell .settings-footer{padding:12px 20px}}

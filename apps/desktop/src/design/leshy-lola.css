@@ -1,0 +1,35 @@
+/* The native overlay stays transparent; only the conversation surface is themed. */
+:root[data-leshy-theme],html[data-leshy-theme] body,html[data-leshy-theme] #root{background:transparent;color:var(--fg-primary)}
+.desktop-lola{font-family:'Segoe UI',sans-serif}
+.lola-bubble{background:var(--bg-panel);color:var(--fg-primary);border:1px solid var(--ornament-ink);border-radius:10px;box-shadow:var(--shadow);backdrop-filter:none}
+.lola-bubble-heading{border-bottom:1px solid var(--border-subtle);padding-bottom:6px}
+.lola-bubble-heading b{font:600 16px Georgia,serif;color:var(--accent)}
+.lola-bubble-heading span,.lola-message>small,.lola-history-toggle,.lola-recording-options,.lola-bubble .conversation-filter{color:var(--fg-muted);font-size:11px}
+.lola-bubble button{color:var(--fg-primary);border-radius:6px;min-height:28px}
+.lola-bubble button:hover:not(:disabled){background:var(--bg-elevated)}
+.lola-bubble :is(button,input,select,textarea,summary):focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
+.lola-bubble input,.lola-bubble select{background:var(--bg-elevated);color:var(--fg-primary);border:1px solid var(--border-subtle);border-radius:6px;font-size:12px}
+.lola-bubble input::placeholder{color:var(--fg-muted);opacity:1}
+.lola-message{font-size:12px;line-height:1.6}
+.lola-message.user{border-left-color:var(--accent)}
+.lola-message a{color:var(--accent)}
+.lola-message :is(.chat-code,pre){background:var(--bg-app);color:var(--fg-primary)}
+.lola-message :is(td,th){border-color:var(--border-subtle)}
+.lola-message .studio-copy-message{color:var(--fg-muted)}
+.lola-bubble .lola-conversation,.lola-bubble .lola-history{scrollbar-color:var(--border-subtle) transparent}
+.lola-bubble .conversation-actions{background:var(--bg-panel);color:var(--fg-primary);border-color:var(--ornament-ink)}
+.lola-bubble .conversation-actions select{background:var(--bg-elevated);color:var(--fg-primary);border-color:var(--border-subtle)}
+.lola-bubble .conversation-actions :is(button,label){font-size:12px}
+.lola-bubble .modal-backdrop{background:var(--bg-app);color:var(--fg-primary);border-color:var(--ornament-ink)}
+.lola-bubble .approval-dialog{color:var(--fg-primary)}
+.lola-bubble .approval-dialog h2{font-size:16px;line-height:1.4}
+.lola-bubble .approval-dialog p{color:var(--fg-muted);font-size:12px}
+.lola-bubble .approval-dialog pre{background:var(--bg-panel);color:var(--fg-primary);border-color:var(--border-subtle);font-size:11px}
+.lola-bubble .approval-actions button{border-color:var(--border-subtle);font-size:11px}
+.lola-bubble .primary-button{background:var(--accent);color:var(--accent-contrast)}
+.lola-bubble .danger-action,.lola-bubble .danger-button{color:var(--status-error)!important}
+.lola-bubble .task-progress{background:var(--bg-elevated);color:var(--fg-primary);border-color:var(--border-subtle);font-size:11px}
+.lola-bubble .task-progress button{font-size:11px}
+.lola-recording-options input{accent-color:var(--accent)}
+.lola-bubble [role=status]{color:var(--status-warning);font-size:11px;line-height:1.5}
+@media(prefers-reduced-motion:reduce){.lola-bubble *{transition:none!important;scroll-behavior:auto!important}}

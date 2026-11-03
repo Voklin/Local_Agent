@@ -1,0 +1,4 @@
+// Vector adaptation of the user-supplied antler emblem.
+export function BrandMark({size=28}:{size?:number}) {
+ return <svg className="neutral-mark leshy-mark" width={size} height={size} viewBox="0 0 100 96" aria-hidden="true"><path fill="currentColor" d="M50 92 45 86C45 75 39 73 31 73C22 73 17 70 13 65C20 69 24 68 31 67C23 62 11 61 5 53C0 46 1 37 5 28C3 40 7 45 13 49C13 39 12 32 13 24C14 14 19 7 27 2C20 12 18 21 19 31C25 26 31 23 36 22C23 31 17 40 19 50C20 55 24 58 30 60C29 52 34 45 40 41C33 51 34 58 40 64L50 74L60 64C66 58 67 51 60 41C66 45 71 52 70 60C76 58 80 55 81 50C83 40 77 31 64 22C69 23 75 26 81 31C82 21 80 12 73 2C81 7 86 14 87 24C88 32 87 39 87 49C93 45 97 40 95 28C99 37 100 46 95 53C89 61 77 62 69 67C76 68 80 69 87 65C83 70 78 73 69 73C61 73 55 75 55 86Z"/></svg>;
+}
