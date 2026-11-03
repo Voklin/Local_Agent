@@ -33,7 +33,7 @@ export function ConnectionsSettings({busy}:{busy:boolean}) {
       if(!result.ok)throw Error(result.error);setApplications(result.applications);
     }catch(error){setNotice(String(error));}finally{setWorking(false);}
   }
-  return <section className="settings-section connections-settings"><h3>Инструменты ПК и Telegram</h3>
+  return <section className="settings-section connections-settings"><div className="section-intro"><span className="eyebrow">СВЯЗИ</span><h3>Инструменты ПК и Telegram</h3><p>Приложения, голосовые команды и удалённое управление.</p></div>
     <label className="auto-speak"><input type="checkbox" checked={enabled} disabled={busy} onChange={()=>void toggle()}/>Включить приложения, поиск, скриншоты и чтение разрешённых папок</label>
     <p className="settings-help">Скажите Лоле «Открой калькулятор», «Найди в браузере информацию о…» или «Найди музыку…». Музыка открывается в YouTube, Яндекс Музыке, VK Музыке или Spotify; аккаунт и нажатие Play могут потребоваться на сайте. Локальное аудио открывается только из папки, указанной в исходном запросе в кавычках. Приложения запускаются без командной строки.</p>
     <details><summary>Разрешённые приложения ({applications.length})</summary>

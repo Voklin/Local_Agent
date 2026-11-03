@@ -45,12 +45,12 @@ class ModelPreferencesTests(unittest.TestCase):
 
     def test_generation_roundtrip_and_invalid_values_do_not_replace_file(self):
         config = {'base_url': 'http://localhost:1234/v1', 'model':'model',
-                  'settings': {'temperature':0.7, 'top_p':0.9, 'max_tokens':2048}}
+                  'settings': {'budget_mode':'manual','temperature':0.7, 'top_p':0.9, 'max_tokens':2048}}
         saved = preferences.save_preferences(config)
         self.assertEqual(preferences.load_preferences(), saved)
         for key, value in [('temperature',float('nan')), ('top_p',0), ('max_tokens',1),
                            ('max_tokens',3.5), ('max_tokens',10**400), ('request_timeout',True), ('max_context_chars',100),
                            ('max_agent_turns',501), ('max_runtime_minutes',0)]:
             with self.subTest(key=key,value=value), self.assertRaises(ValueError):
-                preferences.save_preferences({**config,'settings':{key:value}})
+                preferences.save_preferences({**config,'settings':{'budget_mode':'manual',key:value}})
             self.assertEqual(preferences.load_preferences(), saved)

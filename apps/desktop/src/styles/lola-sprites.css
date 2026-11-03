@@ -1,0 +1,15 @@
+/* Complete source rectangles share one padded canvas; no masks through hair or shoes. */
+.lola-sprite{display:block;width:100%;height:100%;--lola-cycle:1.4s}
+.lola-frame{opacity:0;animation:lola-frame-visible var(--lola-cycle) steps(1,end) infinite}
+.lola-frame-0{opacity:1}
+.miya-listening .lola-sprite{--lola-cycle:1.8s}.miya-thinking .lola-sprite{--lola-cycle:2.6s}.miya-working .lola-sprite{--lola-cycle:1.2s}.miya-speaking .lola-sprite{--lola-cycle:.64s}.miya-success .lola-sprite{--lola-cycle:1.3s}.miya-error .lola-sprite{--lola-cycle:2.8s}
+.miya-idle .lola-frame{animation-duration:4.8s;animation-delay:0s!important}
+.miya-idle .lola-frame-0{animation-name:lola-blink-open}.miya-idle .lola-frame-1{animation-name:lola-blink-half}.miya-idle .lola-frame-2{animation-name:lola-blink-shut}.miya-idle .lola-frame-3{animation-name:lola-blink-return}
+.miya-character{mask-image:none;max-width:100%;min-width:0;flex-shrink:1}
+.miya-still .lola-frame{animation:none;opacity:0}.miya-still .lola-frame-0{opacity:1}
+@keyframes lola-frame-visible{0%,24.999%{opacity:1}25%,100%{opacity:0}}
+@keyframes lola-blink-open{0%,77.999%{opacity:1}78%,86.999%{opacity:0}87%,100%{opacity:1}}
+@keyframes lola-blink-half{0%,77.999%{opacity:0}78%,80.999%{opacity:1}81%,100%{opacity:0}}
+@keyframes lola-blink-shut{0%,80.999%{opacity:0}81%,83.999%{opacity:1}84%,100%{opacity:0}}
+@keyframes lola-blink-return{0%,83.999%{opacity:0}84%,86.999%{opacity:1}87%,100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.lola-frame{animation:none!important;opacity:0!important}.lola-frame-0{opacity:1!important}}

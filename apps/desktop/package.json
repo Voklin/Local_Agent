@@ -1,13 +1,13 @@
 {
   "name": "local-coding-agent-desktop",
-  "version": "7.0.0",
+  "version": "7.0.1",
   "private": true,
   "description": "Neutral — conversations, projects and a personal voice assistant",
   "main": "dist-electron/main.cjs",
   "scripts": {
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
     "dev:renderer": "vite --host 127.0.0.1",
-    "dev:electron": "npm run build:electron && wait-on tcp:127.0.0.1:5173 && electron .",
+    "dev:electron": "npm run build:electron && wait-on tcp:127.0.0.1:5173 && electron . --development",
     "build:electron": "node build-electron.mjs",
     "build": "npm run typecheck && vite build && node build-electron.mjs",
     "start": "electron .",

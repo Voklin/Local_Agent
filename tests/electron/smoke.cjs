@@ -101,7 +101,7 @@ const model = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ id:'test',object:'chat.completion',created:0,model:'smoke-model',choices:[{index:0,message:{role:'assistant',content:'{}'},finish_reason:'stop'}] })); return;
     }
-    const encode = delta => 'data: ' + JSON.stringify({id:'test',object:'chat.completion.chunk',created:0,model:'smoke-model',choices:[{index:0,delta,finish_reason:null}]}) + '\n\n';
+    const encode = delta => 'data: ' + JSON.stringify({id:'test',object:'chat.completion.chunk',created:0,model:'smoke-model',choices:[{index:0,delta,finish_reason:delta.tool_calls?'tool_calls':'stop'}]}) + '\n\n';
     res.writeHead(200, { 'Content-Type':'text/event-stream' });
     if(modelMode==='desktop') {
       const delta=input.messages.some(message=>message.role==='tool')?{content:'Screenshot created'}:{tool_calls:[{index:0,id:'screen-fixture',type:'function',function:{name:'desktop_screenshot',arguments:'{}'}}]};
@@ -305,6 +305,10 @@ app.on('browser-window-created', (_event, win) => {
       }`);
       await win.webContents.executeJavaScript(`document.querySelector('.discover-models').click()`);
       await poll(win, `document.querySelector('input[list="model-names"]').value === 'smoke-model' && !document.querySelector('.discover-models').disabled && document.querySelector('.settings-feedback').textContent.includes('Сервер доступен')`);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.reset-generation').closest('.settings-section').querySelector('[aria-label="Управление лимитами"]').value`),'auto');
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('input[name="max_tokens"]')===null`),true);
+      await win.webContents.executeJavaScript(`{const n=document.querySelector('.reset-generation').closest('.settings-section').querySelector('[aria-label="Управление лимитами"]');n.value='manual';n.dispatchEvent(new Event('change',{bubbles:true}));}`);
+      await poll(win,`!!document.querySelector('.reset-generation').closest('.settings-section').querySelector('input[name="max_tokens"]')`);
       for (const [name,value] of [['temperature','0.65'],['max_tokens','1024']]) {
         await win.webContents.executeJavaScript(`{
           const input=document.querySelector('.reset-generation').closest('.settings-section').querySelector('input[name="${name}"]');
@@ -366,7 +370,17 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       fs.writeFileSync(path.join(testRoot, 'completed.png'), (await win.webContents.capturePage(undefined, {stayHidden:true})).toPNG());
       const corruptChat = path.join(appData, 'LocalCodingAgent/chats', '0'.repeat(32) + '.json');
-      fs.writeFileSync(corruptChat, '{broken source');
+      fs.mkdirSync(path.dirname(corruptChat),{recursive:true});fs.writeFileSync(corruptChat, '{broken source');
+      // The v1 migration runs once. Seed its real persisted warning projection;
+      // byte-for-byte legacy migration is covered by unit and packaged tests.
+      const warningSeed=require('node:child_process').spawnSync(process.env.LCA_PYTHON,['-c',[
+        'import sys',
+        'from pathlib import Path',
+        'from agent.storage import Storage',
+        'path=Path(sys.argv[1]);database=Storage(path.parent.parent).ready()',
+        'with database.transaction() as connection: database._source(connection,path,"chat",0,"invalid legacy JSON fixture")',
+      ].join('\n'),corruptChat],{cwd:path.resolve(__dirname,'../..'),env:process.env,encoding:'utf8',windowsHide:true});
+      assert.equal(warningSeed.status,0,warningSeed.stderr);
       modelMode = 'conflict';
       await win.webContents.executeJavaScript(`document.querySelector('[title="Новый чат"]').click()`);
       await poll(win, `!document.querySelector('.task-card') && !document.querySelector('.chat-messages').textContent.includes('Smoke completed')`);
@@ -386,7 +400,7 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(fs.readFileSync(path.join(project, 'conflict.txt'), 'utf8'), 'external edit');
       assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.task-tools [data-status="failed"]').textContent.includes('изменились')`), true);
       const saved = JSON.parse(fs.readFileSync(path.join(appData, 'LocalCodingAgent/model-preferences.json'), 'utf8'));
-      assert.deepEqual(saved, {api_protocol:'chat',tool_protocol:'native',base_url:url, model:'smoke-model', settings:{temperature:0.65,top_p:1,max_tokens:1024,max_context_chars:80000,request_timeout:180,max_agent_turns:200,max_runtime_minutes:180}});
+      assert.deepEqual(saved, {api_protocol:'chat',tool_protocol:'native',base_url:url, model:'smoke-model', settings:{budget_mode:'manual',temperature:0.65,top_p:1,max_tokens:1024,max_context_chars:80000,context_window:32768,context_reserve_tokens:512,memory_updates:'on_change',request_timeout:180,max_agent_turns:200,max_runtime_minutes:180}});
       assert.equal(JSON.stringify(saved).includes('test-secret'), false);
       const reloaded = new Promise(resolve => win.webContents.once('did-finish-load', resolve));
       win.webContents.reload();
@@ -429,7 +443,7 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript(`document.querySelector('[role=tab]:last-child').click()`);
       await poll(win, `!!document.querySelector('.voice-panel')`);
       await win.webContents.executeJavaScript(`{const media=navigator.mediaDevices;const capture=media.getUserMedia.bind(media);media.getUserMedia=()=>capture({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});const create=AudioContext.prototype.createScriptProcessor;AudioContext.prototype.createScriptProcessor=function(...args){window.__micBlocks=0;const processor=create.apply(this,args);processor.addEventListener('audioprocess',()=>window.__micBlocks++);return processor;};void 0;}`);
-      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.miya-character')&&getComputedStyle(document.querySelector('.miya-character')).backgroundImage.includes('miya-states')`),true,'Reference character atlas must be displayed');
+      assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.miya-character')&&document.querySelector('.lola-sprite image')?.getAttribute('href').includes('lola-chibi-atlas-v2')`),true,'Complete reference character atlas must be displayed');
       await poll(win, `document.querySelector('.voice-panel').textContent.includes('Микрофон включается по нажатию')`);
       assert.equal(await win.webContents.executeJavaScript(`!!document.querySelector('.microphone-record')`),true);
       await poll(win, `!document.querySelector('.microphone-record').disabled`);
@@ -476,7 +490,7 @@ app.on('browser-window-created', (_event, win) => {
         const callsBefore=speechCalls;
         await win.webContents.executeJavaScript(`document.querySelector('.miya-settings-open').click()`);
         await poll(win, `document.querySelector('.miya-settings-dialog').open`);
-        await win.webContents.executeJavaScript(`document.querySelector('.miya-settings-dialog .auto-speak input').click();document.querySelector('[aria-label="Закрыть настройки Лолы"]').click()`);
+        await win.webContents.executeJavaScript(`document.querySelector('[aria-label="Озвучивать новые ответы автоматически"]').click();document.querySelector('[aria-label="Закрыть настройки Лолы"]').click()`);
         await win.webContents.executeJavaScript(`{const input=document.querySelector('[aria-label="Сообщение ассистенту"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Повтори ответ');input.dispatchEvent(new Event('input',{bubbles:true}));}`);
         await win.webContents.executeJavaScript(`document.querySelector('.voice-composer').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
         await poll(win, `!!document.querySelector('.voice-speaking')`);

@@ -1,6 +1,6 @@
 {
   "appId": "io.localagent.desktop",
-  "productName": "Neutral",
+  "productName": "LESHY",
   "directories": {
     "app": "apps/desktop",
     "output": "artifacts/windows"
@@ -36,8 +36,17 @@
       ]
     },
     {
-      "from": "assets/neutral.png",
-      "to": "brand/neutral.png"
+      "from": "assets/leshy.png",
+      "to": "brand/leshy.png"
+    },
+    {
+      "from": "artifacts/neutral-ide/runtime",
+      "to": "neutral-ide",
+      "filter": [
+        "**/*",
+        "!resources/app/node-compile-cache/**/*",
+        "!.neutral-extracted"
+      ]
     }
   ],
   "asar": true,
@@ -51,9 +60,9 @@
       }
     ],
     "signExecutable": false,
-    "icon": "assets/neutral.ico"
+    "icon": "assets/leshy.ico"
   },
-  "artifactName": "Neutral-${version}-setup-${arch}.${ext}",
+  "artifactName": "LESHY-${version}-setup-${arch}.${ext}",
   "nsis": {
     "oneClick": false,
     "perMachine": false,

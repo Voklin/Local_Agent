@@ -116,6 +116,36 @@ class BridgeProcessTests(unittest.TestCase):
         self.assertTrue(self.call('voice_stop')['ok'])
         self.assertFalse(self.call('voice_speak',text='Test',voice='not-installed')['ok'])
 
+    def test_index_search_updates_and_controls_in_real_core(self):
+        """Real JSON-lines Core activates the cache and observes external edits without a model."""
+        (self.root/'source.py').write_text('def first_symbol():\n    return 1\n')
+        (self.root/'native.ts').write_text('export function packaged_typescript_symbol() { return 2; }\n')
+        (self.root/'native.js').write_text('export function packaged_javascript_symbol() { return 3; }\n')
+        self.assertTrue(self.call('set_project',root=str(self.root))['ok'])
+        deadline=time.monotonic()+15
+        while time.monotonic()<deadline:
+            if self.call('project_index',action='status')['state']=='ready':break
+            time.sleep(.03)
+        result=self.call('search_project',mode='symbols',query='first_symbol')
+        self.assertEqual(result['backend'],'project-index');self.assertEqual(result['matches'][0]['line'],1)
+        for name in ('packaged_typescript_symbol','packaged_javascript_symbol'):
+            native=self.call('search_project',mode='symbols',query=name)
+            self.assertTrue(native.get('matches'),name+' native grammar must be bundled')
+            self.assertEqual(native['matches'][0]['name'],name)
+        scans=self.call('project_index',action='status')['full_scans']
+        (self.root/'source.py').write_text('def second_symbol():\n    return 2\n')
+        deadline=time.monotonic()+10
+        while time.monotonic()<deadline:
+            result=self.call('search_project',mode='symbols',query='second_symbol')
+            if result.get('matches'):break
+            time.sleep(.03)
+        self.assertEqual(result['matches'][0]['name'],'second_symbol')
+        self.assertEqual(self.call('project_index',action='status')['full_scans'],scans)
+        self.assertEqual(self.call('project_index',action='cancel')['state'],'needs_rebuild')
+        self.assertEqual(self.call('search_project',mode='text',query='second_symbol')['backend'],'linear-fallback')
+        self.assertTrue(self.call('project_index',action='rebuild')['ok'])
+        self.assertTrue(self.call('health')['ok'])
+
     def test_companion_profile_and_history_are_independent_in_real_process(self):
         self.assertTrue(self.call('configure_model',base_url='http://127.0.0.1:9/v1',model='main')['ok'])
         profile=self.call('configure_companion',base_url='http://127.0.0.1:9/v1',model='small',persona='Спокойная Лола',api_key='fixture-secret',stt_api_key='fixture-stt-secret')
@@ -199,10 +229,11 @@ class BridgeProcessTests(unittest.TestCase):
             self.assertTrue(expected.startswith(received))
         # Wait for persistence, not an assumed scheduler/fsync duration. The
         # fixture sends no further tokens; the expected draft must reach disk before kill.
-        archive = Path(self.temp.name) / 'LocalCodingAgent/chats' / (chat_id + '.json')
+        from agent.storage import Storage
+        archive = Storage(Path(self.temp.name) / 'LocalCodingAgent')
         deadline = time.monotonic() + 10
         while True:
-            saved = json.loads(archive.read_text(encoding='utf-8'))
+            saved = archive.load_chat(chat_id)
             if saved.get('stream_draft', {}).get('text') == expected:
                 break
             self.assertLess(time.monotonic(), deadline, 'Periodic stream draft was not saved while the server was idle')
@@ -219,7 +250,9 @@ class BridgeProcessTests(unittest.TestCase):
         recovered = self.reopen_after_kill(chat_id)
         self.assertEqual(recovered['task']['status'], 'paused')
         self.assertFalse((self.root / 'new.txt').exists())
-        self.assertEqual(recovered['task']['tool_activity'][-1]['status'], 'interrupted')
+        self.assertEqual(recovered['task']['tool_activity'][-1]['status'], 'not_executed')
+        self.assertEqual(recovered['task']['recovery_items'], [])
+        self.assertEqual(json.loads(recovered['chat']['messages'][-1]['content'])['code'],'NOT_EXECUTED')
         self.assertFalse(self.call('resolve_approval', run_id=proposal['run_id'], approval_id=proposal['approval_id'], decision='apply')['ok'])
         self.assertTrue(self.call('start_task', resume=True)['ok'])
         fresh = self.until(lambda r: r.get('event') == 'approval')
@@ -334,3 +367,25 @@ class BridgeProcessTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(2)
+
+    def test_optional_lsp_is_opt_in_cancellable_and_bridge_stays_responsive(self):
+        self.assertTrue(self.call('set_project',root=str(self.root))['ok'])
+        (self.root/'example.py').write_text('value = 1\n',encoding='utf-8')
+        initial=self.call('optional_settings');self.assertTrue(initial['ok'])
+        self.assertTrue(all(not item['enabled'] for item in initial['settings'].values()))
+        self.assertFalse(self.call('optional_run',action='diagnostics',path='example.py')['ok'])
+        settings=initial['settings'];fixture=Path(__file__).resolve().parents[1]/'fixtures/lsp_diagnostics.py'
+        settings['lsp'].update(enabled=True,program=sys.executable,arguments=['-u',str(fixture),'--stall'])
+        self.assertTrue(self.call('optional_configure',settings=settings)['ok'])
+        self.counter+=1;request=self.counter
+        self.process.stdin.write(json.dumps({'id':request,'method':'optional_run','params':{'action':'diagnostics','path':'example.py'}})+'\n');self.process.stdin.flush()
+        time.sleep(.15)
+        self.assertTrue(self.call('health')['ok'])
+        self.assertFalse(self.call('set_project',root=str(self.root))['ok'])
+        self.assertTrue(self.call('optional_cancel')['ok'])
+        failed=self.until(lambda r:r.get('id')==request)
+        self.assertFalse(failed['ok']);self.assertEqual((self.root/'example.py').read_text(),'value = 1\n')
+        settings['lsp']['arguments']=['-u',str(fixture)]
+        self.assertTrue(self.call('optional_configure',settings=settings)['ok'])
+        success=self.call('optional_run',action='diagnostics',path='example.py')
+        self.assertTrue(success['ok']);self.assertEqual(success['diagnostics'][0]['line'],2)

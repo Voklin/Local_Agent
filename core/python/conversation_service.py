@@ -5,6 +5,8 @@ import uuid
 from agent import chat_store
 from agent.chat_store import STORE_LOCK, create_chat, load_chat, save_chat, read_chat_catalog
 from agent.task_store import clear_task
+from agent.call_journal import CallJournal
+from agent.tool_recovery import recover_task
 
 
 class ConversationService:
@@ -42,6 +44,7 @@ class ConversationService:
             chat=self.scoped(root,params)
             if params.get('confirmed') is not True:raise ValueError('Подтвердите удаление выбранного чата')
             if not chat_store.delete_chat(chat['id']):raise ValueError('Не удалось удалить чат')
+            CallJournal.delete_chat(chat['id'])
             clear_task(chat['id'])
             if self.tasks.chat and self.tasks.chat['id']==chat['id']:self.tasks.chat=None
         return {'ok':True}
@@ -49,7 +52,14 @@ class ConversationService:
     def fork(self, root, params):
         self.tasks.idle()
         with self.tasks.lock,STORE_LOCK:
-            source=self.scoped(root,params);messages=deepcopy(source['messages']);prompt=''
+            source=self.scoped(root,params)
+            task=source.get('task_checkpoint')
+            if task:
+                recover_task(task,source['messages'],import_legacy=True)
+                save_chat(source)
+                if task.get('recovery_items') or task.get('recovery_error'):
+                    raise ValueError('Сначала проверьте неподтверждённые действия в исходном чате')
+            messages=deepcopy(source['messages']);prompt=''
             if params.get('retry'):
                 indexes=[i for i,m in enumerate(messages) if m.get('role')=='user' and isinstance(m.get('content'),str)]
                 if not indexes:raise ValueError('Нет запроса для повторения')
@@ -77,18 +87,6 @@ class ConversationService:
     def search(self, root, params):
         query=params.get('query','')
         if not isinstance(query,str) or len(query)>300:raise ValueError('Поиск: до 300 символов')
-        archive=params.get('archived') is True;query=query.strip().casefold()
-        base=self.tasks.chats(root,params.get('mode','chat'))
-        matches=[]
-        for item in base['chats'][:2000]:
-            if bool(item.get('archived'))!=archive:continue
-            if not query or query in item['title'].casefold():matches.append(item);continue
-            try:chat=load_chat(item['id'])
-            except (OSError,ValueError):continue
-            if not chat:continue
-            if not chat:continue
-            text=next((m['content'] for m in chat['messages'] if m.get('role') in ('user','assistant') and isinstance(m.get('content'),str) and query in m['content'].casefold()),None)
-            if text:
-                index=text.casefold().find(query);matches.append({**item,'snippet':text[max(0,index-30):index+130]})
-        matches.sort(key=lambda p:(bool(p.get('pinned')),p.get('updated_at','')),reverse=True)
-        return {**base,'chats':matches[:300]}
+        catalog=chat_store.search_chats(query, root=str(root), mode=params.get('mode','chat'),
+            project_id=self.tasks.project_id, archived=params.get('archived') is True)
+        return {'ok':True, **catalog}

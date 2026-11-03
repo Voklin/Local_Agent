@@ -16,6 +16,12 @@ async def wait_seconds(seconds:int)->str:
     await asyncio.sleep(seconds)
     return 'done'
 
+@server.tool()
+def session_identity()->str:
+    """Return the fixture process ID to prove transport reuse."""
+    import os
+    return str(os.getpid())
+
 if __name__=='__main__':
     if len(sys.argv)>1:server.run('streamable-http',host='127.0.0.1',port=int(sys.argv[1]))
     else:server.run()

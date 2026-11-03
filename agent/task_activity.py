@@ -11,7 +11,7 @@ ACTIVE_STATUSES = {'running', 'awaiting_approval', 'applying'}
 def begin_tool(task, tool, args, call_id, message_index):
     if not task:
         return None
-    stage = 'implementation' if tool == 'write_file' else 'research'
+    stage = 'implementation' if tool in ('write_file','patch_file','create_directory','rename_file','delete_file') else 'research'
     if stage == 'implementation' and not any(s['id'] == stage for s in task['stages']):
         index = next((i for i, s in enumerate(task['stages']) if s['id'] == 'verification'), len(task['stages']))
         task['stages'].insert(index, PlanStage(stage, 'Реализация', 'Изменения файлов после подтверждения.').to_dict())
@@ -44,18 +44,28 @@ def update_tool(task, activity_id, status, summary):
 def finish_tool(task, activity_id, tool, result):
     if result.get('ok'):
         status = 'succeeded'
-        if tool == 'read_file':
+        if result.get('user_confirmed'):
+            status='confirmed'
+            summary='Выполнение подтверждено пользователем; исходный ответ инструмента недоступен'
+        elif tool in ('read_file','read_range'):
             summary = f"Прочитано символов: {len(result.get('content', ''))}"
         elif tool == 'list_files':
             summary = f"Найдено элементов: {len(result.get('entries', []))}"
         elif tool == 'search_text':
             summary = f"Найдено совпадений: {len(result.get('matches', []))}"
+        elif tool in ('patch_file','create_directory','rename_file','delete_file'):
+            summary={'patch_file':'Точечная правка применена','create_directory':'Каталоги созданы','rename_file':'Файл перемещён','delete_file':'Файл удалён'}[tool]
+            if result.get('unchanged'):summary='Изменения не требуются'
         else:
             summary = 'Файл записан' if tool == 'write_file' else 'Инструмент завершён'
         if result.get('truncated'):
             summary += ' · достигнут лимит выдачи'
     else:
-        status = {'USER_DENIED': 'rejected', 'USER_CANCELLED': 'cancelled'}.get(result.get('code'), 'failed')
+        status = {'USER_DENIED': 'rejected', 'USER_CANCELLED': 'cancelled',
+                  'OUTCOME_UNKNOWN':'unknown','NOT_EXECUTED':'not_executed','TOOL_INTERRUPTED':'interrupted',
+                  'USER_CONFIRMED_NOT_EXECUTED':'not_executed','PROJECT_INSTRUCTIONS_REQUIRED':'instructions_required'}.get(result.get('code'), 'failed')
+        if result.get('code')=='USER_CONFIRMED_NOT_EXECUTED':
+            result={**result,'error':'Пользователь подтвердил: действие не выполнялось'}
         summary = {'rejected': 'Изменение отклонено пользователем', 'cancelled': 'Изменение отменено пользователем'}.get(status, str(result.get('error', 'Ошибка инструмента')))
     update_tool(task, activity_id, status, summary)
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-export function LocalRuntimePanel({locked,onUse}:{locked:boolean;onUse:(url:string,model:string)=>void}) {
+export function LocalRuntimePanel({locked,onUse}:{locked:boolean;onUse:(url:string,model:string,context:number)=>void}) {
   const [runtime,setRuntime]=useState('');
   const [model,setModel]=useState('');
   const [context,setContext]=useState(4096);
@@ -36,15 +36,15 @@ export function LocalRuntimePanel({locked,onUse}:{locked:boolean;onUse:(url:stri
   }
   const active=['starting','running','stopping'].includes(status.state);
   const unavailable=locked||working;
-  return <section className="settings-section local-runtime"><h3>GGUF внутри Neutral</h3>
-    <p className="settings-help">CPU-сервер llama.cpp включён в установщик. Выберите файл GGUF. Приложение запустит отдельный сервер на localhost. Файлы не копируются; загрузки из сети нет. По умолчанию CPU, GPU-слои требуют подходящей сборки сервера.</p>
+  return <section className="settings-section local-runtime"><div className="section-intro"><span className="eyebrow">ЛОКАЛЬНАЯ МОДЕЛЬ</span><h3>GGUF внутри Лешего</h3>
+    <p className="settings-help">CPU-сервер llama.cpp включён в установщик. Выберите файл GGUF. Приложение запустит отдельный сервер на localhost. Файлы не копируются; загрузки из сети нет. По умолчанию CPU, GPU-слои требуют подходящей сборки сервера.</p></div>
     <button type="button" className="secondary-button pick-runtime" disabled={unavailable||active} onClick={()=>void pick('runtime')}>Другой llama-server</button><small className="runtime-path">{runtime||status.bundled_runtime||'Сервер не выбран'}</small>
     <button type="button" className="secondary-button pick-gguf" disabled={unavailable||active} onClick={()=>void pick('model')}>Выбрать GGUF</button><small className="runtime-path">{model||status.model?.path||'Модель не выбрана'}</small>
     <div className="generation-grid"><label>Контекст сервера, токенов<input aria-label="Контекст GGUF" type="number" min={512} max={32768} value={context} disabled={unavailable||active} onChange={e=>setContext(Number(e.target.value))}/></label><label>GPU-слои (-1 = все, 0 = CPU)<input aria-label="GPU-слои GGUF" type="number" min={-1} max={256} value={gpu} disabled={unavailable||active} onChange={e=>setGpu(Number(e.target.value))}/></label></div>
     <label>Потоки CPU<input aria-label="Потоки CPU" type="number" min={1} max={128} disabled={unavailable||active} value={threads} onChange={e=>setThreads(Number(e.target.value))}/></label><div className="generation-grid">{(['K','V'] as const).map(kind=><label key={kind}>KV-кеш {kind}<select aria-label={`KV-кеш ${kind}`} disabled={unavailable||active} value={kind==='K'?cacheK:cacheV} onChange={e=>(kind==='K'?setCacheK:setCacheV)(e.target.value)}>{['f16','q8_0','q4_0'].map(value=><option key={value}>{value}</option>)}</select></label>)}</div><small>Квантование уменьшает память кеша. Для V-кеша включается Flash Attention; поддержка зависит от сборки сервера. Для внешнего LM Studio меняйте KV-кеш в самом LM Studio.</small>
     <div className="connection-actions"><button type="button" className="secondary-button start-runtime" disabled={unavailable||active||!(runtime||status.bundled_runtime)||!model} onClick={()=>void control(true)}>Запустить GGUF</button><button type="button" className="secondary-button stop-runtime" disabled={unavailable||!active||status.state==='stopping'} onClick={()=>void control(false)}>{status.state==='starting'?'Отменить загрузку':'Остановить свой сервер'}</button></div>
     <p className="runtime-status" role="status">{({stopped:'Остановлен',starting:'Загрузка модели…',running:'Готов',stopping:'Остановка…',error:'Ошибка'} as Record<string,string>)[status.state]}{status.pid?` · PID ${status.pid}`:''}{status.base_url?` · ${status.base_url}`:''}</p>
-    {status.state==='running'&&<button type="button" className="secondary-button use-runtime" disabled={unavailable} onClick={()=>{onUse(status.base_url,status.model.name);setNotice('Адрес и модель перенесены в черновик. Проверьте ответ и сохраните настройки.');}}>Использовать в настройках</button>}
+    {status.state==='running'&&<button type="button" className="secondary-button use-runtime" disabled={unavailable} onClick={()=>{onUse(status.base_url,status.model.name,Number(status.ctx_size||context));setNotice('Адрес и модель перенесены в черновик. Проверьте ответ и сохраните настройки.');}}>Использовать в настройках</button>}
     {(notice||status.error)&&<p className="settings-notice" role="alert">{notice||status.error}</p>}
     {!!status.logs&&<details><summary>Последний вывод сервера</summary><pre className="runtime-logs">{status.logs}</pre></details>}
   </section>;

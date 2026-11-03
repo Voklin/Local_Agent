@@ -16,6 +16,7 @@ class NeutralExtensionsTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.service=ExtensionService(self.temp.name)
+        self.addCleanup(self.service.shutdown)
 
     def test_disabled_tools_and_groups_are_enforced_and_snapshot_is_frozen(self):
         before=self.service.snapshot([('project',TOOL_DEFINITIONS)])

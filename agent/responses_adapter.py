@@ -31,11 +31,14 @@ def chat_chunk(content=None,calls=None,finish=None):
 
 class ResponseEvents:
     def __init__(self,cache):
-        self.cache=cache;self.started=set();self.arguments=set()
+        self.cache=cache;self.started=set();self.arguments=set();self.refused=False
 
     def translate(self,event):
         kind=event.type
-        if kind in ('response.output_text.delta','response.refusal.delta'):return chat_chunk(content=event.delta)
+        if kind=='response.refusal.delta':
+            self.refused=True
+            return chat_chunk(content=event.delta,finish='refusal')
+        if kind=='response.output_text.delta':return chat_chunk(content=event.delta)
         if kind=='response.output_item.added' and event.item.type=='function_call':
             self.started.add(event.output_index)
             return chat_chunk(calls=[NS(index=event.output_index,id=event.item.call_id,function=NS(name=event.item.name,arguments=''))])
@@ -49,13 +52,19 @@ class ResponseEvents:
         if kind in ('error','response.failed'):
             raise RuntimeError('OpenAI Responses: сервер завершил запрос с ошибкой. Проверьте доступ к модели и настройки подключения.')
         if kind in ('response.completed','response.incomplete'):
+            if kind=='response.incomplete' or self.refused:
+                reason = getattr(getattr(event.response, 'incomplete_details', None), 'reason', None)
+                return chat_chunk(finish='refusal' if self.refused else 'content_filter' if reason == 'content_filter' else 'length')
             output=[item.model_dump(mode='json',exclude_none=True) for item in event.response.output]
             for item in output:
                 if item['type']=='function_call':self.cache[item['call_id']]=output
-            return chat_chunk(finish='length' if kind=='response.incomplete' else 'stop')
+            return chat_chunk(finish='stop')
         return None
 
 
 def response_completion(response):
     text=response.output_text
-    return NS(choices=[NS(message=NS(content=text),finish_reason='stop')])
+    status=getattr(response,'status',None)
+    reason=getattr(getattr(response,'incomplete_details',None),'reason',None)
+    finish='stop' if status=='completed' else 'content_filter' if reason=='content_filter' else 'length' if status=='incomplete' else 'unknown'
+    return NS(choices=[NS(message=NS(content=text),finish_reason=finish)])

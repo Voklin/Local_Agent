@@ -1,0 +1,31 @@
+import {ForestSpot} from '../design/ForestSpot';
+import {useEffect,useState} from 'react';
+import {hasRecoveryBlockers} from './recoveryDiagnostics';
+import type {TaskSnapshot,TaskRecoveryItem,TaskRecoveryResolution} from '../../shared/taskTypes';
+const labels:Record<string,string>={completed:'Завершено',failed:'Ошибка',paused:'Приостановлено',running:'Выполняется',needs_attention:'Нужна проверка',waiting_approval:'Ожидает решения',succeeded:'Успешно',rejected:'Отклонено',cancelled:'Остановлено',done:'Готово',active:'В работе',pending:'Ожидает'};
+export function RunActivity({task,busy,events,onResume,onOpen,onResolve,onCopy,onConfigureChecks}:{task:TaskSnapshot|null;busy:boolean;events:string[];onResume:()=>void;onOpen:(path:string)=>void;onResolve:(item:TaskRecoveryItem,resolution:TaskRecoveryResolution)=>Promise<void>;onCopy:()=>Promise<void>;onConfigureChecks:()=>void}){
+ const [decision,setDecision]=useState<{item:TaskRecoveryItem;resolution:TaskRecoveryResolution}|null>(null);
+ const [notice,setNotice]=useState(''),[pending,setPending]=useState(false);
+ const locked=busy||pending;
+ useEffect(()=>{setDecision(null);setNotice('');},[task?.chat_id,task?.journal_id]);
+ async function copyDiagnostics(){setPending(true);setNotice('');try{await onCopy();setNotice('Диагностика скопирована. В ней только идентификаторы и счётчики, без исходников, ключей и текста разговора.');}catch{setNotice('Не удалось скопировать диагностику. Попробуйте ещё раз.');}finally{setPending(false);}}
+ async function confirmObservation(){if(!decision)return;setPending(true);setNotice('');try{await onResolve(decision.item,decision.resolution);setDecision(null);}catch{setNotice('Наблюдение не сохранено. Проверьте соединение и повторите подтверждение.');}finally{setPending(false);}}
+ return <section className="nw-page"><header className="nw-page-heading"><h1>Ход работы</h1><ForestSpot kind="fern"/></header>{!task?<div className="nw-empty"><ForestSpot kind="birch"/><p>После отправки запроса здесь появятся план, инструменты и результаты.</p></div>:<>
+ <div className="nw-run-state">{labels[task.run_state||task.status]||task.run_state||task.status}<span>Цикл {task.turn||0}</span></div><p>{task.last_event}</p>
+ {task.recovery_error&&<div className="nw-card nw-recovery"><strong>Журнал действий недоступен</strong><p>Продолжение заблокировано: сохранённый журнал нельзя надёжно прочитать. Скопируйте диагностику и сохраните копию профиля перед ручным восстановлением. Не удаляйте журнал и не запускайте действие заново.</p></div>}
+ {!!task.snapshot_attention?.length&&<div className="nw-card nw-recovery"><strong>Результат отката неизвестен</strong><p>Сравните изменённые файлы с ожидаемым состоянием. Откройте главное окно Лешего для просмотра снимков и подтверждения ручной проверки отката. Новый запуск и повтор отката остаются заблокированными.</p></div>}
+ {(task.recovery_items||[]).map(item=><div className="nw-card" key={item.call_id}><strong>Результат действия неизвестен</strong><p>{item.tool} · {item.path}</p><p>{item.summary}</p><p>Проверьте файлы или внешний сервис перед выбором. Эти кнопки фиксируют наблюдение, а не повторяют действие.</p><button disabled={busy} onClick={()=>setDecision({item,resolution:'completed'})}>Действие выполнено</button><button disabled={busy} onClick={()=>setDecision({item,resolution:'not_executed'})}>Не выполнялось</button></div>)}
+ {decision&&<div className="nw-confirm"><p>Вы проверили результат и подтверждаете: {decision.resolution==='completed'?'действие выполнено':'действие не выполнялось'}?</p><button disabled={locked} onClick={()=>void confirmObservation()}>Подтвердить наблюдение</button><button disabled={locked} onClick={()=>setDecision(null)}>Отмена</button></div>}
+ {['paused','needs_attention','failed'].includes(task.run_state||task.status)&&<button className="nw-primary" disabled={locked||hasRecoveryBlockers(task)} onClick={onResume}>Продолжить задачу</button>}
+ <button className="nw-copy-diagnostics" disabled={locked} onClick={()=>void copyDiagnostics()}>Скопировать диагностику</button>{notice&&<p role="status">{notice}</p>}
+ {task.verification?.summary&&<div className="nw-card"><strong>Проверка результата</strong><p>{task.verification.summary}</p></div>}
+ {!!task.acceptance_evidence?.length&&<div className="nw-card nw-acceptance-evidence"><strong>Критерии готовности</strong>{task.acceptance_evidence.map(item=><p key={item.id}><b>{item.description}</b><br/>{item.status==='checks_passed'?'Проверки подтверждены на текущем проекте':item.status==='scoped_checks_passed'?'Подтверждены только выбранные файлы':item.status==='failed'?'Проверка не прошла':item.status==='stale'?'Подтверждение устарело':'Не подтверждено; нужна проверка'}</p>)}</div>}
+ <button className="nw-copy-diagnostics" onClick={onConfigureChecks}>Настроить проверки результата</button>
+ {!!task.stages?.length&&<ol className="nw-stages">{task.stages.map(stage=><li key={stage.id}><strong>{stage.title}</strong><small>{labels[stage.status]||stage.status}</small></li>)}</ol>}
+ {!!task.modified_files?.length&&<div className="nw-card"><strong>Изменённые файлы</strong>{task.modified_files.map(path=><button className="nw-history-item" key={path} onClick={()=>onOpen(path)}>{path} ↗</button>)}</div>}
+ {!!task.tool_activity?.length&&<div className="nw-card"><strong>Инструменты · {task.tool_calls}</strong>{task.tool_activity.map(tool=><details key={tool.id}><summary>{tool.tool} <small>{labels[tool.status]||tool.status}</small></summary><p>{tool.path}</p><p>{tool.summary}</p></details>)}</div>}
+ {!!task.children?.length&&<div className="nw-card"><strong>Субагенты</strong>{task.children.map(child=><p key={child.id}>{child.profile?.title||child.id} · {labels[child.state]||child.state}</p>)}</div>}
+ {!!task.test_results?.length&&<div className="nw-card"><strong>Проверки</strong>{task.test_results.map(check=><p key={check.id}>{check.purpose||check.program}: {check.ok?'команда выполнена':'ошибка'}<br/>{check.evidence_summary||'Актуальность подтверждения не указана'}</p>)}</div>}
+ <details className="nw-debug"><summary>Технические данные</summary><pre>{JSON.stringify(task,null,2)}</pre></details>
+ </>}{events.length>0&&<details><summary>События файлов</summary>{events.map((event,index)=><p key={index}>{event}</p>)}</details>}</section>;
+}

@@ -1,7 +1,7 @@
 {
   "name": "local-coding-agent-v6-workspace",
   "private": true,
-  "version": "7.0.0",
+  "version": "7.0.1",
   "workspaces": [
     "apps/desktop"
   ],
@@ -11,6 +11,22 @@
     "typecheck": "npm --workspace apps/desktop run typecheck",
     "docs:generate": "python tools/generate_code_reference.py",
     "docs:check": "python tools/check_docs.py",
-    "package:win": "npm run build && electron-builder --config electron-builder.json --win --x64 --publish never"
+    "test:readiness": "python tools/test_agent_readiness.py",
+    "test:readiness:live": "node tests/electron/run.cjs readiness-live.cjs",
+    "package:win": "npm run build && python prototypes/neutral-ide/prepare.py && electron-builder --config electron-builder.json --win --x64 --publish never",
+    "test:ui": "node tests/electron/run.cjs studio-smoke.cjs",
+    "test:ui:layout": "node tests/electron/run.cjs studio-layout.cjs",
+    "test:ui:visual": "node tests/electron/run.cjs studio-visual.cjs",
+    "test:ui:themes": "node tests/electron/run.cjs leshy-themes.cjs",
+    "test:runner": "node --test tests/electron/runner-exit.test.cjs",
+    "test:ide:state": "node --test tests/electron/ide-session.test.cjs tests/electron/ide-acceptance.test.cjs",
+    "test:ui:acceptance": "node tests/electron/ide-acceptance-run.cjs",
+    "test:ui:acceptance:json": "node tests/electron/ide-acceptance-run.cjs --json",
+    "test:ui:lola": "node tests/electron/run.cjs lola-desktop-smoke.cjs",
+    "test:ui:background": "node tests/electron/run.cjs background-runs-smoke.cjs",
+    "test:ui:optional": "node tests/electron/run.cjs optional-ide-smoke.cjs",
+    "start": "npm --workspace apps/desktop start",
+    "ide:prepare": "npm run build && python prototypes/neutral-ide/prepare.py",
+    "test:ui:native-ide": "node tests/electron/run.cjs neutral-ide-integration.cjs"
   }
 }

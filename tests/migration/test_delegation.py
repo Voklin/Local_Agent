@@ -22,7 +22,7 @@ class DelegationHandler(BaseHTTPRequestHandler):
         if request['model']=='miya-fixture' and not any(m.get('role')=='tool' for m in request['messages']):
             delta={'tool_calls':[{'index':0,'id':'delegate-fixture','type':'function','function':{'name':'delegate_task','arguments':json.dumps({'target':'chat','prompt':'Ответь основной моделью'})}}]}
         else:delta={'content':'Передала задачу.' if request['model']=='miya-fixture' else 'MAIN_MODEL_RESULT'}
-        chunk={'id':'fixture','object':'chat.completion.chunk','model':request['model'],'choices':[{'index':0,'delta':delta,'finish_reason':None}]}
+        chunk={'id':'fixture','object':'chat.completion.chunk','model':request['model'],'choices':[{'index':0,'delta':delta,'finish_reason':'tool_calls' if delta.get('tool_calls') else 'stop'}]}
         self.wfile.write(('data: '+json.dumps(chunk)+'\n\ndata: [DONE]\n\n').encode());self.wfile.flush()
 
 

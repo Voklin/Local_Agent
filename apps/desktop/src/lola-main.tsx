@@ -1,0 +1,10 @@
+import {readAppearance,startAppearanceSync} from './AppearanceSettings';
+import {applyTheme} from './design/themes';
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import {DesktopLolaView} from './DesktopLolaView';
+import './styles/lola-desktop.css';
+import './design/leshy-lola.css';
+import './design/leshy-motifs.css';
+const appearance=readAppearance();applyTheme(appearance.theme,appearance.backgroundArt);startAppearanceSync();
+createRoot(document.getElementById('root')!).render(<React.StrictMode><DesktopLolaView/></React.StrictMode>);

@@ -8,11 +8,13 @@ import threading
 import time
 from .process_job import ProcessJob
 
-COMMAND_TOOL={'type':'function','function':{'name':'run_project_command','description':'Запустить проверку, тест или сборку в проекте. Нужны включённые команды и отдельное подтверждение пользователя. program — исполняемый файл, arguments — массив; без shell. Для JavaScript доступен встроенный node. Не запрашивай команду, если пользователь уже отклонил её.',
-    'parameters':{'type':'object','properties':{'program':{'type':'string'},'arguments':{'type':'array','items':{'type':'string'}},'cwd':{'type':'string','description':'Папка относительно корня проекта, по умолчанию .'},'timeout':{'type':'integer','minimum':1,'maximum':120}},'required':['program','arguments'],'additionalProperties':False}}}
+COMMAND_TOOL={'type':'function','function':{'name':'run_project_command','description':'Запустить проверку, тест или сборку в проекте. Нужны включённые команды и отдельное подтверждение пользователя. program — исполняемый файл, arguments — массив; без shell. Для JavaScript доступен встроенный node. Не запрашивай команду, если пользователь уже отклонил её. Для заданной пользователем проверки передай её check_id и точные program/arguments/cwd/timeout; иначе квитанция не подтвердит этот критерий.',
+    'parameters':{'type':'object','properties':{'program':{'type':'string'},'arguments':{'type':'array','items':{'type':'string'}},'purpose':{'type':'string','minLength':1,'maxLength':300},'check_id':{'type':'string','maxLength':80},'cwd':{'type':'string','description':'Папка относительно корня проекта, по умолчанию .'},'timeout':{'type':'integer','minimum':1,'maximum':120}},'required':['program','arguments'],'additionalProperties':False}}}
 
 
 def run_project_command(root,args,interrupted,approve):
+    purpose=args.get('purpose','Проверка проекта')
+    if not isinstance(purpose,str) or not 1<=len(purpose.strip())<=300 or '\x00' in purpose:raise ValueError('Укажите назначение проверки: до 300 символов')
     program=args.get('program');arguments=args.get('arguments',[]);timeout=args.get('timeout',60)
     if not isinstance(program,str) or not 1<=len(program)<=2000 or not isinstance(arguments,list) or len(arguments)>100 or any(not isinstance(a,str) or len(a)>8000 or '\x00' in a for a in arguments):raise ValueError('Укажите программу и массив аргументов; максимум 100 аргументов по 8000 символов')
     if type(timeout) is not int or not 1<=timeout<=120:raise ValueError('Время команды: 1–120 секунд')
@@ -23,14 +25,23 @@ def run_project_command(root,args,interrupted,approve):
     try:cwd.relative_to(base)
     except ValueError:raise ValueError('Рабочая папка команды должна находиться внутри проекта')
     if not cwd.is_dir():raise ValueError('Рабочая папка не найдена')
+    cwd_identity=cwd.stat()
     bundled_node=os.environ.get('NEUTRAL_NODE_PATH') if program.lower() in ('node','node.exe') else None
     resolved=bundled_node or shutil.which(program)
     if not resolved:raise ValueError('Программа не найдена. Node встроен в Neutral; остальные среды разработки нужно установить или указать полным путём.')
     if Path(resolved).suffix.lower() in ('.cmd','.bat','.ps1','.vbs','.js') or Path(resolved).stem.lower() in ('cmd','powershell','pwsh','wscript','cscript','mshta'):
         raise ValueError('Команды выполняются без shell. Для npm используйте node и путь npm-cli.js; скрипты запускайте через соответствующую программу.')
-    proposal=json.dumps({'program':resolved,'arguments':arguments,'cwd':str(cwd),'timeout_seconds':timeout},ensure_ascii=False,indent=2)
+    proposal=json.dumps({'purpose':purpose,'program':resolved,'arguments':arguments,'cwd':str(cwd),'timeout_seconds':timeout},ensure_ascii=False,indent=2)
     if interrupted.is_set() or not approve('Запуск программы в проекте',proposal,'command'):return {'ok':False,'error':'Запуск отклонён пользователем'}
     if interrupted.is_set():return {'ok':False,'error':'Остановлено пользователем'}
+    try:
+        current=(Path(root)/relative).resolve(strict=True)
+        current.relative_to(base)
+        identity=current.stat()
+        if current!=cwd or (identity.st_dev,identity.st_ino)!=(cwd_identity.st_dev,cwd_identity.st_ino) or not current.is_dir():
+            raise ValueError('Рабочая папка изменилась после предпросмотра')
+    except (OSError,ValueError):
+        return {'ok':False,'code':'WORKSPACE_CHANGED','error':'Рабочая папка изменилась во время подтверждения; программа не запускалась.'}
     names=('PATH','PATHEXT','SystemRoot','WINDIR','COMSPEC','TEMP','TMP','USERPROFILE','APPDATA','LOCALAPPDATA','HOME','LANG')
     env={k:v for k,v in os.environ.items() if k.upper() in {n.upper() for n in names}}
     env['PYTHONIOENCODING']='utf-8';env['PYTHONUTF8']='1'

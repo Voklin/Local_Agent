@@ -1,0 +1,1 @@
+document.querySelector('#lola-form').addEventListener('submit',e=>{e.preventDefault();const input=document.querySelector('#lola-prompt');if(!input.value.trim())return;document.querySelector('#reply').textContent='Демо: вопрос «'+input.value.trim()+'» принят. В основном приложении здесь появится ответ Лолы.';input.value='';});

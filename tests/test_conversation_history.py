@@ -15,7 +15,7 @@ class ConversationHistoryTests(unittest.TestCase):
         messages[-2]['tool_calls'][0]['function']['arguments'] = 'changed'
         self.assertEqual(history[-1]['tool_calls'][0]['function']['arguments'], '{}')
 
-    def test_model_context_omits_unfinished_and_orphaned_tool_exchanges(self):
+    def test_model_context_preserves_partial_batch_and_omits_orphans(self):
         messages = [
             {'role': 'system', 'content': 'system'},
             {'role': 'user', 'content': 'old'},
@@ -29,7 +29,10 @@ class ConversationHistoryTests(unittest.TestCase):
         ]
         original = deepcopy(messages)
         context = ContextManager().build(messages)
-        self.assertEqual([m['tool_call_id'] for m in context if m['role'] == 'tool'], ['c', 'd'])
+        self.assertEqual([m['tool_call_id'] for m in context if m['role'] == 'tool'], ['a', 'b', 'c', 'd'])
+        self.assertEqual(next(m['content'] for m in context if m.get('tool_call_id')=='a'),'partial')
+        missing=json.loads(next(m['content'] for m in context if m.get('tool_call_id')=='b'))
+        self.assertEqual(missing['code'],'OUTCOME_UNKNOWN');self.assertFalse(missing['ok'])
         self.assertEqual(messages, original)
 
     def test_serialized_context_budget_keeps_current_request_and_tool_pairs(self):

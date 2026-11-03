@@ -1,0 +1,10 @@
+import {readAppearance} from '../AppearanceSettings';
+import {applyTheme} from '../design/themes';
+import {createRoot} from 'react-dom/client';
+import {AgentWorkspace} from './workspace';
+import './workspace.css';
+import '../design/leshy.css';
+import '../design/ide-theme.css';
+import '../design/leshy-motifs.css';
+const appearance=readAppearance();applyTheme(appearance.theme,appearance.backgroundArt);
+createRoot(document.getElementById('root')!).render(<AgentWorkspace/>);

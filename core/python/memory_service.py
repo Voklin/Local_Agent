@@ -37,15 +37,37 @@ def read_memory(root):
             data = empty_memory(root)
         fields = {name:data.get(name, [] if name in LIST_FIELDS else '') for name in (*FIELDS,*LIST_FIELDS)}
         editable_memory(fields)
-        return {'ok':True,'memory':fields,'revision':hashlib.sha256(raw).hexdigest(),'root':root}
+        from agent.project_knowledge import ProjectKnowledge
+        knowledge=ProjectKnowledge(root)
+        knowledge_raw=knowledge.path.read_bytes() if knowledge.path.exists() else b''
+        return {'ok':True,'memory':fields,'records':knowledge.listing(),'notes_provenance':data.get('_provenance',{}),
+                'revision':hashlib.sha256(raw+b'\0'+knowledge_raw).hexdigest(),'root':root}
 
 
 def write_memory(root, params):
     root = str(canonical_root(root))
+    if params.get('root') is not None and params['root']!=root:raise ValueError('Проект изменился; откройте память заново')
     fields = editable_memory(params.get('memory'))
     with MEMORY_LOCK:
         current = read_memory(root)
         if params.get('revision') != current['revision']:
             raise ValueError('MEMORY_CHANGED: память изменилась. Перечитайте её перед сохранением; черновик сохранён в окне.')
         save_project_memory(root,fields)
+        return read_memory(root)
+
+
+def memory_action(root, params):
+    """Trusted UI CAS operations; the model cannot use this route to promote hypotheses."""
+    from agent.project_knowledge import ProjectKnowledge
+    root=str(canonical_root(root))
+    if params.get('root')!=root:raise ValueError('Проект изменился; откройте память заново')
+    with MEMORY_LOCK:
+        current=read_memory(root)
+        if params.get('action')=='search':
+            return {**current,'records':ProjectKnowledge(root).listing(params.get('query',''))}
+        if params.get('revision')!=current['revision']:raise ValueError('MEMORY_CHANGED: перечитайте память; ваш черновик сохранён')
+        knowledge=ProjectKnowledge(root)
+        if params.get('action')=='save':knowledge.put(params.get('record') or {})
+        elif params.get('action')=='delete':knowledge.remove(params.get('id'))
+        else:raise ValueError('Неизвестное действие памяти')
         return read_memory(root)

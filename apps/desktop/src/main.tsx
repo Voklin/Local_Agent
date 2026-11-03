@@ -1,5 +1,10 @@
+import {readAppearance,startAppearanceSync} from './AppearanceSettings';
+import {applyTheme} from './design/themes';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import {StudioLayoutProvider} from './StudioControls';
 import './style.css';
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
+startAppearanceSync();
+const appearance=readAppearance();applyTheme(appearance.theme,appearance.backgroundArt);
+createRoot(document.getElementById('root')!).render(<React.StrictMode><StudioLayoutProvider><App /></StudioLayoutProvider></React.StrictMode>);

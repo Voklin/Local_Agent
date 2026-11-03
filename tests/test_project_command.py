@@ -25,6 +25,19 @@ class ProjectCommandTests(unittest.TestCase):
         result=run_project_command(self.root,{'program':sys.executable,'arguments':['-c','import sys;print("failed");sys.exit(7)']},threading.Event(),approve)
         self.assertFalse(result['ok']);self.assertEqual(result['exit_code'],7)
 
+    def test_replaced_working_directory_after_approval_is_not_executed(self):
+        """The approved cwd identity is checked again before a process can start."""
+        folder=self.root/'cwd';folder.mkdir()
+        def replace(*_args):
+            folder.rename(self.root/'original')
+            folder.mkdir()
+            return True
+        result=run_project_command(self.root,{'program':sys.executable,'cwd':'cwd',
+            'arguments':['-c',"open('proof.txt','w').write('ran')"]},threading.Event(),replace)
+        self.assertFalse(result['ok']);self.assertEqual(result['code'],'WORKSPACE_CHANGED')
+        self.assertFalse((folder/'proof.txt').exists())
+        self.assertFalse((self.root/'original/proof.txt').exists())
+
     def test_output_is_bounded_and_cancellation_stops_child(self):
         result=run_project_command(self.root,{'program':sys.executable,'arguments':['-c','print("x"*200000)']},threading.Event(),lambda *_:True)
         self.assertTrue(result['ok']);self.assertTrue(result['truncated']);self.assertLessEqual(len(result['output']),64000)

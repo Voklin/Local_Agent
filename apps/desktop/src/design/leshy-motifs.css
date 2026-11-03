@@ -1,0 +1,89 @@
+/* Final renderer contract: each surface family carries the same embroidery language. */
+:root[data-leshy-theme]{--slavic-rail:url('../assets/leshy/band-forest.svg');--slavic-corner:url('../assets/leshy/corner.svg');--slavic-rosette:url('../assets/leshy/rosette.svg')}
+:root[data-leshy-theme=parchment]{--slavic-rail:url('../assets/leshy/band-parchment.svg')}
+:root[data-leshy-theme=twilight]{--slavic-rail:url('../assets/leshy/band-twilight.svg')}
+
+/* The selected mode tab closes onto the workspace, with no inherited 3px gutter. */
+.studio-shell[data-leshy-theme] .mode-tabs{padding:0;align-self:stretch;align-items:flex-end;margin-bottom:-1px;position:relative;z-index:1}
+.studio-shell[data-leshy-theme] .mode-tabs button.selected{background-color:var(--bg-app);border:1px solid var(--ornament-ink);border-bottom:0;border-radius:8px 8px 0 0}
+.studio-shell[data-leshy-theme] .mode-tabs button.selected::after{inset:3px 7px auto;height:7px;mask-size:28px 7px;opacity:.45}
+
+/* Text controls get a short woven hem below their label, including hover states. */
+:where(.studio-shell,.nw,.lola-bubble) button:not(.icon-button):not(.nw-send):not(.studio-copy-message):not(.studio-copy-code):not(.studio-model-refresh):not(.leshy-theme-picker button):not(.nw-theme-options button):not(.nw-header button):not(.lola-desktop-actions button):not(.editor-tabs button):not(.activity-bar button):not(.statusbar button){background-image:var(--slavic-rail)!important;background-repeat:no-repeat!important;background-position:center bottom 2px!important;background-size:28px 4px!important;min-height:30px}
+:where(.studio-shell,.nw,.lola-bubble) :is(input:not([type=checkbox]):not([type=range]):not([type=file]):not([type=color]),select,textarea):not(.editor-input):not(.composer textarea):not(.nw-compose textarea){background-image:var(--slavic-rail);background-repeat:no-repeat;background-position:right 8px bottom 2px;background-size:32px 4px}
+:where(.studio-shell,.nw,.lola-bubble) :is(input,textarea,select){caret-color:var(--accent);accent-color:var(--accent)}
+:where(.studio-shell,.nw,.lola-bubble) input[type=range]{accent-color:var(--accent)}
+:where(.studio-shell,.nw,.lola-bubble) label:has(>input[type=checkbox]),:where(.studio-shell,.nw,.lola-bubble) label:has(>input[type=range]){background-image:var(--slavic-rail);background-repeat:no-repeat;background-size:20px 4px;background-position:right 4px bottom;padding-bottom:6px}
+.studio-shell[data-leshy-theme] .icon-button,.nw-header button,.lola-desktop-actions button{border-radius:4px;border-color:color-mix(in srgb,var(--ornament-ink) 24%,transparent);box-shadow:inset 2px 0 0 color-mix(in srgb,var(--ornament-ink) 20%,transparent)}
+.studio-shell[data-leshy-theme] .icon-button:hover,.nw-header button:hover,.lola-desktop-actions button:hover{border-color:var(--ornament-ink)}
+.leshy-preview{position:relative;overflow:hidden}
+.leshy-preview::before{content:'';position:absolute;left:4px;right:4px;bottom:3px;height:5px;background:var(--ornament-ink);mask:url('../assets/leshy/border.svg') center/24px 6px repeat-x;opacity:.7;pointer-events:none}
+
+/* Small ink corners sit in padding, never over content or a status rail. */
+:where(.studio-shell,.nw,.lola-bubble) :is(.connection-profiles,.settings-card,.capability-card,.mcp-server-card,.inline-editor,.inline-confirm,.snapshot-card,.rollback-preview,.nw-card,.nw-confirm,.settings-notice,.assistant-notice,.task-recovery){position:relative}
+
+:where(.studio-shell,.nw,.lola-bubble) :is(.connection-profiles,.settings-card,.capability-card,.mcp-server-card,.inline-editor,.inline-confirm,.snapshot-card,.rollback-preview,.nw-card,.nw-confirm,.settings-notice,.assistant-notice,.handoff-card,.task-recovery){border:1px solid var(--border-subtle);border-radius:6px;background-color:var(--bg-panel);padding:16px;color:var(--fg-primary)}
+:where(.studio-shell,.nw,.lola-bubble) :is(.connection-profiles,.settings-card,.capability-card,.mcp-server-card,.inline-editor,.inline-confirm,.snapshot-card,.rollback-preview,.nw-card,.nw-confirm,.settings-notice,.assistant-notice,.handoff-card,.task-recovery)::before{content:'';position:absolute;left:3px;top:3px;width:12px;height:12px;background:var(--ornament-ink);mask:var(--slavic-corner) center/contain no-repeat;opacity:.8;pointer-events:none}
+:where(.studio-shell,.nw,.lola-bubble) :is(.connection-profiles,.settings-card,.capability-card,.mcp-server-card,.inline-editor,.inline-confirm,.snapshot-card,.rollback-preview,.nw-card,.nw-confirm,.settings-notice,.assistant-notice,.handoff-card,.task-recovery)::after{content:'';position:absolute;right:3px;bottom:3px;width:12px;height:12px;background:var(--ornament-ink);mask:var(--slavic-corner) center/contain no-repeat;transform:rotate(180deg);opacity:.8;pointer-events:none}
+.studio-shell[data-leshy-theme] :is(.graph-editor fieldset,.voice-input-settings,.subagent-editor fieldset){background-color:var(--bg-panel);border-color:var(--ornament-ink)}
+.studio-shell[data-leshy-theme] :is(.graph-editor legend,.voice-input-settings legend,.subagent-editor legend){padding-inline:10px;color:var(--ornament-ink);letter-spacing:.3px}
+
+/* The same section marker reaches nested editors, recovery cards and small dialogs. */
+:where(.studio-shell,.nw,.lola-bubble) :is(.settings-section h3,.inline-editor h3,.workspace-dialog h2,.confirmation-dialog h2,.rename-dialog h2,.approval-dialog h2,.nw-approval h2,.task-tools-heading,.nw-card>strong,.nw-confirm>p:first-child)::before{content:'';display:inline-block;vertical-align:middle;width:13px;height:13px;margin-inline-end:8px;flex:none;background:var(--ornament-ink);mask:var(--slavic-rosette) center/contain no-repeat;pointer-events:none}
+.studio-shell[data-leshy-theme] :is(.task-progress-heading,.task-tool-title,.task-recovery .task-tools-heading){padding-block:8px;border-bottom:1px solid var(--border-subtle);color:var(--fg-primary)}
+.studio-shell[data-leshy-theme] .task-tools>li{background-color:var(--bg-panel);border-radius:5px;border-color:var(--border-subtle)}
+.studio-shell[data-leshy-theme] .task-tool-title strong,.nw-card>strong{color:var(--fg-primary)}
+:where(.studio-shell,.nw,.lola-bubble) :is(.task-plan,.task-criteria,.task-checks,.context-usage,.context-sources,.run-history,.child-runs,.workspace-review,.nw-debug)>summary{padding-block:8px;border-bottom:1px solid var(--border-subtle);background-image:var(--slavic-rail);background-size:24px 4px;background-position:right 4px bottom 1px;background-repeat:no-repeat}
+.studio-shell[data-leshy-theme] :is(.progress-drawer-header,.studio-history>header,.editor-toolbar,.editor-find,.editor-status,.bottom-tabs){border-color:var(--ornament-ink);background-image:var(--slavic-rail);background-repeat:no-repeat;background-position:right 6px bottom;background-size:32px 3px}
+.studio-shell[data-leshy-theme] :is(.sidebar-views,.extension-tabs,.progress-tabs,.settings-tabs){border-color:var(--border-subtle)}
+.studio-shell[data-leshy-theme] .settings-tabs button[aria-pressed=true]{background-color:var(--blue-bg);border-color:var(--ornament-ink)}
+.studio-shell[data-leshy-theme] :is(.file-row.selected,.conversation-row.selected,.search-results button.selected){box-shadow:inset 2px 0 0 var(--ornament-ink)}
+
+/* Popovers are covered as a family, including voice activation and model notices. */
+.studio-shell[data-leshy-theme] :is(.conversation-actions,.quick-open,.studio-model-notice,.studio-lola-controls>details>div){border:1px solid var(--ornament-ink);border-radius:6px;background-color:var(--bg-panel);color:var(--fg-primary);box-shadow:var(--shadow)}
+.studio-shell[data-leshy-theme] .studio-lola-controls>details>div{padding:18px 14px 14px;background-image:var(--slavic-rail);background-position:center top 3px;background-size:32px 6px;background-repeat:repeat-x}
+.studio-shell[data-leshy-theme] .quick-open .search-heading{background-image:var(--slavic-rail);background-position:right 42px center;background-repeat:no-repeat;background-size:32px 6px}
+.studio-shell[data-leshy-theme] .conversation-actions{background-image:var(--slavic-rail);background-position:center top 2px;background-size:32px 4px;background-repeat:repeat-x;padding-top:12px}
+:where(.studio-shell,.nw,.lola-bubble) :is(.editor-notice,.nw-error,.nw-unsaved,.search-notice,.settings-feedback){border-color:var(--ornament-ink);border-radius:4px}
+.nw-error,.nw-unsaved{background-image:var(--slavic-rail);background-size:28px 4px;background-repeat:no-repeat;background-position:right 4px bottom 2px}
+.nw .nw-error{border-left-color:var(--status-error)}
+.nw .nw-unsaved{border-left-color:var(--status-warning)}
+.nw .nw-confirm{border-color:var(--status-warning)}
+.studio-shell[data-leshy-theme] .chat-code{border:1px solid var(--ornament-ink);border-radius:5px;overflow:hidden}
+.studio-shell[data-leshy-theme] .chat-code-heading{border-bottom:1px solid var(--border-subtle);background-image:var(--slavic-rail);background-size:28px 4px;background-position:left 8px bottom 1px;background-repeat:no-repeat}
+.studio-shell[data-leshy-theme] .studio-markdown table{border-color:var(--ornament-ink)}
+.studio-shell[data-leshy-theme] .studio-markdown th{padding:8px 8px 10px;background-image:var(--slavic-rail);background-size:24px 4px;background-position:center bottom 1px;background-repeat:no-repeat;border-bottom-color:var(--ornament-ink)}
+
+/* A single framed boundary for every modal, preserving existing keyboard handling. */
+.studio-shell[data-leshy-theme] :is(.settings-dialog,.workspace-dialog,.rename-dialog,.confirmation-dialog,.approval-dialog,.optional-ide-dialog){border-color:var(--ornament-ink);border-radius:6px}
+.studio-shell[data-leshy-theme] :is(.workspace-dialog,.rename-dialog,.confirmation-dialog,.approval-dialog){background-image:var(--slavic-rail);background-repeat:repeat-x;background-position:left 10px bottom 3px;background-size:32px 4px}
+.studio-shell[data-leshy-theme] :is(.settings-header,.optional-ide-dialog>header){background-image:var(--slavic-rail);background-repeat:no-repeat;background-size:48px 6px;background-position:left 24px bottom 1px}
+.studio-shell[data-leshy-theme] .settings-section .section-intro{border-bottom-color:var(--ornament-ink)}
+.studio-shell[data-leshy-theme] .settings-section .section-intro .eyebrow{color:var(--ornament-ink);letter-spacing:1.5px}
+.studio-shell[data-leshy-theme] .settings-section-heading{gap:12px;flex-wrap:wrap}
+
+/* Independent IDE panel: same materials, without importing legacy UI components. */
+.nw .nw-page-heading{border-color:var(--ornament-ink);background-image:var(--slavic-rail);background-repeat:no-repeat;background-position:left bottom;background-size:32px 4px}
+.nw .nw-page-heading .forest-spot{width:96px;height:68px;opacity:1}
+.nw .nw-header{background-image:var(--slavic-rail);background-size:32px 4px;background-position:center top 2px;background-repeat:no-repeat}
+.nw .nw-model{border-radius:0}
+.nw .nw-approval{background-image:var(--slavic-rail);background-size:32px 4px;background-repeat:repeat-x;background-position:center bottom 3px}
+.nw .nw-theme-options button{border-radius:5px}
+.nw .nw-footer{background-image:var(--slavic-rail);background-size:24px 4px;background-position:center bottom 1px;background-repeat:no-repeat;border-top:1px solid var(--border-subtle);padding-top:6px}
+
+/* Lola keeps the transparent native window: decoration is confined to its bubble. */
+.desktop-lola .lola-bubble{position:relative;border-radius:6px;border-color:var(--ornament-ink);background-image:var(--slavic-rail);background-repeat:repeat-x;background-size:32px 4px;background-position:center top 2px;padding-top:14px}
+.desktop-lola .lola-bubble-heading{border-color:var(--ornament-ink)}
+.desktop-lola .lola-bubble-heading b::before{content:'';display:inline-block;vertical-align:middle;margin-right:6px;width:13px;height:13px;background:var(--ornament-ink);mask:var(--slavic-rosette) center/contain no-repeat}
+.desktop-lola .lola-bubble :is(.lola-history-toggle,.lola-recording-options>summary){border-bottom:1px solid var(--border-subtle);padding-block:6px;background-image:var(--slavic-rail);background-size:20px 4px;background-repeat:no-repeat;background-position:right 4px bottom}
+.desktop-lola .lola-bubble .conversation-actions{background-image:var(--slavic-rail);background-repeat:repeat-x;background-size:32px 4px;background-position:center top 2px;padding-top:12px}
+.desktop-lola .lola-bubble .task-progress{border-color:var(--ornament-ink);background-image:var(--slavic-rail);background-size:24px 4px;background-repeat:no-repeat;background-position:right 4px top 2px}
+
+/* Rails, handles and scrolling are part of the same visual system. */
+:where(.studio-shell,.nw,.lola-bubble) *{scrollbar-color:var(--ornament-ink) var(--bg-app)}
+.studio-shell[data-leshy-theme] :is(.statusbar,.sidebar-footer,.bottom-panel){border-color:var(--ornament-ink)}
+.studio-shell[data-leshy-theme] .statusbar{background-image:var(--slavic-rail);background-repeat:repeat-x;background-position:center bottom;background-size:32px 3px}
+.studio-shell[data-leshy-theme] .statusbar button{min-height:20px;height:22px;padding:0 6px;background-image:var(--slavic-rail);background-repeat:no-repeat;background-position:center bottom;background-size:20px 3px}
+.studio-resize:hover,.studio-resize:focus-visible{background:repeating-linear-gradient(45deg,var(--ornament-ink) 0 2px,transparent 2px 5px)}
+@container(max-width:280px){.nw .nw-page-heading .forest-spot{width:60px;height:56px}}
+@media(max-width:1100px){.studio-shell .optional-ide-dialog>header .forest-spot{width:76px;height:56px}}

@@ -8,6 +8,7 @@ export function WakeListener({busy,onWake}:{busy:boolean;onWake:(text:string,sen
   const [notice,setNotice]=useState('');
   const [manual,setManual]=useState(false);
   const [speaking,setSpeaking]=useState(false);
+  useEffect(()=>{const stop=()=>setArmed(false);window.addEventListener('lola-stop-wake',stop);return()=>window.removeEventListener('lola-stop-wake',stop);},[]);
   const action=useRef(onWake);action.current=onWake;
   useEffect(()=>{void window.lca.wakeListening(armed);return()=>{void window.lca.wakeListening(false);};},[armed]);
   useEffect(()=>{

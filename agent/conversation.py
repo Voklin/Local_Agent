@@ -87,7 +87,7 @@ def build_messages(history, prompt):
 
 
 def _complete_units(messages):
-    """Copy complete tool exchanges; omit orphaned/unfinished exchanges from model context."""
+    """Preserve partial valid batches with explicit unknowns; omit malformed/orphaned exchanges."""
     units = []
     index = 0
     while index < len(messages):
@@ -113,8 +113,15 @@ def _complete_units(messages):
                 if isinstance(call_id, str):
                     seen.add(call_id)
                 unit.append(result)
-            if not valid or seen != expected:
+            if not valid:
                 continue
+            # Preserve saved receipts from a partial batch. This conservative
+            # projection fallback never grants permission or replays a call.
+            for call_id in ids:
+                if call_id not in seen:
+                    unit.append({'role':'tool','tool_call_id':call_id,'content':json.dumps({
+                        'ok':False,'code':'OUTCOME_UNKNOWN','recovery':True,
+                        'error':'Результат этого вызова не сохранён. Не повторяйте действие без проверки его исхода.'},ensure_ascii=False)})
         units.append((start, unit))
     return units
 

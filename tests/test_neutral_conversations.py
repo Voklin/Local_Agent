@@ -31,7 +31,7 @@ class NeutralConversationTests(unittest.TestCase):
         self.tasks.project_id=project['id']
         self.assertEqual(len(self.service.search('',{'mode':'chat','query':'экспорта'})['chats']),1)
         with self.assertRaises(ValueError):self.service.delete('',{**self.params,'mode':'voice','confirmed':True})
-        self.assertTrue((self.root/'chats'/f"{self.chat['id']}.json").exists())
+        self.assertIsNotNone(chat_store.load_chat(self.chat['id']))
 
     def test_pin_archive_delete_and_explicit_confirmation(self):
         self.service.update('',{**self.params,'pinned':True})
@@ -44,7 +44,7 @@ class NeutralConversationTests(unittest.TestCase):
         self.assertIsNone(chat_store.load_chat(self.chat['id']))
 
     def test_fork_and_retry_never_reuse_checkpoint_or_change_original(self):
-        task_store.save_task({'id':self.chat['id'],'status':'paused'})
+        task_store.save_task({'chat_id':self.chat['id'],'status':'paused'})
         result=self.service.fork('',{**self.params,'retry':True})
         self.assertNotEqual(result['chat']['id'],self.chat['id']);self.assertEqual(result['chat']['messages'],[])
         self.assertEqual(result['prompt'],'Проверка экспорта')

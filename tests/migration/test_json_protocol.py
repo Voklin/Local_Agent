@@ -27,12 +27,12 @@ class JsonOnlyHandler(BaseHTTPRequestHandler):
         stage=self.server.stage;self.server.stage+=1
         content=[json.dumps({'tool_calls':[{'name':'read_file','arguments':{'path':'source.txt'}}]}),
                  json.dumps({'tool_calls':[{'name':'write_file','arguments':{'path':'result.txt','content':'tested','overwrite':False}}]}),
-                 'Готово. Результат инструмента учтён.'][min(stage,2)]
+                 json.dumps({'protocol':'neutral.action.v1','kind':'final','text':'Готово. Результат инструмента учтён.'})][min(stage,2)]
         self.send_response(200);self.send_header('Content-Type','text/event-stream');self.end_headers()
         for offset in range(0,len(content),13):
             chunk={'id':'fixture','object':'chat.completion.chunk','model':'coder','choices':[{'index':0,'delta':{'content':content[offset:offset+13]},'finish_reason':None}]}
             self.wfile.write(('data: '+json.dumps(chunk)+'\n\n').encode())
-        self.wfile.write(b'data: [DONE]\n\n');self.wfile.flush()
+        self.wfile.write(('data: '+json.dumps({'choices':[{'index':0,'delta':{},'finish_reason':'stop'}]})+'\n\ndata: [DONE]\n\n').encode());self.wfile.flush()
 
 
 class JsonProtocolTests(unittest.TestCase):
@@ -60,6 +60,8 @@ class JsonProtocolTests(unittest.TestCase):
                         self.assertEqual((project/'result.txt').read_text(),'tested')
                         self.assertTrue(all('tools' not in request for request in server.requests))
                         self.assertEqual([m['role'] for m in service.chat['messages']].count('tool'),2)
+                        self.assertEqual(server.stage,3)
+                        self.assertEqual(service.chat['messages'][-1]['content'],'Готово. Результат инструмента учтён.')
                     finally:service.shutdown()
             finally:server.shutdown();server.server_close();worker.join(2)
 

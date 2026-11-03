@@ -4,22 +4,24 @@ from pathlib import Path
 import json
 import threading
 import uuid
-from .chat_store import APP_DIR, _atomic_write, _now
+from .chat_store import APP_DIR, _now
+from .storage import Storage, encode
 
 
 class ProjectStore:
     def __init__(self, directory=None):
         self.path=Path(directory or APP_DIR)/'projects.json'
         self.lock=threading.RLock()
+        self.database=Storage(self.path.parent).ready()
+
+    def _database(self):
+        """Projects share the same profile transaction store as their conversations."""
+        return self.database
 
     def list(self):
-        if not self.path.exists():return []
-        with self.path.open('rb') as stream:raw=stream.read(1_000_001)
-        if len(raw)>1_000_000:raise ValueError('Каталог проектов слишком велик')
-        data=json.loads(raw)
-        if not isinstance(data,list) or any(not isinstance(p,dict) or not isinstance(p.get('id'),str) for p in data):
-            raise ValueError('Каталог проектов повреждён; исходные данные сохранены')
-        return data
+        database = self._database()
+        with database.transaction() as connection:
+            return [json.loads(row['data']) for row in connection.execute('SELECT data FROM projects ORDER BY rowid')]
 
     def get(self, project_id):
         if project_id=='':return {'id':'','name':'Личное пространство','root':'','instructions':''}
@@ -28,7 +30,7 @@ class ProjectStore:
         return deepcopy(project)
 
     def save(self, params):
-        with self.lock:
+        with self.lock, self._database().transaction() as connection:
             values=self.list();project_id=params.get('id')
             old=self.get(project_id) if project_id else None
             name=params.get('name',old.get('name') if old else '')
@@ -45,11 +47,12 @@ class ProjectStore:
             project={'id':project_id or uuid.uuid4().hex,'name':name.strip(),'root':root,'instructions':instructions,
                      'created_at':old['created_at'] if old else _now(),'updated_at':_now(),
                      'pinned':params.get('pinned',old.get('pinned',False) if old else False) is True}
-            _atomic_write(self.path,[p for p in values if p['id']!=project['id']]+[project])
+            connection.execute('INSERT INTO projects VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data', (project['id'], encode(project)))
             return project
 
     def remove(self, project_id):
-        with self.lock:
+        with self.lock, self._database().transaction() as connection:
             self.get(project_id)
             if not project_id:raise ValueError('Личное пространство нельзя удалить')
-            _atomic_write(self.path,[p for p in self.list() if p['id']!=project_id])
+            connection.execute("UPDATE chats SET project_id='',data=json_set(data,'$.project_id',''),summary=json_set(summary,'$.project_id','') WHERE project_id=?", (project_id,))
+            connection.execute('DELETE FROM projects WHERE id=?', (project_id,))

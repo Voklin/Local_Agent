@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from doc_notes import FILE_NOTES, SYMBOL_NOTES, TEST_PURPOSES, TEST_HELPERS, DESIGN_CLASSES, DESIGN_METHODS, TS_NOTES, DEPENDENCY_NOTES
+from doc_notes import FILE_NOTES, SYMBOL_NOTES, TEST_PURPOSES, TEST_HELPERS, DESIGN_CLASSES, DESIGN_METHODS, TS_NOTES, DEPENDENCY_NOTES, THIRD_PARTY_SOURCES
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUTS = {
@@ -55,6 +55,10 @@ def file_description(name):
         return FILE_NOTES[name]
     if name in OUTPUTS:
         return 'Генерируемый документ: ' + OUTPUTS[name] + '.'
+    if name.startswith('prototypes/neutral-studio/'):
+        return 'Архив этапа оценки Neutral Studio: ' + name.rsplit('/', 1)[-1] + '; основная реализация находится в apps/desktop. История решений описана в docs/UI_STUDIO_INTEGRATION.md.'
+    if name.startswith('docs/screenshots/studio/'):
+        return 'Снимок настоящего Electron renderer для визуальной проверки Studio: ' + name.rsplit('/', 1)[-1] + '; сценарии и ограничения описаны в docs/UI_STUDIO_INTEGRATION.md.'
     if name.startswith('docs/') and name.endswith('.md'):
         text = (ROOT / name).read_text(encoding='utf-8-sig')
         heading = next((line.lstrip('# ').strip() for line in text.splitlines() if line.startswith('# ')), name)
@@ -146,7 +150,7 @@ def render():
         if file.endswith('.py'):
             output = 'docs/reference/tests.md' if file.startswith('tests/') else 'docs/reference/design-reference.md' if file.startswith('design_reference/') else 'docs/reference/python.md'
             groups[output].append(file)
-        elif file.endswith(('.ts','.tsx','.mjs','.cjs')):
+        elif file.endswith(('.ts','.tsx','.mjs','.cjs')) and not file.startswith('prototypes/') and file not in THIRD_PARTY_SOURCES:
             groups['docs/reference/typescript.md'].append(file)
     for output, modules in groups.items():
         documents[output] += '## Оглавление модулей\n\n' + '\n'.join('- [' + file + '](#' + module_anchor(file) + ')' for file in modules) + '\n\n'
@@ -171,7 +175,7 @@ def render():
     stale_files = sorted(set(FILE_NOTES) - set(files))
     if stale_files:
         raise ValueError('Устаревшие назначения файлов: ' + ', '.join(stale_files))
-    ts_files = [name for name in files if name.endswith(('.ts','.tsx','.mjs','.cjs'))]
+    ts_files = [name for name in files if name.endswith(('.ts','.tsx','.mjs','.cjs')) and not name.startswith('prototypes/') and name not in THIRD_PARTY_SOURCES]
     result = subprocess.run(['node','tools/extract_ts_symbols.cjs'], cwd=ROOT,
         input=json.dumps(ts_files), text=True, encoding='utf-8', capture_output=True, check=True)
     used_ts = set()

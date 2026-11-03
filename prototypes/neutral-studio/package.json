@@ -1,0 +1,20 @@
+{
+  "name": "neutral-studio-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Visual Neutral prototype for design review; no agent or backend connection",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "node launch.cjs",
+    "capture": "node launch.cjs --capture",
+    "verify": "node launch.cjs --verify",
+    "design-study": "node launch.cjs",
+    "build:functional": "node build-functional.cjs",
+    "verify:functional": "node run-functional-test.cjs",
+    "verify:lola": "node run-functional-test.cjs functional-lola-test.cjs",
+    "verify:background": "node run-functional-test.cjs functional-background-test.cjs",
+    "verify:optional": "node run-functional-test.cjs functional-optional-test.cjs",
+    "verify:history": "node run-functional-test.cjs functional-history-test.cjs",
+    "capture:functional": "node run-functional-test.cjs functional-visual.cjs"
+  }
+}

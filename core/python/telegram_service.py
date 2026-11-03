@@ -1,13 +1,16 @@
 """Explicitly authorized owner-only Telegram results, diffs and remote control."""
+import uuid
 import queue
 import re
 import threading
+from contextlib import nullcontext
 
 import httpx
 
 
 class TelegramService:
-    def __init__(self, tasks, root, emit, start_task):
+    def __init__(self, tasks, root, emit, start_task, control_context=None):
+        self.control_context=control_context
         self.tasks,self.root,self.emit,self.start_task=tasks,root,emit,start_task
         self.lock=threading.RLock();self.stop_event=threading.Event();self.thread=None
         self.state='disconnected';self.error='';self.username='';self.owner=0
@@ -52,9 +55,9 @@ class TelegramService:
         if self.state!='connected':return
         if event.get('event')=='handoff_started' and event.get('source_chat')==self.remote_chat:
             self.remote_chat=event.get('target_chat');return
-        if event.get('event')=='approval':self.approval=dict(event)
+        if event.get('event')=='approval' and event.get('chat_id')==self.remote_chat:self.approval=dict(event)
         if event.get('event') not in ('result','failed','approval','task_end'):return
-        if event.get('chat_id')!=self.remote_chat and event.get('event')!='approval':return
+        if event.get('chat_id')!=self.remote_chat:return
         try:self.notifications.put_nowait(dict(event))
         except queue.Full:pass
 
@@ -66,11 +69,17 @@ class TelegramService:
         if not isinstance(text,str) or len(text)>10000:return
         name,_,argument=text.strip().partition(' ');name=name.split('@')[0].lower();argument=argument.strip()
         with self.tasks.lock:
-            result=self.dispatch(name,argument)
+            with (self.control_context(self.remote_chat) if self.control_context else nullcontext(None)) as run:
+                if run:
+                    if not self.remote_chat:self.remote_chat=run.chat['id']
+                    if run.approval_event:self.approval=dict(run.approval_event)
+                result=self.dispatch(name,argument)
         self.send(result)
 
     def dispatch(self, name, argument):
         """Execute a bounded command under the shared TaskService control lock."""
+        if self.remote_chat and name in ('/stop','/approval','/approve','/reject') and (getattr(self.tasks,'chat',None) or {}).get('id')!=self.remote_chat:
+            raise ValueError('В Neutral выбран другой чат. Вернитесь к разговору Telegram перед остановкой или подтверждением.')
         if name in ('/start','/help'):
             return '/status — состояние\n/result — последний ответ\n/resume — продолжить паузу\n/stop — остановить\n/chat текст — основная модель\n/ide текст — выбранный проект\n/lola текст — Лола\n/approval — текущий diff\n/approve ID или /reject ID — решение по точному ID\nПапки для инструментов ПК укажите в двойных кавычках.'
         if name=='/status':
@@ -80,10 +89,11 @@ class TelegramService:
             self.tasks.idle();chat=self.tasks.chat
             if not chat:raise ValueError('Нет выбранной задачи для продолжения')
             mode=chat.get('mode','ide' if chat.get('project_root') else 'chat');self.remote_chat=chat['id']
-            self.emit({'event':'remote_task','mode':mode,'chat':chat,'prompt':'Продолжить приостановленную задачу','resume':True})
-            try:self.start_task({'mode':mode,'resume':True})
+            remote_run=uuid.uuid4().hex
+            self.emit({'event':'remote_task','run_id':remote_run,'project_root':str(chat.get('project_root') or self.root() or '') if mode=='ide' else '', 'mode':mode,'chat':chat,'prompt':'Продолжить приостановленную задачу','resume':True})
+            try:self.start_task({'mode':mode,'resume':True,'run_id':remote_run})
             except Exception:
-                self.emit({'event':'remote_error','text':'Не удалось продолжить задачу'})
+                self.emit({'event':'remote_error','run_id':remote_run,'text':'Не удалось продолжить задачу'})
                 raise
             return 'Продолжение запрошено'
         if name=='/result':
@@ -94,8 +104,10 @@ class TelegramService:
             self.tasks.cancel();return 'Запрошена остановка задачи'
         if name=='/approval':
             if not self.tasks.approval or not self.approval:return 'Нет ожидающего подтверждения'
+            if self.approval.get('kind')=='context':return 'Передача исходников внешней модели: откройте Neutral и проверьте полный предпросмотр получателя и файлов. Подтверждение доступно в приложении.'
             return 'Подтверждение '+self.tasks.approval+'\n'+self.approval.get('path','')+'\n'+self.approval.get('diff','')[:10000]+'\n/approve '+self.tasks.approval+'\n/reject '+self.tasks.approval
         if name in ('/approve','/reject'):
+            if name=='/approve' and self.approval and self.approval.get('kind')=='context':raise ValueError('Подтвердите полный предпросмотр исходников в приложении Neutral')
             self.tasks.resolve_approval({'run_id':self.tasks.run_id,'approval_id':argument,'decision':'apply' if name=='/approve' else 'reject'})
             return 'Решение принято'
         if name in ('/chat','/ide','/miya','/lola'):
@@ -104,10 +116,11 @@ class TelegramService:
             root=self.root() if mode=='ide' else ''
             if root is None:raise ValueError('Для IDE сначала выберите папку на ПК')
             selected=self.tasks.select_chat(root,mode=mode);self.remote_chat=selected['chat']['id']
-            self.emit({'event':'remote_task','mode':mode,'chat':selected['chat'],'prompt':argument})
-            try:self.start_task({'mode':mode,'prompt':argument})
+            remote_run=uuid.uuid4().hex
+            self.emit({'event':'remote_task','run_id':remote_run,'project_root':str(root) if mode=='ide' else '', 'mode':mode,'chat':selected['chat'],'prompt':argument})
+            try:self.start_task({'mode':mode,'prompt':argument,'run_id':remote_run})
             except Exception:
-                self.emit({'event':'remote_error','text':'Удалённая задача не запущена; проверьте настройки и pending diff'})
+                self.emit({'event':'remote_error','run_id':remote_run,'text':'Удалённая задача не запущена; проверьте настройки и pending diff'})
                 raise
             return 'Задача запущена: '+mode
         return 'Неизвестная команда. /help'

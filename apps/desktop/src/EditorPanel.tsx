@@ -1,5 +1,7 @@
+import {BrandMark} from './BrandMark';
+import {WoodlandAccent,OrnamentDivider} from './design/Ornaments';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { Code2, FileCode2, FolderOpen, RotateCcw, Save, Search, Settings2, ShieldCheck, WrapText, X } from 'lucide-react';
+import { FileCode2, FolderOpen, RotateCcw, Save, Search, Settings2, ShieldCheck, WrapText, X } from 'lucide-react';
 
 export type EditorDocument = {path:string; content:string; original:string; revision:{path:string; sha256:string}; newline:string};
 export type EditorHandle = {
@@ -163,7 +165,7 @@ export const EditorPanel = forwardRef<EditorHandle,EditorProps>(function EditorP
   }
   useEffect(()=>{
     function shortcuts(event:KeyboardEvent) {
-      if (!props.visible || !current || document.querySelector('[role="dialog"], .search-overlay') || !(event.ctrlKey||event.metaKey)) return;
+      if (!props.visible || !current || document.querySelector('[aria-modal="true"],dialog[open],.search-overlay') || !(event.ctrlKey||event.metaKey)) return;
       if(event.key.toLowerCase()==='s') {event.preventDefault();void save();}
       if(!event.shiftKey && event.key.toLowerCase()==='f') {event.preventDefault();setFindOpen(true);setTimeout(()=>findInput.current?.focus(),0);}
       if(event.key.toLowerCase()==='g') {event.preventDefault();setFindOpen(true);setLineInput(String(position.line));setTimeout(()=>{jumpInput.current?.focus();jumpInput.current?.select();},0);}
@@ -188,7 +190,7 @@ export const EditorPanel = forwardRef<EditorHandle,EditorProps>(function EditorP
           <textarea ref={input} className="editor-input" aria-label={`Редактор ${current.path}`} disabled={saving||!!proposal} spellCheck={false} autoCapitalize="off" autoCorrect="off" wrap={wrap?'soft':'off'} value={current.content} onChange={event=>{const content=event.target.value;setTabs(items=>items.map(tab=>tab.path===activePath?{...tab,content}:tab));}} onClick={updatePosition} onKeyUp={updatePosition} onSelect={updatePosition} onScroll={event=>setScrollTop(event.currentTarget.scrollTop)}/>
         </div>
         <div className="editor-status"><span>Ln {position.line}, Col {position.column}</span><span>UTF-8 · {current.newline.toUpperCase()}</span><span>{current.content!==current.original?'Несохранённые изменения · агент видит версию на диске':'Изменений нет'}</span></div>
-      </div>:<div className="welcome"><div className="welcome-logo"><Code2 size={28}/></div><h1>Neutral IDE</h1><p>Рабочее пространство Neutral</p><div className="welcome-actions"><button onClick={props.onProject} disabled={props.busy}><FolderOpen size={16}/>Открыть проект</button><button onClick={props.onModels}><Settings2 size={16}/>Настроить модель</button></div><div className="migration-note"><ShieldCheck size={17}/><span><b>Изменения под вашим контролем</b><br/>Редактируйте файлы во вкладках. Сохранение проходит через diff и повторную проверку файла.</span></div></div>}
+      </div>:<div className="welcome"><div className="welcome-logo"><BrandMark size={96}/></div><h1>ЛЕШИЙ / LESHY IDE</h1><OrnamentDivider/><WoodlandAccent className="editor-woodland"/><p>Рабочее пространство Лешего</p><div className="welcome-actions"><button onClick={props.onProject} disabled={props.busy}><FolderOpen size={16}/>Открыть проект</button><button onClick={props.onModels}><Settings2 size={16}/>Настроить модель</button></div><div className="migration-note"><ShieldCheck size={17}/><span><b>Изменения под вашим контролем</b><br/>Редактируйте файлы во вкладках. Сохранение проходит через diff и повторную проверку файла.</span></div></div>}
       {notice&&<div className="editor-notice" role="status">{notice}<button title="Скрыть уведомление" onClick={()=>setNotice('')}><X size={12}/></button></div>}
     </div>
     {proposal&&<div className="modal-backdrop editor-approval"><section className="approval-dialog" role="dialog" aria-modal="true" aria-labelledby="editor-approval-title"><h2 id="editor-approval-title">Сохранение: {proposal.path}</h2><p>Подтверждение относится только к этому diff. Черновик не записан до применения.</p><pre>{proposal.diff}</pre><div className="approval-actions"><button disabled={saving} onClick={()=>void decide('cancel')}>Отмена</button><button disabled={saving} onClick={()=>void decide('reject')}>Отклонить</button><button className="primary-button" disabled={saving||props.busy} onClick={()=>void decide('apply')}>Применить и сохранить</button></div></section></div>}

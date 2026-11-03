@@ -1,0 +1,26 @@
+import {useState} from 'react';
+
+type RecordNote={id:string;kind:string;text:string;state:string;origin:string;created_at:string;updated_at:string;sources:{path:string;sha256:string}[];provenance:Record<string,unknown>};
+type Draft={id?:string;kind:string;text:string;paths:string};
+const labels:Record<string,string>={decision:'Решение',fact:'Факт о файле',hypothesis:'Гипотеза',verification:'Результат проверки',task:'Завершённая задача',source_current:'Источник актуален',user_note:'Заметка пользователя',historical_check:'Историческая проверка',historical_task:'История задачи',stale:'Файл изменился',stale_policy:'Правила изменились',missing:'Источник удалён',revoked:'Доступ закрыт',unverified:'Не удалось сверить'};
+
+export function ProjectKnowledgePanel({records,root,revision,busy,onResult}:{records:RecordNote[];root:string;revision:string;busy:boolean;onResult:(value:any)=>void}) {
+  const [query,setQuery]=useState(''),[draft,setDraft]=useState<Draft|null>(null),[removing,setRemoving]=useState(''),[working,setWorking]=useState(false),[notice,setNotice]=useState('');
+  async function action(params:any){
+    if(busy||working)return;setWorking(true);setNotice('');
+    try{const result=await window.lca.projectMemoryAction({...params,root,revision});if(!result.ok)throw Error(result.error);if(result.root!==root)throw Error('Проект изменился');onResult(result);setDraft(null);setRemoving('');setNotice('Память обновлена. Источники сверены.');}
+    catch(error){setNotice(String(error instanceof Error?error.message:error));}finally{setWorking(false);}
+  }
+  const visible=records.filter(r=>[r.text,labels[r.kind],...r.sources.map(s=>s.path)].join(' ').toLocaleLowerCase().includes(query.toLocaleLowerCase()));
+  return <section className="project-knowledge"><h3>Решения и наблюдения</h3><p className="settings-help">Источник проверяется перед каждым использованием. Совпадение файла не доказывает истинность вывода. Гипотезы и исторические проверки помечаются отдельно. Старые диалоги остаются в истории чатов.</p>
+    <label>Поиск по памяти<input aria-label="Поиск по памяти" value={query} maxLength={500} onChange={e=>setQuery(e.target.value)}/></label>
+    <button type="button" disabled={busy||working||!!draft} onClick={()=>void action({action:'search',query})}>Обновить сведения</button>
+    <button type="button" disabled={busy||working} onClick={()=>setDraft({kind:'decision',text:'',paths:''})}>Добавить запись</button>
+    {busy&&<p className="settings-help">Завершите задачу и сохраните черновик заметок перед изменением записей.</p>}
+    <div className="memory-record-list">{visible.map(record=><article className="capability-card" key={record.id}><div><b>{labels[record.kind]||record.kind}</b> · <span>{labels[record.state]||record.state}</span><p>{record.text}</p><small>{record.origin==='model'?'Предложено моделью':record.origin==='tool'?'Наблюдение инструмента':'Запись пользователя'} · {record.updated_at}</small><details><summary>Источники и происхождение</summary>{record.sources.map(source=><p key={source.path}><code>{source.path}</code><br/><small>SHA-256: {source.sha256}</small></p>)}<pre>{JSON.stringify(record.provenance,null,2)}</pre></details><div className="section-actions"><button type="button" disabled={busy||working} onClick={()=>setDraft({id:record.id,kind:['decision','fact','hypothesis'].includes(record.kind)?record.kind:'hypothesis',text:record.text,paths:record.sources.map(s=>s.path).join('\n')})}>Изменить</button><button type="button" disabled={busy||working} onClick={()=>setRemoving(record.id)}>Удалить</button></div></div></article>)}</div>
+    {!visible.length&&<p className="settings-help">Записей не найдено. Добавьте решение или выполните задачу IDE с включённой памятью.</p>}
+    {draft&&<div className="inline-editor memory-record-editor"><label>Тип записи<select aria-label="Тип записи памяти" value={draft.kind} onChange={e=>setDraft({...draft,kind:e.target.value})}><option value="decision">Решение</option><option value="fact">Факт о файле</option><option value="hypothesis">Гипотеза</option></select></label><label>Содержание<textarea aria-label="Содержание записи памяти" rows={4} maxLength={600} value={draft.text} onChange={e=>setDraft({...draft,text:e.target.value})}/></label><label>Источники · до четырёх путей, по одному на строку<textarea aria-label="Источники записи памяти" rows={3} value={draft.paths} onChange={e=>setDraft({...draft,paths:e.target.value})}/></label><p className="settings-help">Сохранение сверяет текущие файлы. Правильность формулировки решения или факта подтверждаете вы.</p><div className="section-actions"><button type="button" disabled={busy||working||draft.text.trim().length<5} onClick={()=>void action({action:'save',record:{id:draft.id,kind:draft.kind,text:draft.text,paths:draft.paths.split('\n').map(p=>p.trim()).filter(Boolean)}})}>Сохранить и сверить источники</button><button type="button" onClick={()=>setDraft(null)}>Отмена</button></div></div>}
+    {removing&&<div className="inline-confirm" role="alert"><p>Удалить запись из памяти проекта?</p><button type="button" disabled={busy||working} onClick={()=>void action({action:'delete',id:removing})}>Да, удалить запись</button><button type="button" onClick={()=>setRemoving('')}>Отмена</button></div>}
+    {notice&&<p role="status">{notice}</p>}
+  </section>;
+}

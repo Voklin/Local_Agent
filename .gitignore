@@ -13,5 +13,7 @@ dist-electron/
 .venv-build/
 build/
 artifacts/
+# Generated documentation archive; editable sources live in docs/.
+/docs.zip
 # Private training corpus stays local alongside generated WAV/checkpoints.
 tools/tts/training/serena_texts.txt

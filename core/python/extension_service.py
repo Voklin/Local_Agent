@@ -1,5 +1,6 @@
 """Declarative capabilities, progressive skills and user-configured MCP servers."""
 from __future__ import annotations
+from copy import deepcopy
 import hashlib
 import json
 import re
@@ -11,7 +12,7 @@ from agent.skills import SkillManager
 from agent.mcp_client import MCPClient, validate_server
 from agent.project_command import COMMAND_TOOL
 
-GROUPS=[{'id':'commands','name':'Проверки и команды проекта','description':'Тесты и сборки в IDE с отдельным подтверждением каждого запуска. Выполняют локальный код с вашими правами.'},{'id':'project','name':'Файлы проекта','description':'Просмотр, поиск и изменения с предварительным diff.'},
+GROUPS=[{'id':'memory','name':'Память проекта','description':'Решения, гипотезы и наблюдения с проверяемыми источниками; автоматический контекст IDE.'},{'id':'commands','name':'Проверки и команды проекта','description':'Тесты и сборки в IDE с отдельным подтверждением каждого запуска. Выполняют локальный код с вашими правами.'},{'id':'project','name':'Файлы проекта','description':'Просмотр, поиск и изменения с предварительным diff.'},
         {'id':'assistant','name':'Повседневные задачи','description':'Время, расчёты, заметки, таймеры и музыка.'},
         {'id':'desktop','name':'Компьютер и браузер','description':'Разрешённые приложения, поиск и снимки экрана.'},
         {'id':'skills','name':'Навыки и опыт','description':'Пошаговые инструкции, которые агент читает по необходимости.'}]
@@ -23,14 +24,25 @@ SKILL_TOOLS=[function('skills_list','Список включённых навы�
              function('skill_view','Прочитать полную инструкцию включённого навыка.',{'id':{'type':'string'}},['id']),
              function('create_skill','Сохранить полезный повторяемый опыт как черновик навыка. Пользователь включит его в настройках. Не сохраняй секреты или одноразовый ответ.',{'title':{'type':'string'},'summary':{'type':'string'},'content':{'type':'string'}},['title','summary','content'])]
 
+
+def mcp_alias(server, name):
+    """Provider-safe alias bound to the full server endpoint and original tool name."""
+    identity={key:server.get(key) for key in ('id','transport','command','args','url')}
+    digest=hashlib.sha256(json.dumps([identity,name],sort_keys=True,ensure_ascii=False).encode('utf8')).hexdigest()[:24]
+    return 'mcp_'+server['id'][:20]+'_'+digest
+
 class ExtensionService:
     def __init__(self,directory=None,bundled=None):
         self.directory=Path(directory) if directory else APP_DIR/'extensions'
         self.file=self.directory/'registry.json'
+        from agent.subagent_profiles import SubagentProfiles
+        self.subagents=SubagentProfiles(self.directory)
         self.user_dir=self.directory/'skills'
         self.bundled=SkillManager(bundled)
         self.lock=threading.RLock()
         self.tokens={}
+        self.discoveries={}
+        self.closed=False
         self.mcp=MCPClient(self.directory/'logs')
         self.state={'groups':{},'tools':{},'skills':{},'servers':[],'plugins':[],'learn':True}
         if self.file.exists() and self.file.stat().st_size<=2_000_000:
@@ -38,6 +50,26 @@ class ExtensionService:
                 data=json.loads(self.file.read_text(encoding='utf-8'))
                 if isinstance(data,dict):self.state.update({k:v for k,v in data.items() if k in self.state})
             except (OSError,ValueError):pass
+        self._migrate_aliases()
+
+    def _migrate_aliases(self):
+        """Project legacy aliases to endpoint identities, preserving every explicit denial."""
+        renamed={}
+        for server in self.state['servers']:
+            seen=set()
+            for tool in server.get('tools',[]):
+                old=tool['id'];alias=mcp_alias(server,tool['name'])
+                if alias in seen:raise ValueError('Сервер содержит повторяющееся имя инструмента MCP')
+                seen.add(alias);tool['id']=alias
+                if old!=alias:renamed.setdefault(old,set()).add(alias)
+        for old,aliases in renamed.items():
+            if old in self.state['tools']:
+                for alias in aliases:
+                    self.state['tools'][alias]=self.state['tools'].get(alias,True) and self.state['tools'][old]
+                self.state['tools'].pop(old,None)
+        for plugin in self.state['plugins']:
+            plugin['tools']=list(dict.fromkeys(alias for old in plugin.get('tools',[]) for alias in sorted(renamed.get(old,{old}))))
+        # Persist with the next normal save; merely opening settings does not write.
 
     def save(self):
         _atomic_write(self.file,self.state)
@@ -58,10 +90,12 @@ class ExtensionService:
     def catalog(self):
         with self.lock:
             from agent.tools import TOOL_DEFINITIONS
+            from agent.project_knowledge import TOOLS as MEMORY_TOOLS
+            from agent.diagnostics_evidence import DIAGNOSTICS_TOOL
             from core.python.assistant_service import ASSISTANT_TOOLS
             from core.python.desktop_service import DESKTOP_TOOLS
             tools=[]
-            for group,definitions in [('commands',[COMMAND_TOOL]),('project',TOOL_DEFINITIONS),('assistant',ASSISTANT_TOOLS),('desktop',DESKTOP_TOOLS),('skills',SKILL_TOOLS)]:
+            for group,definitions in [('memory',MEMORY_TOOLS),('commands',[COMMAND_TOOL,DIAGNOSTICS_TOOL]),('project',TOOL_DEFINITIONS),('assistant',ASSISTANT_TOOLS),('desktop',DESKTOP_TOOLS),('skills',SKILL_TOOLS)]:
                 for tool in definitions:
                     item=tool['function'];tools.append({'id':item['name'],'name':item['name'],'description':item.get('description',''),'group':group,'enabled':self.state['tools'].get(item['name'],True)})
             for server in self.state['servers']:
@@ -69,12 +103,14 @@ class ExtensionService:
             return {'ok':True,'groups':[{**g,'enabled':self.state['groups'].get(g['id'],g['id']!='commands')} for g in GROUPS],
                     'tools':tools,'skills':[{k:v for k,v in item.items() if k!='path'} for item in self.skills()],
                     'servers':[{**s,'has_token':bool(self.tokens.get(s['id']))} for s in self.state['servers']],
-                    'plugins':self.state['plugins'],'learn':self.state['learn']}
+                    'subagents':self.subagents.catalog(),'plugins':self.state['plugins'],'learn':self.state['learn'],'mcp_sessions':self.mcp.pool.status()}
 
     def configure(self,params):
         with self.lock:
             kind=params.get('kind');identity=str(params.get('id',''))
-            if kind in ('groups','tools','skills'):
+            if kind in ('subagent_save','subagent_delete','subagents_toggle'):
+                self.subagents.configure(params)
+            elif kind in ('groups','tools','skills'):
                 if type(params.get('enabled')) is not bool:raise ValueError('Укажите включить или выключить')
                 allowed={x['id'] for x in self.catalog()[kind]}
                 if identity not in allowed:raise ValueError('Расширение не найдено')
@@ -90,19 +126,26 @@ class ExtensionService:
             elif kind=='skill_delete':
                 if not re.fullmatch(r'user_[a-f0-9]{32}',identity):raise ValueError('Можно удалить только пользовательский навык')
                 (self.user_dir/(identity+'.json')).unlink(missing_ok=True);self.state['skills'].pop(identity,None)
+            elif kind=='close_sessions':
+                self.mcp.pool.invalidate()
             elif kind=='server_save':
                 server=validate_server(params.get('server'))
+                self.mcp.pool.invalidate(server['id'])
                 previous=next((s for s in self.state['servers'] if s['id']==server['id']),None)
                 # Changing a command/URL invalidates the discovered capabilities.
                 connection=('transport','command','args','url')
-                if previous and all(previous.get(k)==server.get(k) for k in connection):server['tools']=previous.get('tools',[])
-                elif previous:self.tokens.pop(server['id'],None)
+                if previous and all(previous.get(k)==server.get(k) for k in connection) and ('token' not in params or params['token']==self.tokens.get(server['id'],'')):server['tools']=previous.get('tools',[])
+                elif previous:
+                    self.tokens.pop(server['id'],None)
+                    self.cancel_discovery(server['id'])
                 self.state['servers']=[s for s in self.state['servers'] if s['id']!=server['id']]
                 if len(self.state['servers'])>=20:raise ValueError('Максимум 20 MCP серверов')
                 self.state['servers'].append(server)
                 token=params.get('token')
                 if isinstance(token,str):self.tokens[server['id']]=token[:4000]
             elif kind=='server_delete':
+                self.mcp.pool.invalidate(identity)
+                self.cancel_discovery(identity)
                 self.state['servers']=[s for s in self.state['servers'] if s['id']!=identity];self.tokens.pop(identity,None)
             elif kind=='plugin_toggle':
                 plugin=next((p for p in self.state['plugins'] if p['id']==identity),None)
@@ -110,7 +153,9 @@ class ExtensionService:
                 plugin['enabled']=params.get('enabled') is True
                 for skill_id in plugin.get('skills',[]):self.state['skills'][skill_id]=plugin['enabled']
                 for server in self.state['servers']:
-                    if server['id'] in plugin.get('servers',[]):server['enabled']=plugin['enabled']
+                    if server['id'] in plugin.get('servers',[]):
+                        server['enabled']=plugin['enabled']
+                        if not server['enabled']:self.mcp.pool.invalidate(server['id'])
                 for name in plugin.get('tools',[]):self.state['tools'][name]=plugin['enabled']
             else:raise ValueError('Неизвестное действие расширений')
             self.save();return self.catalog()
@@ -151,18 +196,75 @@ class ExtensionService:
             self.state['servers'].extend(validated);self.state['plugins'].append(plugin);self.save()
             return self.catalog()
 
-    def discover_server(self,identity):
+    def _reserve_discovery(self,identity):
         with self.lock:
-            server=next((dict(s) for s in self.state['servers'] if s['id']==identity),None)
+            if self.closed:raise ValueError('Проверки MCP завершаются вместе с приложением')
+            if identity in self.discoveries:raise ValueError('Проверка этого MCP сервера уже выполняется')
+            server=next((deepcopy(s) for s in self.state['servers'] if s['id']==identity),None)
+            if not server:raise ValueError('MCP сервер не найден')
             token=self.tokens.get(identity,'')
-        if not server:raise ValueError('MCP сервер не найден')
-        result=self.mcp.operation(server,token=token)
+            record={'cancel':threading.Event(),'thread':None}
+            self.discoveries[identity]=record
+            return server,token,record
+
+    def _release_discovery(self,identity,record):
+        with self.lock:
+            if self.discoveries.get(identity) is record:self.discoveries.pop(identity,None)
+
+    def discover_server(self,identity):
+        server,token,record=self._reserve_discovery(identity)
+        try:return self._discover_server(server,token,record['cancel'])
+        finally:self._release_discovery(identity,record)
+
+    def start_discovery(self,identity,respond):
+        """Reserve before spawning so repeated requests never create another worker."""
+        server,token,record=self._reserve_discovery(identity)
+        def run_discovery():
+            try:
+                try:result=self._discover_server(server,token,record['cancel'])
+                except Exception as exc:result={'ok':False,'error':str(exc)[:300]}
+            finally:self._release_discovery(identity,record)
+            respond(result)
+        worker=threading.Thread(target=run_discovery,daemon=True,name='mcp-discover-'+identity)
+        try:
+            with self.lock:
+                if self.closed:raise ValueError('Приложение завершает проверки MCP')
+                record['thread']=worker
+                worker.start()
+        except Exception:
+            self._release_discovery(identity,record)
+            raise
+
+    def cancel_discovery(self,identity=None):
+        with self.lock:
+            records=[self.discoveries[identity]] if identity in self.discoveries else []
+            if identity is None:records=list(self.discoveries.values())
+            for record in records:record['cancel'].set()
+        return {'ok':True,'cancelled':len(records)}
+
+    def shutdown(self):
+        self.mcp.shutdown()
+        with self.lock:
+            self.closed=True
+            records=list(self.discoveries.values())
+            for record in records:record['cancel'].set()
+        for record in records:
+            worker=record['thread']
+            if worker and worker is not threading.current_thread():worker.join(timeout=2)
+
+    def _discover_server(self,server,token,cancelled):
+        identity=server['id']
+        result=self.mcp.operation(server,token=token,interrupted=cancelled)
+        if cancelled.is_set():return {'ok':False,'canceled':True,'error':'Проверка MCP отменена'}
         if not result['ok']:return result
-        tools=[]
+        tools=[];seen=set()
         for tool in result['tools']:
-            alias='mcp_'+identity[:25]+'_'+hashlib.sha256(tool['name'].encode()).hexdigest()[:12]
+            alias=mcp_alias(server,tool['name'])
+            if alias in seen:raise ValueError('Сервер вернул повторяющееся имя инструмента MCP')
+            seen.add(alias)
             tools.append({**tool,'id':alias})
         with self.lock:
+            if cancelled.is_set():return {'ok':False,'canceled':True,'error':'Проверка MCP отменена'}
             current=next((s for s in self.state['servers'] if s['id']==identity),None)
             if not current or any(current.get(k)!=server.get(k) for k in ('transport','command','args','url')):raise ValueError('Настройки сервера изменились во время проверки')
             current['tools']=tools;self.save()
@@ -181,6 +283,7 @@ class ExtensionService:
                 if not server['enabled']:continue
                 for tool in server.get('tools',[]):
                     if self.state['tools'].get(tool['id'],True):
+                        if tool['id'] in external or any(t['function']['name']==tool['id'] for t in definitions):raise ValueError('Обнаружен конфликт инструментов MCP; повторите проверку сервера')
                         definitions.append({'type':'function','function':{'name':tool['id'],'description':'MCP '+server['name']+': '+tool['description'],'parameters':tool['parameters']}})
                         external[tool['id']]={'server':dict(server),'tool':tool,'token':self.tokens.get(server['id'],'')}
             allowed={t['function']['name'] for t in definitions}

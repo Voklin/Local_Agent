@@ -1,24 +1,6 @@
-import { useMemo, useState } from 'react';
-
+import {useMemo,useState,Fragment} from 'react';
 export type TextPart={code:boolean;text:string;language:string};
-export function splitCodeBlocks(text:string):TextPart[] {
-  const parts:TextPart[]=[];
-  let lines:string[]=[],code=false,language='';
-  function flush(){if(lines.length)parts.push({code,text:lines.join('\n'),language});lines=[];}
-  for(const line of text.split('\n')) {
-    const fence=/^\s*```([^`]*)$/.exec(line);
-    if(fence&&(!code||!fence[1].trim())) {flush();code=!code;language=code?fence[1].trim().slice(0,40):'';}
-    else lines.push(line);
-  }
-  flush();return parts;
-}
-export function ChatText({text}:{text:string}) {
-  const parts=useMemo(()=>splitCodeBlocks(text),[text]);
-  const [copied,setCopied]=useState(-1);
-  const [error,setError]=useState('');
-  async function copy(value:string,index:number) {
-    try{await navigator.clipboard.writeText(value);setCopied(index);setError('');}
-    catch{setError('Не удалось скопировать. Выделите текст вручную.');}
-  }
-  return <>{parts.map((part,index)=>part.code?<div className="chat-code" key={index}><div className="chat-code-heading"><span>{part.language||'Код'}</span><button type="button" onClick={()=>void copy(part.text,index)}>{copied===index?'Скопировано':'Копировать код'}</button></div><pre><code>{part.text}</code></pre></div>:<span className="chat-plain" key={index}>{part.text}</span>)}{error&&<small role="status">{error}</small>}</>;
-}
+export function splitCodeBlocks(text:string):TextPart[]{const parts:TextPart[]=[];let lines:string[]=[],code=false,language='';const flush=()=>{if(lines.length)parts.push({code,text:lines.join('\n'),language});lines=[]};for(const line of text.split('\n')){const fence=/^\s*```([^`]*)$/.exec(line);if(fence&&(!code||!fence[1].trim())){flush();code=!code;language=code?fence[1].trim().slice(0,40):''}else lines.push(line)}flush();return parts}
+function inline(text:string){return text.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^\s)]+\))/g).map((v,i)=>v.startsWith('**')?<strong key={i}>{v.slice(2,-2)}</strong>:v.startsWith('`')?<code key={i}>{v.slice(1,-1)}</code>:/^\[/.test(v)?<a key={i} href={v.slice(v.indexOf('](')+2,-1)} target="_blank" rel="noreferrer">{v.slice(1,v.indexOf(']('))}</a>:<Fragment key={i}>{v}</Fragment>)}
+function Markdown({text}:{text:string}){const lines=text.split('\n'),nodes=[];for(let i=0;i<lines.length;i++){const l=lines[i];if(!l.trim())continue;if(i+1<lines.length&&l.includes('|')&&/^\s*\|?\s*:?-{3}/.test(lines[i+1])){const cells=(v:string)=>v.trim().replace(/^\||\|$/g,'').split('|').map(c=>c.trim());const heads=cells(l);i+=2;const rows=[];while(i<lines.length&&lines[i].includes('|'))rows.push(cells(lines[i++]));i--;nodes.push(<div className="studio-table" key={i}><table><thead><tr>{heads.map((c,j)=><th key={j}>{inline(c)}</th>)}</tr></thead><tbody>{rows.map((row,j)=><tr key={j}>{row.map((c,k)=><td key={k}>{inline(c)}</td>)}</tr>)}</tbody></table></div>);continue}if(/^#{1,3}\s/.test(l))nodes.push(<h3 key={i}>{inline(l.replace(/^#+\s/,''))}</h3>);else if(/^\s*([-*]|\d+\.)\s/.test(l))nodes.push(<div className="studio-list-line" key={i}><span>•</span><span>{inline(l.replace(/^\s*([-*]|\d+\.)\s/,''))}</span></div>);else nodes.push(<p key={i}>{inline(l)}</p>)}return <div className="chat-plain studio-markdown">{nodes}</div>}
+export function ChatText({text}:{text:string}){const parts=useMemo(()=>splitCodeBlocks(text),[text]),[copied,setCopied]=useState(-1),[error,setError]=useState('');async function copy(value:string,index:number){try{await navigator.clipboard.writeText(value);setCopied(index);setError('')}catch{setError('Не удалось скопировать. Выделите текст вручную.')}}return <>{parts.map((p,i)=>p.code?<div className="chat-code" key={i}><div className="chat-code-heading"><span>{p.language||'Код'}</span><button type="button" onClick={()=>void copy(p.text,i)}>{copied===i?'Скопировано':'Копировать код'}</button></div><pre><code>{p.text}</code></pre></div>:<Markdown key={i} text={p.text}/>)}{text&&<button type="button" className="studio-copy-message" onClick={()=>void copy(text,-2)}>{copied===-2?'Скопировано':'Копировать сообщение'}</button>}{error&&<small role="status">{error}</small>}</>}

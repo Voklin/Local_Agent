@@ -19,6 +19,12 @@ class SlowHandler(BaseHTTPRequestHandler):
     def log_message(self, *_args):
         pass
 
+    def do_GET(self):
+        """Expose a real loaded 4K window only for the automatic-continuation fixture."""
+        if self.server.mode!='auto_length' or self.path!='/api/v1/models':self.send_error(404);return
+        self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers()
+        self.wfile.write(b'{"models":[{"type":"llm","key":"test-model","loaded_instances":[{"id":"test-model","config":{"context_length":4096}}]}]}')
+
     def chunk(self, text):
         data = {'id':'slow','object':'chat.completion.chunk','created':0,'model':'test-model',
                 'choices':[{'index':0,'delta':{'content':text},'finish_reason':None}]}
@@ -38,6 +44,11 @@ class SlowHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         data = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+        self.server.requests.append(data)
+        if self.server.mode=='auto_length':
+            self.send_response(200);self.send_header('Content-Type','text/event-stream');self.end_headers()
+            first=len(self.server.requests)==1
+            self.wfile.write(('data: '+json.dumps({'choices':[{'index':0,'delta':{'content':'Первая ' if first else 'вторая'},'finish_reason':'length' if first else 'stop'}]})+'\n\ndata: [DONE]\n\n').encode());return
         if not data.get('stream') and self.server.mode != 'memory':
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
@@ -60,6 +71,7 @@ class SlowHandler(BaseHTTPRequestHandler):
         if self.server.mode in ('normal', 'batch'):
             self.server.release.wait(5)
         self.chunk('ответа')
+        self.wfile.write(('data: '+json.dumps({'choices':[{'index':0,'delta':{},'finish_reason':'stop'}]})+'\n\n').encode())
         self.wfile.write(b'data: [DONE]\n\n')
         self.wfile.flush()
 
@@ -77,6 +89,7 @@ class StreamingTests(unittest.TestCase):
             item.start()
         self.server = ThreadingHTTPServer(('127.0.0.1', 0), SlowHandler)
         self.server.mode = 'normal'
+        self.server.requests = []
         self.server.waiting = threading.Event()
         self.server.disconnected = threading.Event()
         self.server.release = threading.Event()
@@ -104,7 +117,7 @@ class StreamingTests(unittest.TestCase):
     def start(self, mode, auto_memory=False):
         self.server.mode = mode
         self.engine = AgentEngine(f'http://127.0.0.1:{self.server.server_port}/v1', '', 'test-model',
-            str(self.root), 'hello', task_id='stream-test', auto_memory=auto_memory)
+            str(self.root), 'hello', task_id='stream-test', auto_memory=auto_memory,settings={'memory_updates':'always'})
         self.engine.text_delta.connect(lambda turn, text: self.deltas.put((turn, text)))
         self.engine.conversation_updated.connect(lambda messages: setattr(self, 'messages', list(messages)))
         self.engine.failed.connect(self.failures.append)
@@ -185,3 +198,27 @@ class StreamingTests(unittest.TestCase):
             self.assertTrue(all(e['message_id'] == final['message_id'] for e in chunks))
         finally:
             service.shutdown()
+
+    def test_auto_continuation_keeps_one_ui_message_and_loaded_context(self):
+        """Real metadata/SSE/Core keeps one answer despite stale tiny manual limits."""
+        self.server.mode='auto_length';events=queue.Queue();service=TaskService(events.put)
+        service.configure({'base_url':f'http://127.0.0.1:{self.server.server_port}/v1','model':'test-model','api_key':'fixture-only',
+            'settings':{'budget_mode':'auto','max_tokens':64,'max_agent_turns':1,'max_runtime_minutes':1}})
+        service.start(self.root,{'prompt':'hello','mode':'chat'})
+        chunks=[];final=None
+        try:
+            while True:
+                event=events.get(timeout=8)
+                self.assertNotEqual(event['event'],'failed',event)
+                if event['event']=='text_delta':chunks.append(event)
+                if event['event']=='chat' and event['role']=='assistant':final=event
+                if event['event']=='task_end':break
+            self.assertEqual(final['text'],'Первая вторая')
+            self.assertEqual(''.join(e['text'] for e in chunks),final['text'])
+            self.assertTrue(all(e['message_id']==final['message_id'] for e in chunks))
+            self.assertEqual([m['content'] for m in service.chat['messages'] if m['role']=='assistant'],['Первая вторая'])
+            self.assertEqual(len(self.server.requests),2)
+            self.assertEqual(service.engine.task_snapshot()['budget']['window_tokens'],4096)
+            self.assertGreater(self.server.requests[0]['max_tokens'],64)
+            self.assertIsNone(service.engine._runtime_timer)
+        finally:service.shutdown()

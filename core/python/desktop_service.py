@@ -136,9 +136,9 @@ class DesktopService:
         self.emit({'event':'desktop_request','request_id':key,'operation':operation,'args':args})
         try:
             for _ in range(300):
-                if cancelled.is_set():return {'ok':False,'error':'Отменено'}
+                if cancelled.is_set():return {'ok':False,'code':'TOOL_INTERRUPTED' if operation=='list_applications' else 'OUTCOME_UNKNOWN','error':'Ожидание операции ПК отменено; её результат не получен'}
                 if ready.wait(.1):return record['result']
-            return {'ok':False,'error':'Приложение не подтвердило операцию ПК'}
+            return {'ok':False,'code':'TOOL_INTERRUPTED' if operation=='list_applications' else 'OUTCOME_UNKNOWN','error':'Приложение не подтвердило операцию ПК'}
         finally:
             with self.lock:self.pending.pop(key,None)
 

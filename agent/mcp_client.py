@@ -1,6 +1,6 @@
-"""On-demand MCP connections. Each operation owns and closes its transport."""
+"""Bounded reusable MCP sessions, invalidated on cancellation or configuration changes."""
 from __future__ import annotations
-import asyncio
+from contextlib import asynccontextmanager
 import json
 import os
 import re
@@ -34,58 +34,53 @@ def validate_server(value):
 class MCPClient:
     def __init__(self, log_dir):
         self.log_dir=Path(log_dir)
+        from .mcp_sessions import MCPSessionPool
+        self.pool=MCPSessionPool(self._connect,self._exchange)
 
     def operation(self, server, name=None, arguments=None, interrupted=None, token=''):
-        """Bound cancellation and time; SDK exceptions never expose credentials."""
-        try:return asyncio.run(self._operate(server,name,arguments,interrupted or threading.Event(),token))
-        except Exception as exc:return {'ok':False,'error':'MCP: '+type(exc).__name__+'. Проверьте сервер, команду запуска и журнал.'}
+        try:return self.pool.operation(server,name,arguments,interrupted or threading.Event(),token)
+        except Exception as exc:return {'ok':False,'code':'OUTCOME_UNKNOWN' if name is not None else 'MCP_ERROR','error':'MCP: '+type(exc).__name__+'. Проверьте сервер и журнал.'}
 
-    async def _operate(self, server, name, arguments, interrupted, token):
+    @asynccontextmanager
+    async def _connect(self,server,token):
         from contextlib import AsyncExitStack
         from mcp import Client, StdioServerParameters
         from mcp.client.stdio import stdio_client
         from mcp.client.streamable_http import streamable_http_client
-        async def exchange():
-            async with AsyncExitStack() as stack:
-                if server['transport']=='stdio':
-                    self.log_dir.mkdir(parents=True,exist_ok=True)
-                    log_path=self.log_dir/(server['id']+'.log')
-                    if log_path.exists() and log_path.stat().st_size>1_000_000:log_path.write_text('',encoding='utf-8')
-                    err=stack.enter_context(log_path.open('a',encoding='utf-8'))
-                    transport=stdio_client(StdioServerParameters(command=server['command'],args=server['args']),errlog=err)
-                else:
-                    import httpx2
-                    http=await stack.enter_async_context(httpx2.AsyncClient(headers={'Authorization':'Bearer '+token} if token else {},timeout=server['timeout'],follow_redirects=False))
-                    transport=streamable_http_client(server['url'],http_client=http,max_sse_event_size=1_000_000)
-                async with Client(transport,read_timeout_seconds=server['timeout']) as client:
-                    if name is not None:
-                        result=await client.call_tool(name,arguments or {})
-                        data=result.model_dump(mode='json',by_alias=True)
-                        # Images/audio remain metadata: never return unbounded base64 to a model.
-                        content=[]
-                        for item in data.get('content',[])[:30]:
-                            if item.get('type')=='text':content.append({'type':'text','text':str(item.get('text',''))[:16000]})
-                            else:content.append({'type':item.get('type'),'note':'Нетекстовое вложение MCP'})
-                        return {'ok':not bool(data.get('isError',data.get('is_error',False))),'content':content,'untrusted':True}
-                    tools=[];cursor=None
-                    for _ in range(5):
-                        page=(await client.list_tools(cursor=cursor)).model_dump(mode='json',by_alias=True)
-                        for tool in page.get('tools',[]):
-                            schema=tool.get('inputSchema',tool.get('input_schema',{}))
-                            if len(json.dumps(schema))>30000:continue
-                            tools.append({'name':str(tool['name'])[:200],'description':str(tool.get('description',''))[:1500],'parameters':schema})
-                            if len(tools)>=100:break
-                        cursor=page.get('nextCursor') or page.get('next_cursor')
-                        if not cursor or len(tools)>=100:break
-                    return {'ok':True,'tools':tools[:100]}
-        operation=asyncio.create_task(exchange())
-        try:
-            async with asyncio.timeout(server['timeout']):
-                while not operation.done():
-                    if interrupted.is_set():raise asyncio.CancelledError()
-                    await asyncio.sleep(.05)
-                return await operation
-        except asyncio.CancelledError:return {'ok':False,'error':'MCP: остановлено пользователем'}
-        finally:
-            operation.cancel()
-            await asyncio.gather(operation,return_exceptions=True)
+        async with AsyncExitStack() as stack:
+            if server['transport']=='stdio':
+                self.log_dir.mkdir(parents=True,exist_ok=True)
+                log_path=self.log_dir/(server['id']+'.log')
+                if log_path.exists() and log_path.stat().st_size>1_000_000:log_path.write_text('',encoding='utf-8')
+                err=stack.enter_context(log_path.open('a',encoding='utf-8'))
+                transport=stdio_client(StdioServerParameters(command=server['command'],args=server['args']),errlog=err)
+            else:
+                import httpx2
+                http=await stack.enter_async_context(httpx2.AsyncClient(headers={'Authorization':'Bearer '+token} if token else {},timeout=server['timeout'],follow_redirects=False))
+                transport=streamable_http_client(server['url'],http_client=http,max_sse_event_size=1_000_000)
+            client=await stack.enter_async_context(Client(transport,read_timeout_seconds=server['timeout']))
+            yield client
+
+    async def _exchange(self,client,name,arguments):
+        if name is not None:
+            result=await client.call_tool(name,arguments or {})
+            data=result.model_dump(mode='json',by_alias=True)
+            content=[]
+            for item in data.get('content',[])[:30]:
+                if item.get('type')=='text':content.append({'type':'text','text':str(item.get('text',''))[:16000]})
+                else:content.append({'type':item.get('type'),'note':'Нетекстовое вложение MCP'})
+            return {'ok':not bool(data.get('isError',data.get('is_error',False))),'content':content,'untrusted':True}
+        tools=[];cursor=None
+        for _ in range(5):
+            page=(await client.list_tools(cursor=cursor)).model_dump(mode='json',by_alias=True)
+            for tool in page.get('tools',[]):
+                schema=tool.get('inputSchema',tool.get('input_schema',{}))
+                if len(json.dumps(schema))>30000:continue
+                tools.append({'name':str(tool['name'])[:200],'description':str(tool.get('description',''))[:1500],'parameters':schema})
+                if len(tools)>=100:break
+            cursor=page.get('nextCursor') or page.get('next_cursor')
+            if not cursor or len(tools)>=100:break
+        return {'ok':True,'tools':tools[:100]}
+
+    def shutdown(self):
+        self.pool.shutdown()

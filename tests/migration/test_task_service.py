@@ -36,7 +36,14 @@ class ModelHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'text/event-stream')
         self.end_headers()
         # A single write proposal, then a normal answer after the tool result.
-        if any(m.get('role') == 'tool' for m in payload['messages']):
+        has_result=False
+        for message in payload['messages']:
+            if message.get('role')!='tool':continue
+            try:result=json.loads(message['content'])
+            except (ValueError,TypeError):result=None  # Legacy/compacted text is valid context too.
+            if not isinstance(result,dict) or result.get('code')!='NOT_EXECUTED':
+                has_result=True;break
+        if has_result:
             delta = {'content': 'Готово'}
         else:
             delta = {'tool_calls':[{'index':0, 'id':'call-1', 'type':'function', 'function':{
@@ -53,7 +60,7 @@ class ModelHandler(BaseHTTPRequestHandler):
         elif not any(t['function']['name']=='write_file' for t in payload.get('tools',[])) and not getattr(self.server, 'unexpected_tool', False):
             delta = {'content': 'Ответ без папки'}
         chunk = {'id':'test', 'object':'chat.completion.chunk', 'created':0, 'model':'test-model',
-                 'choices':[{'index':0,'delta':delta,'finish_reason':None}]}
+                 'choices':[{'index':0,'delta':delta,'finish_reason':'tool_calls' if delta.get('tool_calls') else 'stop'}]}
         self.wfile.write(('data: ' + json.dumps(chunk) + '\n\ndata: [DONE]\n\n').encode())
         self.wfile.flush()
 
@@ -107,11 +114,46 @@ class TaskServiceTests(unittest.TestCase):
         self.service.start('',{'prompt':'Привет','mode':'voice'})
         self.event('task_end')
         request=self.server.requests[-1]
-        self.assertEqual({tool['function']['name'] for tool in request['tools']},{'get_local_time','calculate','save_note','list_notes','set_timer','list_timers','cancel_timer','skills_list','skill_view','create_skill'})
+        self.assertEqual({tool['function']['name'] for tool in request['tools']},{'get_local_time','calculate','save_note','list_notes','set_timer','list_timers','cancel_timer','skills_list','skill_view','create_skill','read_tool_result','discover_tools'})
         self.assertEqual(self.service.chat['mode'],'voice')
         self.assertIn('Лола',request['messages'][0]['content'])
         self.assertEqual(self.service.chat['project_root'],'')
         self.assertFalse(self.service.engine.auto_memory)
+
+    def test_source_context_approval_reject_and_changed_preview_send_no_http(self):
+        """Treat the local fixture as external: approval blocks HTTP and changes invalidate consent."""
+        from agent import context_builder
+        for changed in (False,True):
+            with self.subTest(changed=changed),patch.object(context_builder,'local_context_endpoint',return_value=False):
+                self.server.requests.clear()
+                source=Path(self.root)/'source.txt';source.write_text('before preview',encoding='utf-8')
+                self.service.start(self.root,{'prompt':'Объясни source.txt','mode':'ide'})
+                approval=self.event('approval')
+                self.assertEqual(approval['kind'],'context')
+                self.assertEqual(self.service.engine.state.phase,'waiting_approval')
+                self.assertIn('before preview',json.loads(approval['diff'])['sources'][0]['content'])
+                self.assertEqual(self.server.requests,[])
+                if changed:source.write_text('changed after preview',encoding='utf-8')
+                self.service.resolve_approval({'run_id':approval['run_id'],'approval_id':approval['approval_id'],'decision':'apply' if changed else 'reject'})
+                while self.events.get(timeout=10)['event']!='task_end':pass
+                self.assertEqual(self.server.requests,[])
+                self.assertEqual(self.service.engine.task_snapshot()['run_state'],'paused')
+
+    def test_source_context_confirmed_http_preserves_write_approval(self):
+        """Approved source data reaches only the local fixture; write consent remains separate."""
+        from agent import context_builder
+        source=Path(self.root)/'source.txt';source.write_text('approved source bytes',encoding='utf-8')
+        with patch.object(context_builder,'local_context_endpoint',return_value=False):
+            self.service.start(self.root,{'prompt':'Объясни source.txt','mode':'ide'})
+            approval=self.event('approval');self.assertEqual(approval['kind'],'context')
+            self.service.resolve_approval({'run_id':approval['run_id'],'approval_id':approval['approval_id'],'decision':'apply'})
+            write=self.event('approval');self.assertEqual(write['kind'],'write')
+            self.assertIn('approved source bytes',json.dumps(self.server.requests))
+            self.assertFalse((Path(self.root)/'new.txt').exists())
+            self.service.cancel()
+            while self.events.get(timeout=10)['event']!='task_end':pass
+            self.assertEqual(self.service.engine.task_snapshot()['run_state'],'paused')
+            with self.assertRaises(ValueError):self.service.resolve_approval({'run_id':approval['run_id'],'approval_id':approval['approval_id'],'decision':'apply'})
 
     def test_rename_preserves_messages_and_scope_and_active_title(self):
         chat=self.service.select_chat('')['chat']
@@ -158,7 +200,7 @@ class TaskServiceTests(unittest.TestCase):
         self.assertEqual(len(request['messages']), 2)
 
     def test_saved_generation_is_used_by_engine(self):
-        self.service.configure({**self.service.config, 'settings':{'temperature':0.65,'top_p':0.85,'max_tokens':1024,'request_timeout':12}})
+        self.service.configure({**self.service.config, 'settings':{'budget_mode':'manual','temperature':0.65,'top_p':0.85,'max_tokens':1024,'request_timeout':12}})
         self.service.select_chat('')
         before = len(self.server.requests)
         self.service.start('', {'prompt':'hello'})
@@ -214,7 +256,7 @@ class TaskServiceTests(unittest.TestCase):
         self.event('task_end')
         self.service.thread.join(2)
         request = self.server.requests[before]
-        self.assertEqual({t['function']['name'] for t in request.get('tools',[])},{'skills_list','skill_view','create_skill'})
+        self.assertEqual({t['function']['name'] for t in request.get('tools',[])},{'skills_list','skill_view','create_skill','read_tool_result','discover_tools'})
         saved = chat_store.load_chat(self.service.chat['id'])
         self.assertEqual(saved['project_root'], '')
         self.assertEqual(saved['messages'][-1]['content'], 'Ответ без папки')
@@ -365,14 +407,14 @@ class TaskServiceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.resolve(approval, 'apply')
 
-    def test_embedded_checkpoint_restores_missing_task_file(self):
+    def test_checkpoint_survives_absent_legacy_task_file(self):
         approval = self.start()
         self.resolve(approval, 'apply')
         self.event('task_end')
         self.service.thread.join(2)
         saved = chat_store.load_chat(self.service.chat['id'])
         self.assertEqual(saved['task_checkpoint']['status'], 'completed')
-        task_store.clear_task(saved['id'])
+        task_store.task_path(saved['id']).unlink(missing_ok=True)
         reopened = self.service.select_chat(self.root, saved['id'])
         self.assertEqual(reopened['task']['status'], 'completed')
         self.assertEqual(task_store.load_task(saved['id'])['status'], 'completed')
@@ -380,7 +422,7 @@ class TaskServiceTests(unittest.TestCase):
 
     def test_recovery_does_not_confuse_reused_tool_ids_with_old_success(self):
         chat = self.service.select_chat(self.root)['chat']
-        call = {'role': 'assistant', 'content': None, 'tool_calls': [{'id': 'same-id'}]}
+        call = {'role': 'assistant', 'content': None, 'tool_calls': [{'id': 'same-id','type':'function','function':{'name':'write_file','arguments':'{"path":"uncertain.txt","content":"x"}'}}]}
         chat['messages'] = [call, {'role': 'tool', 'tool_call_id': 'same-id', 'content': '{"ok":true}'},
                             {'role': 'user', 'content': 'new task'}, call]
         task = task_store.new_task(chat['id'], str(self.root), 'hello')
@@ -390,18 +432,21 @@ class TaskServiceTests(unittest.TestCase):
         chat_store.save_chat(chat)
         recovered = self.service.select_chat(self.root, chat['id'])
         self.assertEqual(recovered['task']['status'], 'paused')
-        self.assertIn('могла быть применена', recovered['task']['recovery_warning'])
+        self.assertEqual(recovered['task']['run_state'],'needs_attention')
+        self.assertEqual(len(recovered['task']['recovery_items']),1)
         self.assertEqual(recovered['task']['modified_files'], [])
         self.assertEqual((self.root / 'uncertain.txt').read_text(), 'external or applied')
         self.assertNotIn('pending_write', recovered['task'])
         with self.assertRaises(ValueError):
             self.service.resolve_approval({'run_id': 'old', 'approval_id': 'old', 'decision': 'apply'})
+        with self.assertRaises(ValueError):self.service.start(self.root, {'resume':True})
+        self.service.resolve_tool_recovery({'chat_id':chat['id'],'journal_id':recovered['task']['journal_id'], 'message_index':3,'call_id':'same-id','resolution':'completed'})
         with patch.object(AgentEngine, 'run', side_effect=RuntimeError('stop after resume')):
             self.service.start(self.root, {'resume': True})
             self.service.thread.join(2)
         resumed = self.service.engine.task_snapshot()
         self.assertNotIn('recovery_warning', resumed)
-        self.assertIn('могла быть применена', resumed['resume_state']['recovery_note'])
+        self.assertEqual(resumed['recovery_items'],[])
 
     def test_recovery_recognizes_saved_tool_result_before_task_checkpoint(self):
         chat = self.service.select_chat(self.root)['chat']
@@ -444,18 +489,12 @@ class TaskServiceTests(unittest.TestCase):
         self.assertTrue(any(e['event'] == 'task_end' for e in events))
         self.assertEqual(chat_store.load_chat(self.service.chat['id'])['task_checkpoint']['status'], 'paused')
 
-    def test_index_cache_failure_warns_without_aborting_agent(self):
-        original = chat_store._atomic_write
-        def fail_index_only(path, data):
-            if path == chat_store.INDEX_FILE:
-                raise OSError('fixture cache failure')
-            return original(path, data)
-        with patch.object(chat_store, '_atomic_write', side_effect=fail_index_only), patch.object(self.service, '_event', wraps=self.service._event) as events:
+    def test_legacy_index_is_not_used_during_agent_execution(self):
+        with patch.object(chat_store, '_atomic_write', side_effect=AssertionError('Legacy JSON writes are forbidden')):
             approval = self.start()
             self.resolve(approval, 'apply')
             self.event('task_end')
             self.service.thread.join(2)
-            self.assertTrue(any(call.args[0] == 'warning' for call in events.call_args_list))
             saved = chat_store.load_chat(self.service.chat['id'])
             self.assertEqual(saved['task_checkpoint']['status'], 'completed')
             self.assertTrue(any(m.get('content') == 'Готово' for m in saved['messages']))
@@ -464,7 +503,7 @@ class TaskServiceTests(unittest.TestCase):
 
     def test_persistence_failure_before_apply_never_writes_and_still_ends_task(self):
         approval = self.start()
-        with patch('core.python.task_service.save_chat', side_effect=OSError('fixture storage failure')):
+        with patch('core.python.task_execution.save_chat', side_effect=OSError('fixture storage failure')):
             self.resolve(approval, 'apply')
             self.service.thread.join(3)
             self.assertFalse(self.service.thread.is_alive())
@@ -513,10 +552,10 @@ class TaskServiceTests(unittest.TestCase):
         self.assertFalse((self.root / 'new.txt').exists())
         self.assertEqual(task_store.load_task(self.service.chat['id'])['status'], 'paused')
 
-    def test_busy_task_rejects_chat_and_configuration_changes(self):
+    def test_busy_task_allows_selection_but_rejects_configuration_and_same_workspace_run(self):
         self.start()
-        with self.assertRaises(ValueError):
-            self.service.select_chat(self.root)
+        original=self.service.chat['id']
+        self.assertNotEqual(self.service.select_chat(self.root)['chat']['id'],original)
         with self.assertRaises(ValueError):
             self.service.configure({'base_url':'http://127.0.0.1/v1'})
         with self.assertRaises(ValueError):

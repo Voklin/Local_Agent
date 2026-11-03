@@ -1,0 +1,1 @@
+{"name":"ui-probe","publisher":"neutral","version":"0.1.0","engines":{"vscode":"^1.100.0"},"main":"./extension.cjs","activationEvents":["onStartupFinished"]}

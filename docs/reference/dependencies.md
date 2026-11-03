@@ -35,7 +35,14 @@ requirements-core.txt и requirements.txt задают диапазоны уст
 # The Electron Python Core does not require Qt.
 openai>=1.68.0,<4
 httpx>=0.27,<1
+jsonschema>=4.26.0,<5
 mcp==2.3.0
+lmstudio==1.5.0
+watchfiles==1.1.1
+pathspec==0.12.1
+tree-sitter==0.25.2
+tree-sitter-javascript==0.25.0
+tree-sitter-typescript==0.23.2
 ```
 
 ### `requirements.txt`
@@ -94,4 +101,15 @@ rpds-py==2026.9.1
 sse-starlette==3.5.1
 starlette==1.10.0
 uvicorn==0.54.0
+
+# Project intelligence and managed LM Studio connection (same pins as core).
+lmstudio==1.5.0
+httpx-ws==0.9.0
+msgspec==0.22.0
+wsproto==1.3.2
+watchfiles==1.1.1
+pathspec==0.12.1
+tree-sitter==0.25.2
+tree-sitter-javascript==0.25.0
+tree-sitter-typescript==0.23.2
 ```

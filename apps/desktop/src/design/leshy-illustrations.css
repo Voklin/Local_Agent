@@ -1,0 +1,32 @@
+/* One set of SVG masters for React, CSS masks and native IDE chrome. */
+.leshy-ornament-glyph{display:block;width:32px;height:28px;background:currentColor;mask:url('../assets/leshy/diamond.svg') center/contain no-repeat}
+.leshy-corner-glyph,.ornament-frame>i{display:block;width:24px;height:24px;background:currentColor;mask:url('../assets/leshy/corner.svg') center/contain no-repeat}
+.ornament-frame>i{position:absolute;pointer-events:none}
+.forest-spot{display:block;flex:none;width:176px;height:104px;background:var(--spot-image) center/var(--spot-size,contain) no-repeat;mask:none;pointer-events:none;opacity:1;filter:drop-shadow(0 2px 2px #0002)}
+.forest-spot-fern{--spot-image:url('../assets/leshy/spot-fern-painted.webp')}
+.forest-spot-birch{--spot-size:auto 100%;--spot-image:url('../assets/leshy/spot-birch-painted.webp')}
+.forest-spot-mushrooms{--spot-image:url('../assets/leshy/spot-mushrooms-painted.webp')}
+.forest-spot-archive{--spot-image:url('../assets/leshy/spot-archive-painted.webp')}
+.studio-shell .settings-dialog[data-settings-section] .section-intro{position:relative;padding:8px 232px 16px 0;min-height:136px;border-bottom:1px solid var(--border-subtle)}
+.studio-shell .settings-dialog[data-settings-section] .section-intro::after{content:'';position:absolute;right:8px;top:4px;width:208px;height:120px;background:var(--section-spot,url('../assets/leshy/spot-fern-painted.webp')) center/var(--section-spot-size,contain) no-repeat;opacity:1;mask:none;pointer-events:none}
+.settings-dialog[data-settings-section=connection]{--section-spot-size:auto 100%;--section-spot:url('../assets/leshy/spot-birch-painted.webp')}
+.settings-dialog[data-settings-section=voice]{--section-spot:url('../assets/leshy/spot-mushrooms-painted.webp')}
+.settings-dialog[data-settings-section=extensions]{--section-spot:url('../assets/leshy/spot-fern-painted.webp')}
+.settings-dialog[data-settings-section=storage]{--section-spot:url('../assets/leshy/spot-archive-painted.webp')}
+.studio-shell .workspace-dialog>header .forest-spot{width:96px;height:60px;margin-left:auto;margin-right:16px}
+.studio-shell .memory-dialog .settings-header .forest-spot{width:88px;height:48px;margin-left:16px}
+.studio-shell .memory-dialog .settings-header>div{flex:1;min-width:0}
+.studio-shell .leshy-theme-caption::before,.studio-shell .leshy-theme-caption::after{mask-image:url('../assets/leshy/rosette.svg')}
+/* A band sits within its own rail instead of crossing adjacent controls. */
+.studio-shell[data-leshy-theme] .workspace-selector::after,.studio-shell .studio-context>section::after{width:24px;height:24px;left:calc(50% - 12px)}
+.studio-shell :is(.sidebar,.studio-context)>.ornament-frame>i{width:20px;height:20px}
+html[data-background-art=false] .forest-spot,html[data-background-art=false] .studio-shell .settings-dialog[data-settings-section] .section-intro::after{display:none}
+html[data-background-art=false] .studio-shell .settings-dialog[data-settings-section] .section-intro{padding-right:0;min-height:0}
+@media(max-width:1100px){.studio-shell .settings-dialog[data-settings-section] .section-intro{padding-right:0;min-height:0}.studio-shell .settings-dialog[data-settings-section] .section-intro::after{display:none}}
+@media(max-width:700px){.studio-shell .workspace-dialog>header .forest-spot{display:none}}
+
+.settings-dialog[data-settings-section=appearance]{--section-spot:url('../assets/leshy/spot-fern-painted.webp')}
+.settings-dialog[data-settings-section=connections]{--section-spot:url('../assets/leshy/spot-archive-painted.webp')}
+.settings-dialog[data-settings-section=runtime]{--section-spot:url('../assets/leshy/spot-birch-painted.webp');--section-spot-size:auto 100%}
+.settings-dialog[data-settings-section=generation]{--section-spot:url('../assets/leshy/spot-mushrooms-painted.webp')}
+.studio-shell .optional-ide-dialog>header .forest-spot{width:100px;height:64px;margin-left:auto;margin-right:12px}

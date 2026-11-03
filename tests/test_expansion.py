@@ -81,7 +81,7 @@ class ExpansionTests(unittest.TestCase):
         envelope='{"tool_calls":[{"name":"read_file","arguments":{"path":"a.txt"}}]}'
         self.assertEqual(parse_tool_json(envelope,{'read_file'})[0]['function']['name'],'read_file')
         self.assertEqual(parse_tool_json('Example: '+envelope,{'read_file'}),[])
-        self.assertEqual(len(parse_tool_json(envelope+'\nКомментарий после JSON',{'read_file'})),1)
+        with self.assertRaises(ValueError):parse_tool_json(envelope+'\nКомментарий после JSON',{'read_file'})
         with self.assertRaises(ValueError):parse_tool_json(envelope,{'write_file'})
         with self.assertRaises(ValueError):parse_tool_json('{"tool_calls":[]}',{'read_file'})
 
@@ -100,7 +100,7 @@ class ExpansionTests(unittest.TestCase):
         self.assertNotIn('read_file',miya['messages'][0]['content'])
 
     def test_json_stream_converts_complete_reply_to_tool_delta(self):
-        chunks=[SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=text))]) for text in ('{"tool":"read_', 'file","arguments":{"path":"a"}}')]
+        chunks=[SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=text),finish_reason='stop' if index else None)]) for index,text in enumerate(('{"tool":"read_', 'file","arguments":{"path":"a"}}'))]
         result=list(JsonToolStream(chunks,{'read_file'},'auto'))
         self.assertEqual(result[0].choices[0].delta.tool_calls[0].function.name,'read_file')
         self.assertIsNone(result[0].choices[0].delta.content)
@@ -141,9 +141,20 @@ class ExpansionTests(unittest.TestCase):
         self.assertIn('Saved result',service.dispatch('/result',''))
         service.dispatch('/resume','')
         tasks.idle.assert_called_once()
-        service.start_task.assert_called_once_with({'mode':'ide','resume':True})
+        called=service.start_task.call_args.args[0]
+        self.assertEqual(called['mode'],'ide');self.assertTrue(called['resume'])
+        self.assertEqual(called['run_id'],service.emit.call_args.args[0]['run_id'])
         self.assertEqual(service.remote_chat,'paused-ide')
         self.assertTrue(service.emit.call_args.args[0]['resume'])
+
+    def test_telegram_cannot_stop_or_approve_another_selected_chat(self):
+        tasks=SimpleNamespace(chat={'id':'other'},cancel=Mock(),resolve_approval=Mock(),lock=threading.RLock())
+        service=TelegramService(tasks,lambda:None,Mock(),Mock());service.remote_chat='remote';service.state='connected'
+        for name in ('/stop','/approval','/approve','/reject'):
+            with self.assertRaisesRegex(ValueError,'другой чат'):service.dispatch(name,'id')
+        service.observe({'event':'approval','chat_id':'other','approval_id':'foreign'})
+        self.assertIsNone(service.approval);self.assertTrue(service.notifications.empty())
+        tasks.cancel.assert_not_called();tasks.resolve_approval.assert_not_called()
 
     def test_telegram_poll_drops_backlog_and_never_sends_to_stranger(self):
         tasks=SimpleNamespace(lock=threading.RLock(),engine=None,config={'model':'fixture'},cancel=Mock())

@@ -82,7 +82,10 @@ def validate_memory(data: Any, project_root: str = "") -> dict[str, Any]:
         base[field] = clean
     base["version"] = MEMORY_VERSION
     base["project_root"] = str(Path(project_root).resolve()) if project_root else _clean_text(data.get("project_root", ""), 1000)
-    base["updated_at"] = _now()
+    base["updated_at"] = _clean_text(data.get("updated_at"), 80) or _now()
+    meta=data.get("_provenance",{})
+    if isinstance(meta,dict) and meta.get("origin") in ("user","model"):
+        base["_provenance"]={k:meta.get(k) for k in ("origin","policy","saved_at")}
     return base
 
 
@@ -97,9 +100,12 @@ def load_project_memory(project_root: str) -> dict[str, Any]:
     return empty_memory(project_root)
 
 
-def save_project_memory(project_root: str, data: dict[str, Any]) -> dict[str, Any]:
+def save_project_memory(project_root: str, data: dict[str, Any], *, origin="user") -> dict[str, Any]:
     with MEMORY_LOCK:
         normalized = validate_memory(data, project_root)
+        from .project_index_policy import IndexPolicy
+        normalized['updated_at']=_now()
+        normalized['_provenance']={'origin':origin,'policy':IndexPolicy(project_root).anchor_policy('memory-note'),'saved_at':normalized['updated_at']}
         path = memory_path(project_root)
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, temp = tempfile.mkstemp(prefix="memory_", suffix=".tmp", dir=path.parent)
@@ -160,3 +166,11 @@ def merge_memory_update(existing: dict[str, Any], update: Any, project_root: str
         if key in update:
             merged[key] = update[key]
     return validate_memory(merged, project_root)
+
+
+def current_user_notes(root):
+    """Legacy/model summaries remain editable history; only fresh user notes enter prompts."""
+    from .project_index_policy import IndexPolicy
+    memory=load_project_memory(str(root));meta=memory.get('_provenance',{})
+    if meta.get('origin')!='user' or meta.get('policy')!=IndexPolicy(root).anchor_policy('memory-note'):return ''
+    return format_memory_context(memory,max_chars=1200)

@@ -18,7 +18,8 @@ class ResponsesHandler(BaseHTTPRequestHandler):
         payload=json.loads(self.rfile.read(int(self.headers['Content-Length'])));self.server.requests.append((self.path,payload))
         if self.server.retry:
             self.server.retry=False;self.send_response(503);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(b'{"error":{"message":"temporary","type":"server_error"}}');return
-        response={'id':'resp_fixture','object':'response','created_at':0,'status':'completed','model':'fixture','output':[]}
+        response={'id':'resp_fixture','object':'response','created_at':0,'status':'completed','model':'fixture','output':[],
+            'usage':{'input_tokens':90,'output_tokens':2,'total_tokens':92}}
         if not payload.get('stream'):
             response['output']=[{'type':'message','id':'msg_1','role':'assistant','status':'completed','content':[{'type':'output_text','text':'42','annotations':[]}]}]
             self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(json.dumps(response).encode());return
@@ -58,6 +59,7 @@ class ResponsesAdapterTests(unittest.TestCase):
         self.assertNotIn('temperature',request);self.assertNotIn('messages',request)
         self.assertTrue(any(i.get('encrypted_content')=='fixture-encrypted' for i in request['input']))
         self.assertTrue(any(i.get('type')=='function_call_output' for i in request['input']))
+        self.assertEqual(self.client.usage_totals,{'input_tokens':180,'output_tokens':4,'requests_reported':2})
 
     def test_nonstream_probe_uses_responses_and_retry_is_before_stream(self):
         self.server.retry=True

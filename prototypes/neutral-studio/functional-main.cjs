@@ -1,0 +1,12 @@
+const path=require('node:path'),fs=require('node:fs');
+const {app,BrowserWindow}=require('electron');
+const root=path.resolve(__dirname,'../..'),profile=path.join(root,'.test-data/np-profile');
+fs.mkdirSync(profile,{recursive:true});
+app.setPath('userData',path.join(profile,'electron'));
+process.env.LOCALAPPDATA=path.join(profile,'data');
+process.env.APPDATA=path.join(profile,'roaming');
+process.env.LCA_PYTHON=process.env.LCA_PYTHON||path.join(root,'.venv-test/Scripts/python.exe');
+const load=BrowserWindow.prototype.loadFile;
+BrowserWindow.prototype.loadURL=function(url){if(String(url).startsWith('http://127.0.0.1:5173'))return load.call(this,path.join(__dirname,'.local/functional-dist',String(url).includes('lola.html')?'lola.html':'index.html'));return Promise.reject(Error('Неожиданный адрес окна прототипа'));};
+app.on('browser-window-created',(_,w)=>{w.webContents.once('did-finish-load',()=>{if(w.webContents.getURL().includes('index.html'))w.setIcon(path.join(__dirname,'functional/neutral-equilibrium.png'));});w.webContents.on('page-title-updated',e=>{e.preventDefault();if(w.webContents.getURL().includes('index.html'))w.setTitle('Neutral · функциональный прототип');});});
+require(path.join(root,'apps/desktop/dist-electron/main.cjs'));
